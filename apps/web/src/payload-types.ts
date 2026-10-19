@@ -76,6 +76,7 @@ export interface Config {
     topics: Topic;
     posts: Post;
     videos: Video;
+    pages: Page;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -92,6 +93,7 @@ export interface Config {
     topics: TopicsSelect<false> | TopicsSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
     videos: VideosSelect<false> | VideosSelect<true>;
+    pages: PagesSelect<false> | PagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -724,6 +726,157 @@ export interface Video {
   _status?: ('draft' | 'published') | null;
 }
 /**
+ * Home, About, Coaching and Contact. Until a page is published, the site shows a built-in version of it.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages".
+ */
+export interface Page {
+  id: number;
+  title: string;
+  /**
+   * home is the front page; about, coaching and contact have their own addresses.
+   */
+  slug: string;
+  seo?: {
+    /**
+     * Defaults to the page title.
+     */
+    title?: string | null;
+    /**
+     * Shown under the title in search results.
+     */
+    description?: string | null;
+    /**
+     * Shown when the page is shared.
+     */
+    image?: (number | null) | Media;
+    noindex?: boolean | null;
+  };
+  layout: (
+    | {
+        /**
+         * The main heading of the page when this block comes first.
+         */
+        heading: string;
+        body?: string | null;
+        primary?: {
+          label?: string | null;
+          /**
+           * A path on this site such as /races or /contact?topic=coaching, or a full https:// link.
+           */
+          href?: string | null;
+        };
+        secondary?: {
+          label?: string | null;
+          /**
+           * A path on this site such as /races or /contact?topic=coaching, or a full https:// link.
+           */
+          href?: string | null;
+        };
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'hero';
+      }
+    | {
+        body: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        };
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'richText';
+      }
+    | {
+        heading: string;
+        /**
+         * How many approved races to show, soonest first.
+         */
+        count: number;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'featuredRaces';
+      }
+    | {
+        heading: string;
+        body?: string | null;
+        link: {
+          label: string;
+          /**
+           * A path on this site such as /races or /contact?topic=coaching, or a full https:// link.
+           */
+          href: string;
+        };
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'callToAction';
+      }
+    | {
+        heading?: string | null;
+        /**
+         * Shown in this order. Unpublished coaches are left out on the site.
+         */
+        coaches: (number | Coach)[];
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'coachGrid';
+      }
+    | {
+        heading?: string | null;
+        items: {
+          question: string;
+          answer: {
+            root: {
+              type: string;
+              children: {
+                type: any;
+                version: number;
+                [k: string]: unknown;
+              }[];
+              direction: ('ltr' | 'rtl') | null;
+              format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+              indent: number;
+              version: number;
+            };
+            [k: string]: unknown;
+          };
+          id?: string | null;
+        }[];
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'faq';
+      }
+  )[];
+  workflow?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Applied when you save.
+   */
+  reviewRequest?: ('submit' | 'request_changes') | null;
+  reviewNote?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -782,6 +935,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'videos';
         value: number | Video;
+      } | null)
+    | ({
+        relationTo: 'pages';
+        value: number | Page;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1121,6 +1278,103 @@ export interface VideosSelect<T extends boolean = true> {
         description?: T;
         image?: T;
         noindex?: T;
+      };
+  workflow?: T;
+  reviewRequest?: T;
+  reviewNote?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages_select".
+ */
+export interface PagesSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  seo?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        image?: T;
+        noindex?: T;
+      };
+  layout?:
+    | T
+    | {
+        hero?:
+          | T
+          | {
+              heading?: T;
+              body?: T;
+              primary?:
+                | T
+                | {
+                    label?: T;
+                    href?: T;
+                  };
+              secondary?:
+                | T
+                | {
+                    label?: T;
+                    href?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        richText?:
+          | T
+          | {
+              body?: T;
+              id?: T;
+              blockName?: T;
+            };
+        featuredRaces?:
+          | T
+          | {
+              heading?: T;
+              count?: T;
+              id?: T;
+              blockName?: T;
+            };
+        callToAction?:
+          | T
+          | {
+              heading?: T;
+              body?: T;
+              link?:
+                | T
+                | {
+                    label?: T;
+                    href?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        coachGrid?:
+          | T
+          | {
+              heading?: T;
+              coaches?: T;
+              id?: T;
+              blockName?: T;
+            };
+        faq?:
+          | T
+          | {
+              heading?: T;
+              items?:
+                | T
+                | {
+                    question?: T;
+                    answer?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
       };
   workflow?: T;
   reviewRequest?: T;

@@ -297,26 +297,6 @@ svg {
   padding: var(--space-5) var(--gutter) var(--space-7);
 }
 
-.home {
-  display: grid;
-  gap: var(--space-5);
-  max-width: 40rem;
-}
-
-.home .lede {
-  font-size: var(--text-lg);
-  color: var(--color-text-muted);
-}
-
-.home h2 {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
 .button {
   display: inline-flex;
   align-items: center;

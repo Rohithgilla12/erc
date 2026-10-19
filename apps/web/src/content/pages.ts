@@ -1,0 +1,155 @@
+import config from '@payload-config'
+import {
+  parseLinkHref,
+  parseRaceQuery,
+  parseSlug,
+  todayIn,
+  type CoachProfile,
+  type CtaLink,
+  type HttpsUrl,
+  type Id,
+  type PublicRace,
+  type RichText,
+  type Seo,
+  type Slug,
+} from '@erc/domain'
+import { unstable_cache } from 'next/cache'
+import { getPayload, type Payload } from 'payload'
+import { cache } from 'react'
+
+import { collectionTag } from '@/cms/revalidate'
+import type { Coach as CoachDoc, Media as MediaDoc, Page as PageDoc } from '@/payload-types'
+
+import { findRaces } from './races'
+
+/** The closed set of blocks a page renders. Pages switch on `kind`; nothing here is a CMS shape. */
+export type PageBlock =
+  | { kind: 'hero'; heading: string; body: string | null; primary: CtaLink | null; secondary: CtaLink | null }
+  | { kind: 'richText'; body: RichText }
+  | { kind: 'featuredRaces'; heading: string; count: number }
+  | { kind: 'callToAction'; heading: string; body: string | null; link: CtaLink }
+  | { kind: 'coachGrid'; heading: string | null; coaches: readonly CoachProfile[] }
+  | { kind: 'faq'; heading: string | null; items: readonly { question: string; answer: RichText }[] }
+
+/** Empty SEO strings mean "use the page's own"; the route fills them in. */
+export type SitePage = { slug: Slug; title: string; seo: Seo; blocks: readonly PageBlock[] }
+
+/** Slugs with a route. Only these are read, so the cache holds at most one entry per slug. */
+export type RoutedPageSlug = 'home' | 'about' | 'coaching' | 'contact'
+
+// Coach cards and SEO images embed coach and media data, so a change to either expires the page too.
+const cachedPageBySlug = unstable_cache(async (slug: RoutedPageSlug) => pageBySlug(await getPayload({ config }), slug), ['pages:get'], {
+  tags: [collectionTag('pages'), collectionTag('coaches'), collectionTag('media')],
+  revalidate: 3600,
+})
+
+/** The published page for a route, or null when none is published. `cache` shares one read between a page and its metadata. */
+export const getPage = cache((slug: RoutedPageSlug): Promise<SitePage | null> => cachedPageBySlug(slug))
+
+/** Uncached; routes call `getPage`. Exported for scripts that run outside Next.js. */
+export async function pageBySlug(payload: Payload, slug: string): Promise<SitePage | null> {
+  const { docs } = await payload.find({
+    collection: 'pages',
+    overrideAccess: false,
+    where: { slug: { equals: slug } },
+    depth: 2,
+    limit: 1,
+    pagination: false,
+  })
+  const doc = docs[0]
+  return doc ? parsePageDoc(doc, payload.logger) : null
+}
+
+/** Approved races from today on, soonest first, through the race calendar's own cached read. */
+export const upcomingRaces = async (count: number): Promise<readonly PublicRace[]> => {
+  const { races } = await findRaces(parseRaceQuery({}, todayIn('Asia/Kolkata')))
+  return races.slice(0, count)
+}
+
+type Logger = { error: (details: object, message: string) => void }
+type Block = PageDoc['layout'][number]
+
+const textOrNull = (value: string | null | undefined) => (value?.trim() ? value.trim() : null)
+
+const httpsUrlOrNull = (url: string | null | undefined) => (url?.startsWith('https://') ? (url as HttpsUrl) : null)
+
+const mediaUrl = (media: number | MediaDoc | null | undefined) => (typeof media === 'object' ? httpsUrlOrNull(media?.url) : null)
+
+/** Half a button, or a link the CMS should have refused, is no button. */
+const linkOf = (link: { label?: string | null; href?: string | null } | null | undefined): CtaLink | null => {
+  const label = textOrNull(link?.label)
+  const href = parseLinkHref(link?.href?.trim() ?? '')
+  return label && href.ok ? { label, href: href.value } : null
+}
+
+// Relationships the reader may not see, such as an unpublished coach, arrive as bare ids and are left out.
+const coachOf = (coach: number | CoachDoc): CoachProfile[] => {
+  if (typeof coach === 'number') return []
+  const slug = parseSlug(coach.slug)
+  if (!slug.ok) return []
+  return [
+    {
+      id: coach.id as Id<'coaches'>,
+      slug: slug.value,
+      name: coach.name,
+      credentials: coach.credentials,
+      photoUrl: mediaUrl(coach.photo),
+    },
+  ]
+}
+
+const richText = (value: unknown) => value as RichText
+
+function blockOf(block: Block): PageBlock | null {
+  switch (block.blockType) {
+    case 'hero':
+      return {
+        kind: 'hero',
+        heading: block.heading,
+        body: textOrNull(block.body),
+        primary: linkOf(block.primary),
+        secondary: linkOf(block.secondary),
+      }
+    case 'richText':
+      return { kind: 'richText', body: richText(block.body) }
+    case 'featuredRaces':
+      return { kind: 'featuredRaces', heading: block.heading, count: Math.min(12, Math.max(1, Math.trunc(block.count))) }
+    case 'callToAction': {
+      const link = linkOf(block.link)
+      return link ? { kind: 'callToAction', heading: block.heading, body: textOrNull(block.body), link } : null
+    }
+    case 'coachGrid':
+      return { kind: 'coachGrid', heading: textOrNull(block.heading), coaches: block.coaches.flatMap(coachOf) }
+    case 'faq':
+      return {
+        kind: 'faq',
+        heading: textOrNull(block.heading),
+        items: block.items.map((item) => ({ question: item.question, answer: richText(item.answer) })),
+      }
+  }
+}
+
+/** The one mapping from a page document to the view model. A block that cannot render is dropped and logged. */
+export function parsePageDoc(doc: PageDoc, logger: Logger): SitePage | null {
+  const slug = parseSlug(doc.slug)
+  if (!slug.ok) {
+    logger.error({ page: doc.id, slug: doc.slug }, 'Skipping a page whose slug does not parse')
+    return null
+  }
+  const blocks = doc.layout.flatMap((block) => {
+    const parsed = blockOf(block)
+    if (!parsed) logger.error({ page: doc.id, block: block.id, blockType: block.blockType }, 'Skipping a page block that cannot render')
+    return parsed ? [parsed] : []
+  })
+  return {
+    slug: slug.value,
+    title: doc.title,
+    seo: {
+      title: textOrNull(doc.seo?.title) ?? '',
+      description: textOrNull(doc.seo?.description) ?? '',
+      imageUrl: mediaUrl(doc.seo?.image),
+      noindex: doc.seo?.noindex ?? false,
+    },
+    blocks,
+  }
+}

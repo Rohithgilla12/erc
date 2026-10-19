@@ -1,0 +1,189 @@
+.site-page {
+  display: grid;
+  gap: var(--space-7);
+  max-width: 48rem;
+}
+
+.block {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.block h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.block-hero {
+  display: grid;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+}
+
+.block-hero h1 {
+  font-size: clamp(2rem, 1.5rem + 2.5vw, 3rem);
+  letter-spacing: -0.02em;
+}
+
+.block-hero h2 {
+  margin: 0;
+  font-size: var(--text-2xl);
+}
+
+.block-hero-body {
+  max-width: 38rem;
+  font-size: var(--text-lg);
+  color: var(--color-text-muted);
+  white-space: pre-line;
+}
+
+.block-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.block-cta {
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-accent-soft);
+}
+
+.block-cta p {
+  white-space: pre-line;
+}
+
+.block-empty {
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.block-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+  font-weight: var(--weight-medium);
+}
+
+/* The calendar's cards title races with h2; here they sit under a section h2, so they are h3. */
+.featured-race h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.featured-race h3 a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.featured-race h3 a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.featured-race h3 a:focus-visible {
+  outline: none;
+}
+
+.featured-race h3 a:focus-visible::after {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.coach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coach-card {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.coach-photo {
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--radius-pill);
+  object-fit: cover;
+}
+
+.coach-card h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-base);
+}
+
+.coach-credentials {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  white-space: pre-line;
+}
+
+.faq {
+  border-top: 1px solid var(--color-border);
+}
+
+.faq-item {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.faq-item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  padding: var(--space-3) 0;
+  font-weight: var(--weight-medium);
+  list-style: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-chevron {
+  color: var(--color-text-muted);
+  transition: transform var(--duration-enter) var(--ease-out);
+}
+
+.faq-item[open] .faq-chevron {
+  transform: rotate(180deg);
+}
+
+.faq-answer {
+  padding-bottom: var(--space-4);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .faq-item summary:hover {
+    color: var(--color-accent-text);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faq-chevron {
+    transition: none;
+  }
+}
