@@ -183,6 +183,7 @@ Dominant read: approved races starting on or after today, filtered by discipline
 - Each race shows its typed `source` (organiser, listing site, runner submission, or coach knowledge, shown as "ERC coaches" and stored as the confirming staff account, never a coach profile), `lastVerifiedOn`, official link, registration deadline, and `status`. Postponed and cancelled races stay listed with a badge. Races not verified in 90 days show "not recently checked" and appear on a stale list in the admin.
 - "Save to my calendar" is a per-race `.ics` with a stable UID, plus a Google Calendar link. No account needed.
 - Public race submissions land as `submitted` records behind ALTCHA (MIT, proof-of-work, no third party), a honeypot field, and a per-IP rate limit, idempotent on normalised name plus start date.
+- Caching is bounded by what a chip or a page link can reach. Free-text searches and custom date windows are read uncached, an unknown slug is answered from the cached list of approved slugs, and a page past the end redirects (307) to the last page, so anonymous input cannot grow `.next/cache/fetch-cache`.
 - Scale: perhaps 1,000 to 3,000 races a year **[G]**. Postgres with trigram search is enough; no search service.
 
 ### Content model
@@ -379,6 +380,7 @@ Remaining correctness gaps:
 Product and later work:
 
 - `.ics` for a postponed race uses the original start date.
+- Uncached views (text search, custom dates) cost six SQL statements each, twice that past page 1, and have no rate limit yet; a Cloudflare rate-limit rule on `/races*` is the planned defence.
 - No sitemap yet, and no admin list of stale races.
 - A state-led filter will want a partial index on `(location_subdivision, dates_start)` for approved races as the table grows (inferred from the EXPLAIN plans at 3,000 rows).
 - Image sizes and remote image patterns for the R2 domain.

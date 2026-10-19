@@ -1,6 +1,16 @@
-import { canonicalPathOf, nearestLandingPath, parseRaceQuery, todayIn, type LocalDate, type QueryParams, type RaceQuery } from '@erc/domain'
+import {
+  canonicalPathOf,
+  nearestLandingPath,
+  parseRaceQuery,
+  racesHref,
+  todayIn,
+  type LocalDate,
+  type QueryParams,
+  type RaceQuery,
+} from '@erc/domain'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 
 import { findRaces } from '@/content/races'
 
@@ -47,5 +57,8 @@ const isArrival = async () => {
 
 export async function CalendarPage({ heading, query, today }: { heading: string; query: RaceQuery; today: LocalDate }) {
   const [page, arrival] = await Promise.all([findRaces(query), isArrival()])
+  // Temporary, because the page can exist again once more races are listed. One URL per page of results keeps a
+  // stale link from rendering an empty, indexable duplicate.
+  if (page.page !== query.page) redirect(racesHref({ ...query, page: page.page }, today))
   return <RaceCalendar heading={heading} page={page} query={query} today={today} arrival={arrival} />
 }

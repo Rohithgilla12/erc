@@ -40,22 +40,44 @@ export const RACES_PER_PAGE = 24
 const cacheRaceReads = <A extends unknown[], R>(read: (...args: A) => Promise<R>, key: string) =>
   unstable_cache(read, [key], { tags: [collectionTag('races')], revalidate: 3600 })
 
-const cachedFindRaces = cacheRaceReads(
-  async (query: RaceQuery, today: LocalDate) => queryRaces(await getPayload({ config }), query, today),
-  'races:find',
+const uncachedFindRaces = async (query: RaceQuery, today: LocalDate) => queryRaces(await getPayload({ config }), query, today)
+const cachedFindRaces = cacheRaceReads(uncachedFindRaces, 'races:find')
+
+/**
+ * Only views reachable from chips and pagination are cached. Free text and custom dates are anonymous input with no
+ * useful bound, so caching them would let any client add hour-long entries to the on-disk cache at will.
+ */
+const isCacheable = (query: RaceQuery, today: LocalDate) => query.text === null && query.to === null && query.from === today
+
+/**
+ * Approved races matching the query, 24 per page in start-date order, with facet counts. A page past the end gives
+ * the last page instead, so `page` in the result can be lower than asked for. `today` is read here, outside the
+ * cache, so the cache key changes at midnight IST and "upcoming" needs no scheduled refresh.
+ */
+export const findRaces = async (query: RaceQuery): Promise<RacePage> => {
+  const today = todayIn('Asia/Kolkata')
+  const read = isCacheable(query, today) ? cachedFindRaces : uncachedFindRaces
+  // Page 1 is read first so a page number past the end never becomes a cache key.
+  const first = await read({ ...query, page: 1 }, today)
+  const page = Math.min(query.page, first.totalPages)
+  return page === 1 ? first : read({ ...query, page }, today)
+}
+
+const approvedSlugs = cacheRaceReads(async (): Promise<string[]> => {
+  const { rows } = await (await getPayload({ config })).db.drizzle.execute(sql`SELECT slug FROM races WHERE moderation_state = 'approved'`)
+  return rows.map((row) => String(row.slug))
+}, 'races:slugs')
+
+const cachedRaceBySlug = cacheRaceReads(async (slug: string) => raceBySlug(await getPayload({ config }), slug), 'races:get')
+
+/**
+ * An approved race by slug; null for unknown, unapproved, or unparseable races. Unknown slugs are answered from the
+ * cached slug list, so a made-up URL adds no cache entry and no query. `cache` shares one lookup between a page and
+ * its metadata, which `unstable_cache` alone does not do for concurrent misses.
+ */
+export const getRace = cache(async (slug: string): Promise<PublicRace | null> =>
+  (await approvedSlugs()).includes(slug) ? cachedRaceBySlug(slug) : null,
 )
-
-/**
- * Approved races matching the query, 24 per page in start-date order, with facet counts. `today` is read here,
- * outside the cache, so the cache key changes at midnight IST and "upcoming" needs no scheduled refresh.
- */
-export const findRaces = (query: RaceQuery): Promise<RacePage> => cachedFindRaces(query, todayIn('Asia/Kolkata'))
-
-/**
- * An approved race by slug; null for unknown, unapproved, or unparseable races. `cache` shares one lookup between
- * a page and its metadata, which `unstable_cache` alone does not do for concurrent misses.
- */
-export const getRace = cache(cacheRaceReads(async (slug: string) => raceBySlug(await getPayload({ config }), slug), 'races:get'))
 
 /** Uncached; pages call `getRace`. Exported for scripts that run outside Next.js. */
 export async function raceBySlug(payload: Payload, slug: string): Promise<PublicRace | null> {
