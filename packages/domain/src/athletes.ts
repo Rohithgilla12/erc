@@ -1,6 +1,7 @@
 import type { Moderation } from './moderation'
-import type { HttpsUrl, Id, LocalDate, Metres, Seconds, Slug } from './primitives'
+import { err, ok, type HttpsUrl, type Id, type LocalDate, type Metres, type Result, type Seconds, type Slug } from './primitives'
 import { DISTANCE_CATEGORIES, type DistanceCategory } from './running'
+import type { Subdivision } from './subdivisions'
 
 export type Athlete = {
   id: Id<'athletes'>
@@ -8,6 +9,8 @@ export type Athlete = {
   name: string
   photoUrl: HttpsUrl | null
   bio: string
+  home: { city: string | null; subdivision: Subdivision }
+  runningSince: number | null
   /** Phase 2 sets this when a member's claim on the profile is approved. Phase 1 rows keep it null. */
   member: null
   visibility: { profile: 'public' | 'hidden'; results: 'public' | 'hidden' }
@@ -49,6 +52,8 @@ const beats = (a: RaceResult, b: RaceResult): boolean => {
   return a.id < b.id
 }
 
+const newestFirst = (a: RaceResult, b: RaceResult) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : b.id - a.id)
+
 export const deriveAchievements = (results: readonly RaceResult[]): Achievements => {
   const approved = results.filter((r) => r.moderation.state === 'approved')
 
@@ -63,8 +68,48 @@ export const deriveAchievements = (results: readonly RaceResult[]): Achievements
 
   const ultraFinishes = approved
     .filter((r) => r.category.startsWith('ultra-'))
-    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : b.id - a.id))
+    .sort(newestFirst)
     .map((r) => ({ category: r.category, eventName: r.eventName, date: r.date }))
 
   return { bests, ultraFinishes }
+}
+
+/** What a public profile may show of an athlete's results: nothing at all until the athlete makes them public. */
+export type AthleteRecord =
+  | { visibility: 'hidden' }
+  | { visibility: 'public'; results: readonly RaceResult[]; achievements: Achievements }
+
+/** Approved results of this athlete only, newest first, with achievements derived from exactly the results listed. */
+export const athleteRecordOf = (athlete: Pick<Athlete, 'id' | 'visibility'>, results: readonly RaceResult[]): AthleteRecord => {
+  if (athlete.visibility.results === 'hidden') return { visibility: 'hidden' }
+  const listed = results.filter((r) => r.athlete === athlete.id && r.moderation.state === 'approved').sort(newestFirst)
+  return { visibility: 'public', results: listed, achievements: deriveAchievements(listed) }
+}
+
+export type HeadlineBest = { category: DistanceCategory; label: string; time: Seconds; verified: boolean }
+
+/** The `limit` longest PB slots an athlete has a best in, shortest first. Longer distances say more in an endurance club. */
+export const headlineBests = (achievements: Achievements, limit = 3): HeadlineBest[] =>
+  DISTANCE_CATEGORIES.flatMap(({ key, label }) => {
+    const best = achievements.bests[key]
+    return best ? [{ category: key, label, time: best.time, verified: best.verified }] : []
+  }).slice(-limit)
+
+// Strictly h:mm:ss: "1:30" would be ambiguous between 90 minutes and 90 seconds.
+const FINISH_TIME = /^(\d{1,3}):([0-5]\d):([0-5]\d)$/
+
+/** A finish time typed as `h:mm:ss`, such as `0:19:45` or `27:03:10`. */
+export const parseFinishTime = (raw: string): Result<Seconds, 'not_a_finish_time'> => {
+  const match = FINISH_TIME.exec(raw.trim())
+  if (!match) return err('not_a_finish_time')
+  const [, hours, minutes, seconds] = match.map(Number) as [number, number, number, number]
+  const total = hours * 3600 + minutes * 60 + seconds
+  return total > 0 ? ok(total as Seconds) : err('not_a_finish_time')
+}
+
+/** The inverse of `parseFinishTime` for whole seconds. */
+export const formatFinishTime = (time: Seconds): string => {
+  const whole = Math.floor(time)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${Math.floor(whole / 3600)}:${pad(Math.floor((whole % 3600) / 60))}:${pad(whole % 60)}`
 }

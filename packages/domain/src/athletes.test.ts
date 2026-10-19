@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  athleteRecordOf,
   deriveAchievements,
+  formatFinishTime,
+  headlineBests,
+  parseFinishTime,
+  type Athlete,
   type DistanceCategory,
   type Email,
   type Id,
@@ -22,10 +27,10 @@ const result = (
   id: number,
   category: DistanceCategory,
   time: number,
-  options: { date?: string; official?: boolean; moderation?: Moderation; eventName?: string } = {},
+  options: { date?: string; official?: boolean; moderation?: Moderation; eventName?: string; athlete?: number } = {},
 ): RaceResult => ({
   id: id as Id<'results'>,
-  athlete: 1 as Id<'athletes'>,
+  athlete: (options.athlete ?? 1) as Id<'athletes'>,
   race: null,
   eventName: options.eventName ?? `Event ${id}`,
   date: (options.date ?? '2026-01-01') as LocalDate,
@@ -93,5 +98,83 @@ describe('deriveAchievements ultra finishes', () => {
       { category: 'ultra-100k', eventName: 'Malnad 100K', date: '2025-11-15' },
       { category: 'ultra-50k', eventName: 'Nilgiris 50K', date: '2025-03-01' },
     ])
+  })
+})
+
+const visibility = (results: Athlete['visibility']['results']): Pick<Athlete, 'id' | 'visibility'> => ({
+  id: 1 as Id<'athletes'>,
+  visibility: { profile: 'public', results },
+})
+
+describe('athleteRecordOf', () => {
+  it('shows nothing when the athlete keeps results hidden, however many approved results exist', () => {
+    expect(athleteRecordOf(visibility('hidden'), [result(1, '10k', 3_000), result(2, 'ultra-50k', 20_000)])).toEqual({
+      visibility: 'hidden',
+    })
+  })
+
+  it('lists only approved results of this athlete, newest first, and derives bests from exactly those', () => {
+    const results = [
+      result(1, '10k', 3_000, { date: '2025-05-01' }),
+      result(2, '10k', 2_500, { date: '2026-02-01', moderation: submitted }),
+      result(3, '5k', 1_300, { date: '2026-03-01', athlete: 2 }),
+      result(4, 'half', 6_500, { date: '2026-01-10', official: false }),
+      result(5, '10k', 2_950, { date: '2026-01-10', moderation: rejected }),
+    ]
+    const record = athleteRecordOf(visibility('public'), results)
+    if (record.visibility !== 'public') throw new Error('expected a public record')
+    expect(record.results.map((r) => r.id)).toEqual([4, 1])
+    expect(record.achievements).toEqual(deriveAchievements([results[0]!, results[3]!]))
+    expect(record.achievements.bests).toEqual({
+      '10k': { time: 3_000, result: 1, verified: true },
+      half: { time: 6_500, result: 4, verified: false },
+    })
+  })
+})
+
+describe('headlineBests', () => {
+  it('keeps the longest slots, shortest first, with their verification', () => {
+    const { bests, ultraFinishes } = deriveAchievements([
+      result(1, '5k', 1_200),
+      result(2, '10k', 2_600),
+      result(3, 'half', 6_000, { official: false }),
+      result(4, 'ultra-50k', 18_000),
+    ])
+    expect(headlineBests({ bests, ultraFinishes })).toEqual([
+      { category: '10k', label: '10K', time: 2_600, verified: true },
+      { category: 'half', label: 'Half marathon', time: 6_000, verified: false },
+      { category: 'ultra-50k', label: '50K', time: 18_000, verified: true },
+    ])
+  })
+
+  it('is empty without bests', () => {
+    expect(headlineBests({ bests: {}, ultraFinishes: [] })).toEqual([])
+  })
+})
+
+describe('parseFinishTime', () => {
+  it.each([
+    ['0:19:45', 1_185],
+    ['3:05:09', 11_109],
+    ['27:03:10', 97_390],
+    ['100:00:00', 360_000],
+    [' 1:00:00 ', 3_600],
+  ])('reads %s as %i seconds', (raw, seconds) => {
+    expect(parseFinishTime(raw)).toEqual({ ok: true, value: seconds })
+  })
+
+  it.each(['19:45', '1:30', '0:60:00', '0:00:60', '0:00:00', '1:2:03', '1:02:3', '1h02m03s', '-1:00:00', '1:00:00.5', ''])(
+    'refuses %j',
+    (raw) => {
+      expect(parseFinishTime(raw)).toEqual({ ok: false, error: 'not_a_finish_time' })
+    },
+  )
+
+  it('round-trips through formatFinishTime', () => {
+    for (const raw of ['0:19:45', '3:05:09', '27:03:10', '0:00:01']) {
+      const parsed = parseFinishTime(raw)
+      if (!parsed.ok) throw new Error(`did not parse ${raw}`)
+      expect(formatFinishTime(parsed.value)).toBe(raw)
+    }
   })
 })
