@@ -34,16 +34,18 @@ const outsideNextRequest = (error: unknown) =>
   typeof error === 'object' && error !== null && (error as { __NEXT_ERROR_CODE?: unknown }).__NEXT_ERROR_CODE === NO_REQUEST_STORE
 
 /**
- * Any write made while Next serves a request (REST, GraphQL, the admin, or the Local API inside a page or route)
- * expires its tags in-process. Anything else, such as a `payload run` script or in-process work outside a request,
- * asks the running server over HTTP. Whether we are inside a request is learned from Next, not guessed.
+ * Expires the tags in-process when Next allows it (REST, GraphQL, and the admin all write inside a request), and
+ * otherwise asks the running server over HTTP. Never throws: the document is already written when this runs, so an
+ * error here would fail a write that succeeded. Outside a request, as in a `payload run` script, the fallback is
+ * expected; any other refusal from Next, such as a write during render, is logged as a warning.
  */
 const revalidate = async (req: PayloadRequest, tags: readonly string[]) => {
   if (req.context.skipRevalidation) return
   try {
     expireNow(tags)
   } catch (error) {
-    if (!outsideNextRequest(error)) throw error
+    if (outsideNextRequest(error)) req.payload.logger.debug({ tags }, 'Outside a Next.js request; asking the running site to revalidate')
+    else req.payload.logger.warn({ tags, err: error }, 'In-process revalidation failed; asking the running site to revalidate')
     await refreshRunningSite(req.payload, tags)
   }
 }
@@ -65,12 +67,12 @@ const REVALIDATE_PATH = '/revalidate'
 
 /** Never throws: the write has already succeeded, and a stale page is better than a rolled-back edit. */
 export const refreshRunningSite = async (payload: Payload, tags: readonly string[]) => {
-  const { siteUrl, revalidateSecret: secret } = siteConfig()
-  if (!secret) {
-    payload.logger.warn({ tags }, 'Not revalidating: set REVALIDATE_SECRET so scripts refresh the running site')
-    return
-  }
   try {
+    const { siteUrl, revalidateSecret: secret } = siteConfig()
+    if (!secret) {
+      payload.logger.warn({ tags }, 'Not revalidating: set REVALIDATE_SECRET so scripts refresh the running site')
+      return
+    }
     const response = await fetch(new URL(`/api${REVALIDATE_PATH}`, siteUrl), {
       method: 'POST',
       headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' },
@@ -79,7 +81,7 @@ export const refreshRunningSite = async (payload: Payload, tags: readonly string
     })
     if (!response.ok) payload.logger.warn({ tags, status: response.status }, 'The running site refused to revalidate')
   } catch (error) {
-    payload.logger.warn({ tags, err: error }, 'Could not reach the running site to revalidate')
+    payload.logger.warn({ tags, err: error }, 'Could not ask the running site to revalidate')
   }
 }
 

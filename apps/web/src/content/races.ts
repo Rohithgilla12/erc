@@ -45,10 +45,14 @@ const uncachedFindRaces = async (query: RaceQuery, today: LocalDate) => queryRac
 const cachedFindRaces = cacheRaceReads(uncachedFindRaces, 'races:find')
 
 /**
- * Only views reachable from chips and pagination are cached. Free text and custom dates are anonymous input with no
- * useful bound, so caching them would let any client add hour-long entries to the on-disk cache at will.
+ * Only views with at most one value per chip family are cached, and none with text or custom dates. The on-disk cache
+ * is never evicted and `today` is in the key, so this set bounds what each IST day adds: 9 discipline choices (one of
+ * 8, or none) times 7 band choices (one of 6, or none) times 37 state choices (one of 36, or none) times 2 for virtual
+ * times 2 for registration open, 9,324 views, each cached once per page it has. Caching every combination would allow
+ * 2^8 times 2^6 times 37 times 4, about 2.4 million views a day. The rest read uncached and return the same page.
  */
-const isCacheable = (query: RaceQuery, today: LocalDate) => query.text === null && query.to === null && query.from === today
+const isCacheable = (query: RaceQuery, today: LocalDate) =>
+  query.text === null && query.to === null && query.from === today && query.disciplines.length <= 1 && query.bands.length <= 1
 
 /**
  * Approved races matching the query, 24 per page in start-date order, with facet counts. A page past the end gives

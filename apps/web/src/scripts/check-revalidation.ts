@@ -3,8 +3,13 @@
  * start the site, then `pnpm payload run src/scripts/check-revalidation.ts`. Needs ERC_SITE_URL and REVALIDATE_SECRET.
  * The race it renames gets its name back.
  */
+// First, as in `next start`: Next's request stores are inert stubs unless AsyncLocalStorage is global when they load.
+import 'next/dist/server/node-environment-baseline'
 import config from '@payload-config'
-import { parseRaceQuery, todayIn } from '@erc/domain'
+import { DISCIPLINES, parseRaceQuery, todayIn } from '@erc/domain'
+import { revalidateTag } from 'next/cache'
+import { workAsyncStorage } from 'next/dist/server/app-render/work-async-storage.external'
+import { workUnitAsyncStorage } from 'next/dist/server/app-render/work-unit-async-storage.external'
 import { getPayload } from 'payload'
 
 import { collectionTag, refreshRunningSite } from '@/cms/revalidate'
@@ -36,14 +41,31 @@ const renamed = `${race.name} renamed ${Date.now()}`
 
 const showsName = async (name: string) => ({ detail: (await html(detailPath)).includes(name), list: (await html(listPath)).includes(name) })
 
+const otherDiscipline = DISCIPLINES.find((discipline) => discipline !== race.discipline && discipline !== 'virtual')
+const oneDisciplinePath = `/races?discipline=${race.discipline}`
+const twoDisciplinesPath = `/races?discipline=${race.discipline},${otherDiscipline}`
+const listShows = async (path: string, name: string) => (await html(path)).includes(name)
+
 const before = await showsName(race.name)
 expect(`${detailPath} and ${listPath} show "${race.name}" before the change`, before.detail && before.list)
+expect(
+  `${oneDisciplinePath} and ${twoDisciplinesPath} show "${race.name}" before the change`,
+  (await listShows(oneDisciplinePath, race.name)) && (await listShows(twoDisciplinesPath, race.name)),
+)
+
+// A Next.js work store in its render phase: `revalidateTag` refuses there with an error other than "outside a request".
+const duringRender = <T,>(work: () => Promise<T>) =>
+  workAsyncStorage.run({ incrementalCache: {}, route: '/check', page: '/check' } as never, () =>
+    workUnitAsyncStorage.run({ type: 'request', phase: 'render' } as never, work),
+  )
 
 try {
   const unannounced = `${renamed} unannounced`
   await payload.update({ collection: 'races', id: race.id, data: { name: unannounced }, context: { skipRevalidation: true } })
   const stale = await showsName(unannounced)
   expect('a write that skips revalidation is not shown, so the pages really are cached', !stale.detail && !stale.list)
+  expect(`${oneDisciplinePath} is cached, so it does not show that write`, !(await listShows(oneDisciplinePath, unannounced)))
+  expect(`${twoDisciplinesPath} is read uncached, so it shows that write at once`, await listShows(twoDisciplinesPath, unannounced))
   await refreshRunningSite(payload, [collectionTag('races')])
   const expired = await showsName(unannounced)
   expect('expiring the tag alone brings that write through', expired.detail && expired.list)
@@ -52,6 +74,24 @@ try {
   const after = await showsName(renamed)
   expect(`${detailPath} shows "${renamed}" after a Local API update`, after.detail)
   expect(`${listPath} shows "${renamed}" after a Local API update`, after.list)
+
+  const refusal = await duringRender(async () => revalidateTag(collectionTag('races'), { expire: 0 })).then(
+    () => 'none',
+    (error: { __NEXT_ERROR_CODE?: string }) => error.__NEXT_ERROR_CODE ?? 'no code',
+  )
+  expect(`revalidateTag during render fails with a code other than E263 (${refusal})`, refusal !== 'none' && refusal !== 'E263')
+  const inRender = `${renamed} in render`
+  const saved = await duringRender(() => payload.update({ collection: 'races', id: race.id, data: { name: inRender } })).then(
+    () => true,
+    (error: unknown) => {
+      console.error(error)
+      return false
+    },
+  )
+  const stored = (await payload.findByID({ collection: 'races', id: race.id, depth: 0 })).name
+  expect('a write whose in-process revalidation fails that way still succeeds', saved && stored === inRender)
+  const fallback = await showsName(inRender)
+  expect('and it refreshes the running site over HTTP instead', fallback.detail && fallback.list)
 
   const viaRest = `${renamed} via REST`
   const email = `revalidation-check-${Date.now()}@erc.invalid`
