@@ -140,10 +140,10 @@ function Faq({ block }: { block: Extract<PageBlock, { kind: 'faq' }> }) {
   )
 }
 
-function Block({ block, first }: { block: PageBlock; first: boolean }) {
+function Block({ block, heroLevel }: { block: PageBlock; heroLevel: 'h1' | 'h2' }) {
   switch (block.kind) {
     case 'hero':
-      return <Hero block={block} level={first ? 'h1' : 'h2'} />
+      return <Hero block={block} level={heroLevel} />
     case 'richText':
       return <RichText value={block.body} className="prose block" />
     case 'featuredRaces':
@@ -165,7 +165,6 @@ function Block({ block, first }: { block: PageBlock; first: boolean }) {
   }
 }
 
-/** A hero in first place is the page's heading; anywhere else it is a section heading. */
 export function PageBlocks({ blocks }: { blocks: readonly PageBlock[] }) {
-  return blocks.map((block, index) => <Block key={index} block={block} first={index === 0} />)
+  return blocks.map((block, index) => <Block key={index} block={block} heroLevel={index === 0 ? 'h1' : 'h2'} />)
 }

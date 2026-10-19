@@ -5,7 +5,6 @@ import { SitePageView, sitePageMetadata } from '../_pages/site-page'
 
 export const generateMetadata = (): Promise<Metadata> => sitePageMetadata('coaching')
 
-/** The way to ask stays on the page whatever the editors publish above it. */
 export default function CoachingPage() {
   return (
     <SitePageView slug="coaching">

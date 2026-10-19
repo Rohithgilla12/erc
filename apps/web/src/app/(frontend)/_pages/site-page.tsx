@@ -25,11 +25,11 @@ const leadText = (page: SitePage) => {
 
 export async function sitePageMetadata(slug: RoutedPageSlug): Promise<Metadata> {
   const page = await loadSitePage(slug)
-  const title = page.seo.title || page.title
-  const description = page.seo.description || leadText(page) || CLUB.description
+  const title = page.seo.title ?? page.title
+  const description = page.seo.description ?? leadText(page) ?? CLUB.description
   return {
     // The layout's template appends the club name, which would repeat it on the home page.
-    title: slug === 'home' ? { absolute: page.seo.title || `${CLUB.name} | ${CLUB.tagline}` } : title,
+    title: slug === 'home' ? { absolute: page.seo.title ?? `${CLUB.name} | ${CLUB.tagline}` } : title,
     description,
     alternates: { canonical: pathOf(slug) },
     openGraph: {
@@ -63,7 +63,6 @@ const organisation = () => {
   }
 }
 
-/** A route's page: its published blocks or the built-in default, then whatever the route adds after them. */
 export async function SitePageView({ slug, children }: { slug: RoutedPageSlug; children?: ReactNode }) {
   const page = await loadSitePage(slug)
   return (

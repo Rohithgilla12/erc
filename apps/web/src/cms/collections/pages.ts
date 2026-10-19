@@ -4,7 +4,6 @@ import { text } from 'payload/shared'
 
 import { defineEditorial } from '../kinds'
 
-/** Both parts of a button or neither; a required link needs both. */
 const linkGroup = (name: string, label: string, required: boolean): GroupField => {
   const pairedWith =
     (other: 'label' | 'href', missing: string): TextFieldSingleValidation =>

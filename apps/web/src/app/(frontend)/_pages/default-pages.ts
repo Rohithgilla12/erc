@@ -12,9 +12,8 @@ const link = (label: string, href: string): CtaLink => {
   return { label, href: parsed.value }
 }
 
-const noSeo = { title: '', description: '', imageUrl: null, noindex: false }
+const noSeo = { title: null, description: null, imageUrl: null, noindex: false }
 
-/** What each route shows until its page is published, so no route is ever empty. */
 export const DEFAULT_PAGES: Readonly<Record<RoutedPageSlug, SitePage>> = {
   home: {
     slug: 'home' as Slug,

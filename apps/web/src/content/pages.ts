@@ -10,7 +10,6 @@ import {
   type Id,
   type PublicRace,
   type RichText,
-  type Seo,
   type Slug,
 } from '@erc/domain'
 import { unstable_cache } from 'next/cache'
@@ -22,7 +21,6 @@ import type { Coach as CoachDoc, Media as MediaDoc, Page as PageDoc } from '@/pa
 
 import { findRaces } from './races'
 
-/** The closed set of blocks a page renders. Pages switch on `kind`; nothing here is a CMS shape. */
 export type PageBlock =
   | { kind: 'hero'; heading: string; body: string | null; primary: CtaLink | null; secondary: CtaLink | null }
   | { kind: 'richText'; body: RichText }
@@ -31,8 +29,10 @@ export type PageBlock =
   | { kind: 'coachGrid'; heading: string | null; coaches: readonly CoachProfile[] }
   | { kind: 'faq'; heading: string | null; items: readonly { question: string; answer: RichText }[] }
 
-/** Empty SEO strings mean "use the page's own"; the route fills them in. */
-export type SitePage = { slug: Slug; title: string; seo: Seo; blocks: readonly PageBlock[] }
+/** A null title or description means the route derives one from the page. */
+export type PageSeo = { title: string | null; description: string | null; imageUrl: HttpsUrl | null; noindex: boolean }
+
+export type SitePage = { slug: Slug; title: string; seo: PageSeo; blocks: readonly PageBlock[] }
 
 /** Slugs with a route. Only these are read, so the cache holds at most one entry per slug. */
 export type RoutedPageSlug = 'home' | 'about' | 'coaching' | 'contact'
@@ -60,7 +60,6 @@ export async function pageBySlug(payload: Payload, slug: string): Promise<SitePa
   return doc ? parsePageDoc(doc, payload.logger) : null
 }
 
-/** Approved races from today on, soonest first, through the race calendar's own cached read. */
 export const upcomingRaces = async (count: number): Promise<readonly PublicRace[]> => {
   const { races } = await findRaces(parseRaceQuery({}, todayIn('Asia/Kolkata')))
   return races.slice(0, count)
@@ -75,7 +74,6 @@ const httpsUrlOrNull = (url: string | null | undefined) => (url?.startsWith('htt
 
 const mediaUrl = (media: number | MediaDoc | null | undefined) => (typeof media === 'object' ? httpsUrlOrNull(media?.url) : null)
 
-/** Half a button, or a link the CMS should have refused, is no button. */
 const linkOf = (link: { label?: string | null; href?: string | null } | null | undefined): CtaLink | null => {
   const label = textOrNull(link?.label)
   const href = parseLinkHref(link?.href?.trim() ?? '')
@@ -129,7 +127,6 @@ function blockOf(block: Block): PageBlock | null {
   }
 }
 
-/** The one mapping from a page document to the view model. A block that cannot render is dropped and logged. */
 export function parsePageDoc(doc: PageDoc, logger: Logger): SitePage | null {
   const slug = parseSlug(doc.slug)
   if (!slug.ok) {
@@ -145,8 +142,8 @@ export function parsePageDoc(doc: PageDoc, logger: Logger): SitePage | null {
     slug: slug.value,
     title: doc.title,
     seo: {
-      title: textOrNull(doc.seo?.title) ?? '',
-      description: textOrNull(doc.seo?.description) ?? '',
+      title: textOrNull(doc.seo?.title),
+      description: textOrNull(doc.seo?.description),
       imageUrl: mediaUrl(doc.seo?.image),
       noindex: doc.seo?.noindex ?? false,
     },
