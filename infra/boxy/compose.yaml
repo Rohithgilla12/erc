@@ -52,6 +52,13 @@ services:
       R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
       R2_PUBLIC_URL: ${R2_PUBLIC_URL:-}
+      # Email is off unless all five SMTP values are set; a partial set stops the server at boot.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      ENQUIRY_NOTIFY_TO: ${ENQUIRY_NOTIFY_TO:-}
     volumes:
       - /data/media/erc/uploads:/data/uploads
       # The page cache grows with distinct URLs, so it lives on the large volume, not the root disk.
