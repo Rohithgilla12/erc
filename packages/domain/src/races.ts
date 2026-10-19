@@ -1,8 +1,11 @@
 import type { Moderation, Submitter } from './moderation'
 import {
   daysBetween,
+  err,
   notImplemented,
+  ok,
   parseLocalDate,
+  type Email,
   type HttpsUrl,
   type Id,
   type LocalDate,
@@ -188,10 +191,137 @@ export type RaceSubmission = Omit<Race, 'id' | 'slug' | 'moderation' | 'lastVeri
   distances: NonEmpty<Omit<RaceDistanceOption, 'category' | 'band'>>
   submitter: Submitter
 }
-/** Takes plain fields, not `FormData`, so the same parser serves the web form and a future mobile client. */
+type FieldErrors = Readonly<Record<string, string>>
+type FieldResult<T> = Result<T, string>
+type Collected<R> = { [K in keyof R]: R[K] extends FieldResult<infer T> ? T : never }
+
+const collect = <R extends Record<string, FieldResult<unknown>>>(fields: R): Result<Collected<R>, FieldErrors> => {
+  const values: Record<string, unknown> = {}
+  const errors: Record<string, string> = {}
+  for (const [key, result] of Object.entries(fields)) {
+    if (result.ok) values[key] = result.value
+    else errors[key] = result.error
+  }
+  return Object.keys(errors).length > 0 ? err(errors) : ok(values as Collected<R>)
+}
+
+const textBetween = (raw: string, min: number, max: number, label: string): FieldResult<string> => {
+  const length = Array.from(raw).length
+  if (length === 0 && min > 0) return err(`Enter ${label}.`)
+  return length >= min && length <= max ? ok(raw) : err(`Use ${min} to ${max} characters for ${label}.`)
+}
+
+const HTTPS_URL = /^https:\/\/[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?::\d{1,5})?(?:[/?#]\S*)?$/
+const httpsUrl = (raw: string): FieldResult<HttpsUrl> =>
+  HTTPS_URL.test(raw) && raw.length <= 2048 ? ok(raw as HttpsUrl) : err('Enter a full link starting with https://.')
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const email = (raw: string): FieldResult<Email> =>
+  EMAIL.test(raw) && raw.length <= 254 ? ok(raw as Email) : err('Enter an email address such as name@example.com.')
+
+const localDate = (raw: string): FieldResult<LocalDate> => {
+  const parsed = parseLocalDate(raw)
+  return parsed.ok ? parsed : err('Enter a real date as YYYY-MM-DD.')
+}
+
+const optional = <T>(raw: string, parse: (raw: string) => FieldResult<T>): FieldResult<T | null> =>
+  raw === '' ? ok(null) : parse(raw)
+
+const dayCount = (raw: string): FieldResult<number> => {
+  const days = /^\d{1,2}$/.test(raw) ? Number(raw) : 0
+  return days >= 1 && days <= 30 ? ok(days) : err('Enter a number of days from 1 to 30.')
+}
+
+const discipline = (raw: string): FieldResult<Discipline> => {
+  const known = knownIn(DISCIPLINES, [raw])[0]
+  return known ? ok(known) : err('Choose a discipline.')
+}
+
+const distances = (raw: unknown): FieldResult<NonEmpty<{ metres: Metres }>> => {
+  const entries = listOf(raw)
+  if (entries.some((e) => !/^\d{1,7}$/.test(e) || Number(e) === 0)) return err('Enter each distance in whole metres, such as 21097.')
+  const [first, ...rest] = entries.map((e) => ({ metres: Number(e) as Metres }))
+  return first ? ok([first, ...rest]) : err('Add at least one distance.')
+}
+
+const timeZone = (raw: string): FieldResult<string> => {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: raw })
+    return ok(raw)
+  } catch {
+    return err('Enter an IANA time zone such as Asia/Kolkata.')
+  }
+}
+
+const subdivision = (raw: string): FieldResult<Subdivision> => {
+  const parsed = parseSubdivision(raw)
+  return parsed ? ok(parsed) : err('Enter a state code such as IN-TG.')
+}
+
+const location = (field: (key: string) => string): Result<RaceLocation, FieldErrors> => {
+  if (['1', 'on'].includes(field('virtual'))) return ok({ kind: 'virtual' })
+  const place = collect({
+    venue: textBetween(field('venue'), 1, 120, 'the venue'),
+    city: textBetween(field('city'), 1, 80, 'the city'),
+    state: subdivision(field('state')),
+  })
+  if (!place.ok) return place
+  const { venue, city, state } = place.value
+  return ok({ kind: 'venue', venue, city, subdivision: state, country: state.slice(0, 2) })
+}
+
+const mergeErrors = (...results: Result<unknown, FieldErrors>[]): FieldErrors =>
+  Object.assign({}, ...results.map((r) => (r.ok ? {} : r.error)))
+
+/**
+ * Takes plain fields, not `FormData`, so the same parser serves the web form and a future mobile client.
+ * Each field is a string or string array; for single-valued fields the first value is used, trimmed.
+ * Errors are keyed by field name.
+ *
+ * Required: `name` (3 to 120 characters), `discipline`, `start` (`YYYY-MM-DD`), `distances` (whole metres,
+ * repeated or comma-separated), `officialUrl` (https), `submitterName` (1 to 120), `submitterEmail`.
+ * Location: `virtual` (`1` or `on`) for a virtual race; otherwise `venue`, `city`, and `state` (ISO 3166-2 such as
+ * `IN-TG`, which also gives the country).
+ * Optional: `dayCount` (1 to 30, default 1), `timeZone` (IANA, default `Asia/Kolkata`), `registrationUrl` (https,
+ * default `officialUrl`), `registrationClosesOn` (`YYYY-MM-DD`), `summary` (up to 1000 characters).
+ */
 export const parseRaceSubmission = (
   input: Readonly<Record<string, unknown>>,
-): Result<RaceSubmission, Readonly<Record<string, string>>> => notImplemented()
+): Result<RaceSubmission, Readonly<Record<string, string>>> => {
+  const field = (key: string) => firstOf(input[key])
+
+  const common = collect({
+    name: textBetween(field('name'), 3, 120, 'the race name'),
+    discipline: discipline(field('discipline')),
+    start: localDate(field('start')),
+    dayCount: field('dayCount') === '' ? ok(1) : dayCount(field('dayCount')),
+    timeZone: field('timeZone') === '' ? ok('Asia/Kolkata') : timeZone(field('timeZone')),
+    distances: distances(input.distances),
+    officialUrl: httpsUrl(field('officialUrl')),
+    registrationUrl: optional(field('registrationUrl'), httpsUrl),
+    registrationClosesOn: optional(field('registrationClosesOn'), localDate),
+    summary: textBetween(field('summary'), 0, 1000, 'the summary'),
+    submitterName: textBetween(field('submitterName'), 1, 120, 'your name'),
+    submitterEmail: email(field('submitterEmail')),
+  })
+
+  const place = location(field)
+
+  if (!common.ok || !place.ok) return err(mergeErrors(common, place))
+  const f = common.value
+  return ok({
+    name: f.name,
+    discipline: f.discipline,
+    dates: { start: f.start, dayCount: f.dayCount },
+    timeZone: f.timeZone,
+    location: place.value,
+    distances: f.distances,
+    officialUrl: f.officialUrl,
+    registration: { url: f.registrationUrl ?? f.officialUrl, closesOn: f.registrationClosesOn },
+    summary: f.summary,
+    submitter: { name: f.submitterName, email: f.submitterEmail },
+  })
+}
 
 /** RFC 5545 all-day event(s); deterministic UID per race so re-importing updates rather than duplicates. */
 export const toIcs = (race: PublicRace): string => notImplemented()
