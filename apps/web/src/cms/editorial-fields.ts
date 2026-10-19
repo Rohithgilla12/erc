@@ -39,7 +39,7 @@ export const seoField: Field = {
   fields: [
     { name: 'title', type: 'text', admin: { description: 'Defaults to the title.' } },
     { name: 'description', type: 'textarea', maxLength: 300, admin: { description: 'Defaults to the excerpt or description.' } },
-    { name: 'image', type: 'upload', relationTo: 'media', admin: { description: 'Shown when the page is shared. Defaults to the cover.' } },
+    { name: 'image', type: 'upload', relationTo: 'media', admin: { description: 'Shown when the page is shared. Defaults to the cover image, or a video’s thumbnail.' } },
     { name: 'noindex', type: 'checkbox', label: 'Hide from search engines', defaultValue: false },
   ],
 }
@@ -59,5 +59,7 @@ export const publishedAtField: Field = {
  * Stamps the first publication time. The workflow's `live.at` moves on every republish, so it is the "updated" date,
  * and the first date has to be kept separately.
  */
-export const stampFirstPublished: CollectionBeforeChangeHook = ({ data, req }) =>
-  req.context.editorialSave === 'publish' && !data.publishedAt ? { ...data, publishedAt: new Date().toISOString() } : data
+export const stampFirstPublished: CollectionBeforeChangeHook = ({ data, originalDoc, req }) =>
+  req.context.editorialSave === 'publish' && !(data.publishedAt ?? originalDoc?.publishedAt)
+    ? { ...data, publishedAt: new Date().toISOString() }
+    : data

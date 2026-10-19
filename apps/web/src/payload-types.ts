@@ -608,7 +608,7 @@ export interface Post {
      */
     description?: string | null;
     /**
-     * Shown when the page is shared. Defaults to the cover.
+     * Shown when the page is shared. Defaults to the cover image, or a video’s thumbnail.
      */
     image?: (number | null) | Media;
     noindex?: boolean | null;
@@ -700,7 +700,7 @@ export interface Video {
      */
     description?: string | null;
     /**
-     * Shown when the page is shared. Defaults to the cover.
+     * Shown when the page is shared. Defaults to the cover image, or a video’s thumbnail.
      */
     image?: (number | null) | Media;
     noindex?: boolean | null;
