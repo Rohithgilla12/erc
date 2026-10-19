@@ -73,6 +73,9 @@ export interface Config {
     races: Race;
     athletes: Athlete;
     results: Result;
+    topics: Topic;
+    posts: Post;
+    videos: Video;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -86,6 +89,9 @@ export interface Config {
     races: RacesSelect<false> | RacesSelect<true>;
     athletes: AthletesSelect<false> | AthletesSelect<true>;
     results: ResultsSelect<false> | ResultsSelect<true>;
+    topics: TopicsSelect<false> | TopicsSelect<true>;
+    posts: PostsSelect<false> | PostsSelect<true>;
+    videos: VideosSelect<false> | VideosSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -180,9 +186,30 @@ export interface Media {
 export interface Coach {
   id: number;
   name: string;
+  /**
+   * Part of the page address. Left empty, it is made from the name.
+   */
   slug: string;
   credentials: string;
   photo?: (number | null) | Media;
+  /**
+   * Shown on the coach’s public profile.
+   */
+  bio?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
   workflow?:
     | {
         [k: string]: unknown;
@@ -476,6 +503,228 @@ export interface Result {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topics".
+ */
+export interface Topic {
+  id: number;
+  title: string;
+  /**
+   * Part of the page address. Left empty, it is made from the title.
+   */
+  slug: string;
+  /**
+   * One or two sentences shown on the topic page and in search results.
+   */
+  description: string;
+  /**
+   * Lower numbers come first in the learning centre.
+   */
+  order: number;
+  workflow?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Applied when you save.
+   */
+  reviewRequest?: ('submit' | 'request_changes') | null;
+  reviewNote?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  title: string;
+  /**
+   * Part of the page address. Left empty, it is made from the title.
+   */
+  slug: string;
+  /**
+   * One or two sentences for article lists and search results.
+   */
+  excerpt: string;
+  cover?: (number | null) | Media;
+  topics: (number | Topic)[];
+  authors: (number | Coach)[];
+  body: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  /**
+   * Sources for evidence-based claims, listed under the article.
+   */
+  references?:
+    | {
+        title: string;
+        url: string;
+        publisher?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  related?:
+    | (
+        | {
+            relationTo: 'posts';
+            value: number | Post;
+          }
+        | {
+            relationTo: 'videos';
+            value: number | Video;
+          }
+      )[]
+    | null;
+  /**
+   * Set when first published. Change it only to backdate content that appeared elsewhere first.
+   */
+  publishedAt?: string | null;
+  seo?: {
+    /**
+     * Defaults to the title.
+     */
+    title?: string | null;
+    /**
+     * Defaults to the excerpt or description.
+     */
+    description?: string | null;
+    /**
+     * Shown when the page is shared. Defaults to the cover.
+     */
+    image?: (number | null) | Media;
+    noindex?: boolean | null;
+  };
+  workflow?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Applied when you save.
+   */
+  reviewRequest?: ('submit' | 'request_changes') | null;
+  reviewNote?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "videos".
+ */
+export interface Video {
+  id: number;
+  title: string;
+  /**
+   * Part of the page address. Left empty, it is made from the title.
+   */
+  slug: string;
+  /**
+   * Paste the video link. Only the video id is kept; the video stays on YouTube.
+   */
+  youtubeId: string;
+  /**
+   * As YouTube shows it.
+   */
+  duration: string;
+  category: 'technique' | 'coach-explainers' | 'strength' | 'race-preparation' | 'group-sessions' | 'runner-stories';
+  description: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  /**
+   * Recommended. Runners who cannot play the video, and search engines, read the transcript on the page.
+   */
+  transcript?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  topics?: (number | Topic)[] | null;
+  relatedPosts?: (number | Post)[] | null;
+  /**
+   * Set when first published. Change it only to backdate content that appeared elsewhere first.
+   */
+  publishedAt?: string | null;
+  seo?: {
+    /**
+     * Defaults to the title.
+     */
+    title?: string | null;
+    /**
+     * Defaults to the excerpt or description.
+     */
+    description?: string | null;
+    /**
+     * Shown when the page is shared. Defaults to the cover.
+     */
+    image?: (number | null) | Media;
+    noindex?: boolean | null;
+  };
+  workflow?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Applied when you save.
+   */
+  reviewRequest?: ('submit' | 'request_changes') | null;
+  reviewNote?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -521,6 +770,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'results';
         value: number | Result;
+      } | null)
+    | ({
+        relationTo: 'topics';
+        value: number | Topic;
+      } | null)
+    | ({
+        relationTo: 'posts';
+        value: number | Post;
+      } | null)
+    | ({
+        relationTo: 'videos';
+        value: number | Video;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -617,6 +878,7 @@ export interface CoachesSelect<T extends boolean = true> {
   slug?: T;
   credentials?: T;
   photo?: T;
+  bio?: T;
   workflow?: T;
   reviewRequest?: T;
   reviewNote?: T;
@@ -783,6 +1045,89 @@ export interface ResultsSelect<T extends boolean = true> {
   rejectionReason?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topics_select".
+ */
+export interface TopicsSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  description?: T;
+  order?: T;
+  workflow?: T;
+  reviewRequest?: T;
+  reviewNote?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts_select".
+ */
+export interface PostsSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  excerpt?: T;
+  cover?: T;
+  topics?: T;
+  authors?: T;
+  body?: T;
+  references?:
+    | T
+    | {
+        title?: T;
+        url?: T;
+        publisher?: T;
+        id?: T;
+      };
+  related?: T;
+  publishedAt?: T;
+  seo?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        image?: T;
+        noindex?: T;
+      };
+  workflow?: T;
+  reviewRequest?: T;
+  reviewNote?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "videos_select".
+ */
+export interface VideosSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  youtubeId?: T;
+  duration?: T;
+  category?: T;
+  description?: T;
+  transcript?: T;
+  topics?: T;
+  relatedPosts?: T;
+  publishedAt?: T;
+  seo?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        image?: T;
+        noindex?: T;
+      };
+  workflow?: T;
+  reviewRequest?: T;
+  reviewNote?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

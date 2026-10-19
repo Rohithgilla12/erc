@@ -10,6 +10,9 @@ import { Media } from './cms/collections/media'
 import { raceCalendarIndexes, Races } from './cms/collections/races'
 import { Results } from './cms/collections/results'
 import { Staff } from './cms/collections/staff'
+import { Posts } from './cms/collections/posts'
+import { Topics } from './cms/collections/topics'
+import { Videos } from './cms/collections/videos'
 import { buildErcConfig } from './cms/kinds'
 import { revalidateEndpoint } from './cms/revalidate'
 import { mediaStorage } from './cms/storage'
@@ -25,7 +28,7 @@ export default buildErcConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Staff, Media, Coaches, Races, Athletes, Results],
+  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos],
   endpoints: [revalidateEndpoint],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
