@@ -61,6 +61,10 @@ export const parseLocalDate = (raw: string): Result<LocalDate, 'not_a_date'> => 
   return rolledOver ? err('not_a_date') : ok(raw as LocalDate)
 }
 
+/** Lower-case words joined by single hyphens, so a slug is safe in a URL path, a filename, and a quoted header. */
+export const parseSlug = (raw: string): Result<Slug, 'not_a_slug'> =>
+  /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw) ? ok(raw as Slug) : err('not_a_slug')
+
 const YOUTUBE_ID = '[A-Za-z0-9_-]{11}'
 const YOUTUBE_PATTERNS = [
   new RegExp(`^(${YOUTUBE_ID})$`),

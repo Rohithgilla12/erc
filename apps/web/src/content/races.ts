@@ -5,6 +5,7 @@ import {
   DISTANCE_BANDS,
   INDIAN_SUBDIVISIONS,
   parseLocalDate,
+  parseSlug,
   tapChip,
   type FacetChip,
   todayIn,
@@ -232,6 +233,11 @@ const localDate = (value: string | null | undefined, field: string): LocalDate =
   return parsed.ok ? parsed.value : fail(field)
 }
 
+const slugOf = (value: string): Slug => {
+  const parsed = parseSlug(value)
+  return parsed.ok ? parsed.value : fail('slug')
+}
+
 const httpsUrl = (value: string | null | undefined, field: string): HttpsUrl => {
   try {
     if (value && new URL(value).protocol === 'https:') return value as HttpsUrl
@@ -276,7 +282,7 @@ export function parseRaceDoc(doc: RaceDoc): Result<PublicRace, string> {
       ok: true,
       value: {
         id: doc.id as Id<'races'>,
-        slug: nonEmpty(doc.slug, 'slug') as Slug,
+        slug: slugOf(doc.slug),
         name: nonEmpty(doc.name, 'name'),
         discipline: doc.discipline,
         dates: {

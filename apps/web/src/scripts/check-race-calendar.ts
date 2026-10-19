@@ -145,6 +145,13 @@ if (victim) {
   }
   expect('the restored race reads again', (await raceBySlug(payload, victim.slug))?.slug, victim.slug)
 
+  const headerBreaking = `${victim.slug}"\r\nx: y`
+  await db.execute(sql`UPDATE races SET slug = ${headerBreaking} WHERE id = ${victim.id}`)
+  try {
+    expect('a race whose slug would break a filename header is skipped', await raceBySlug(payload, headerBreaking), null)
+  } finally {
+    await db.execute(sql`UPDATE races SET slug = ${victim.slug} WHERE id = ${victim.id}`)
+  }
 }
 
 if (failures.length > 0) {

@@ -5,6 +5,7 @@ export {
   addDays,
   daysBetween,
   parseLocalDate,
+  parseSlug,
   parseYouTubeId,
   todayIn,
   type Brand,

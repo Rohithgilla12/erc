@@ -4,6 +4,7 @@ import {
   DISCIPLINES,
   DISTANCE_BANDS,
   isReservedRaceSlug,
+  parseSlug,
   type DistanceCategory,
   type Metres,
   type RaceDistanceOption,
@@ -43,8 +44,11 @@ const deriveDistanceKeys: CollectionBeforeChangeHook<RaceDoc> = ({ data, origina
   }
 }
 
-const raceSlug: TextFieldSingleValidation = (value, args) =>
-  value && isReservedRaceSlug(value) ? `"${value}" is a landing route under /races; choose another slug` : text(value, args)
+const raceSlug: TextFieldSingleValidation = (value, args) => {
+  if (value && !parseSlug(value).ok) return 'Use lower-case letters and digits joined by single hyphens, such as hyderabad-half-2026'
+  if (value && isReservedRaceSlug(value)) return `"${value}" is a landing route under /races; choose another slug`
+  return text(value, args)
+}
 
 export const Races = defineRecord({
   slug: 'races',

@@ -261,6 +261,13 @@ async function reservedSlugCases() {
       400,
     )
   }
+  for (const slug of [`Write Check ${run}`, `write-check-"quoted"-${run}`]) {
+    expect(
+      `a race cannot take the malformed slug ${JSON.stringify(slug)}`,
+      await outcome(payload.create({ collection: 'races', data: raceData(slug), ...system() }).then((race) => raceIds.push(race.id))),
+      400,
+    )
+  }
 }
 
 async function restEditorialCases(site: string) {

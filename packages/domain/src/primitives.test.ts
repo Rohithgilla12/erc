@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseLocalDate, parseYouTubeId, todayIn } from './index'
+import { parseLocalDate, parseSlug, parseYouTubeId, todayIn } from './index'
 
 describe('parseLocalDate', () => {
   it.each(['2026-10-19', '2028-02-29', '2026-12-31', '2026-01-01', '0001-01-01'])('accepts the real date %s unchanged', (raw) => {
@@ -37,6 +37,19 @@ describe('todayIn Asia/Kolkata', () => {
   it('crosses the year boundary in IST before UTC does', () => {
     expect(todayIn('Asia/Kolkata', new Date('2026-12-31T20:00:00Z'))).toBe('2027-01-01')
   })
+})
+
+describe('parseSlug', () => {
+  it.each(['hyderabad-half-2026', '10k', 'a'])('accepts %s', (slug) => {
+    expect(parseSlug(slug)).toEqual({ ok: true, value: slug })
+  })
+
+  it.each(['', 'Hyderabad-half', 'half--marathon', '-half', 'half-', 'half marathon', 'a"b', 'line\r\nbreak', 'race.ics', 'ünicode'])(
+    'rejects %j',
+    (slug) => {
+      expect(parseSlug(slug)).toEqual({ ok: false, error: 'not_a_slug' })
+    },
+  )
 })
 
 describe('parseYouTubeId', () => {
