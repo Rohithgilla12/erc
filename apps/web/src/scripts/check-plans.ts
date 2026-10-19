@@ -58,6 +58,7 @@ try {
   const draftPdf = await payload.create({ collection: 'resources', data: { ...resourceData, slug: slugs.draftPdf }, file: pdfFile, user, draft: true })
   createdResources.push(draftPdf.id)
   expect('anonymous readers cannot list a draft download', await anonymousSlugs('resources', slugs.draftPdf), [])
+  expect('a stored file gets a random name, not its upload name', /^[0-9a-f-]{36}\.pdf$/.test(draftPdf.filename ?? ''), true)
 
   await rejects(
     'a file over 20 MB is refused',
@@ -138,6 +139,11 @@ try {
 
     expect('an unknown download is 404', (await get(`/downloads/no-such-${run}`)).status, 404)
     expect('a draft download is 404', (await get(`/downloads/${slugs.draftPdf}`)).status, 404)
+    expect(
+      "the media route cannot reach a draft's file in the folder beside it",
+      (await get(`/api/media/file/resources%2F${draftPdf.filename}`)).status,
+      404,
+    )
     expect("Payload's file route refuses anonymous readers", (await get(`/api/resources/file/${seededPdf.filename}`)).status, 404)
     const login = await fetch(new URL('/api/staff/login', site), {
       method: 'POST',

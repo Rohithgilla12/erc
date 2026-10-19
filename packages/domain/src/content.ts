@@ -133,6 +133,16 @@ export const RESOURCE_CATEGORY_LABELS: Readonly<Record<ResourceCategory, string>
   spreadsheet: 'Spreadsheet',
 }
 
+/** Every file type a download may be, keyed by MIME type, with the name a runner knows it by. */
+export const RESOURCE_FILE_TYPES = {
+  'application/pdf': 'PDF',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
+  'application/vnd.oasis.opendocument.text': 'OpenDocument text',
+  'application/vnd.oasis.opendocument.spreadsheet': 'OpenDocument spreadsheet',
+  'text/csv': 'CSV',
+} as const satisfies Readonly<Record<string, string>>
+
 export type DownloadableResource = Published & {
   kind: 'resource'
   title: string
