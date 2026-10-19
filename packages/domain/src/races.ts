@@ -1,8 +1,8 @@
 import type { Moderation, Submitter } from './moderation'
 import {
+  addDays,
   daysBetween,
   err,
-  notImplemented,
   ok,
   parseLocalDate,
   type Email,
@@ -323,6 +323,79 @@ export const parseRaceSubmission = (
   })
 }
 
+const eventDates = (race: PublicRace) => ({
+  start: race.dates.start,
+  endExclusive: addDays(race.dates.start, race.dates.dayCount),
+})
+
+const compactDate = (date: LocalDate): string => date.replaceAll('-', '')
+
+const locationText = (location: RaceLocation): string =>
+  location.kind === 'virtual' ? 'Virtual' : [location.venue, location.city].filter((part) => part !== '').join(', ')
+
+const icsText = (text: string): string =>
+  text
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r\n|\r|\n/g, '\\n')
+
+const utf8Octets = (codePoint: number): number => (codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4)
+
+/** RFC 5545 caps a line at 75 octets; each continuation line spends one of them on its leading space. */
+const foldLine = (line: string): string => {
+  const segments: string[] = []
+  let current = ''
+  let octets = 0
+  for (const char of line) {
+    const size = utf8Octets(char.codePointAt(0) ?? 0)
+    const limit = segments.length === 0 ? 75 : 74
+    if (octets + size > limit) {
+      segments.push(current)
+      current = ''
+      octets = 0
+    }
+    current += char
+    octets += size
+  }
+  segments.push(current)
+  return segments.join('\r\n ')
+}
+
 /** RFC 5545 all-day event(s); deterministic UID per race so re-importing updates rather than duplicates. */
-export const toIcs = (race: PublicRace): string => notImplemented()
-export const googleCalendarUrl = (race: PublicRace): HttpsUrl => notImplemented()
+export const toIcs = (race: PublicRace): string => {
+  const { start, endExclusive } = eventDates(race)
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//ERC//Race calendar//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:race-${race.id}@erc`,
+    `DTSTAMP:${compactDate(race.lastVerifiedOn)}T000000Z`,
+    `DTSTART;VALUE=DATE:${compactDate(start)}`,
+    `DTEND;VALUE=DATE:${compactDate(endExclusive)}`,
+    `SUMMARY:${icsText(race.name)}`,
+    ...(race.summary === '' ? [] : [`DESCRIPTION:${icsText(race.summary)}`]),
+    `LOCATION:${icsText(locationText(race.location))}`,
+    `URL:${race.officialUrl}`,
+    ...(race.status.kind === 'cancelled' ? ['STATUS:CANCELLED'] : []),
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ]
+  return lines.map(foldLine).join('\r\n') + '\r\n'
+}
+
+export const googleCalendarUrl = (race: PublicRace): HttpsUrl => {
+  const { start, endExclusive } = eventDates(race)
+  const details = [race.summary, race.officialUrl].filter((part) => part !== '').join('\n\n')
+  const params: [string, string][] = [
+    ['action', 'TEMPLATE'],
+    ['text', race.name],
+    ['dates', `${compactDate(start)}/${compactDate(endExclusive)}`],
+    ['details', details],
+    ['location', locationText(race.location)],
+  ]
+  return `https://calendar.google.com/calendar/render?${params.map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&')}` as HttpsUrl
+}
