@@ -71,9 +71,23 @@ export const canAccess = (viewer: Viewer, access: AccessTier): boolean => {
 
 export const PLAN_LEVELS = ['beginner', 'intermediate', 'advanced'] as const
 export type PlanLevel = (typeof PLAN_LEVELS)[number]
+export const PLAN_LEVEL_LABELS: Readonly<Record<PlanLevel, string>> = {
+  beginner: 'Beginner',
+  intermediate: 'Intermediate',
+  advanced: 'Advanced',
+}
 
 export const SESSION_INTENSITIES = ['easy', 'steady', 'tempo', 'intervals', 'long', 'strength', 'rest'] as const
 export type SessionIntensity = (typeof SESSION_INTENSITIES)[number]
+export const SESSION_INTENSITY_LABELS: Readonly<Record<SessionIntensity, string>> = {
+  easy: 'Easy',
+  steady: 'Steady',
+  tempo: 'Tempo',
+  intervals: 'Intervals',
+  long: 'Long run',
+  strength: 'Strength',
+  rest: 'Rest',
+}
 
 export const WEEK_DAYS = [1, 2, 3, 4, 5, 6, 7] as const
 export type WeekDay = (typeof WEEK_DAYS)[number]
@@ -112,6 +126,12 @@ export type TrainingPlan = Published & {
 
 export const RESOURCE_CATEGORIES = ['plan-pdf', 'checklist', 'guide', 'spreadsheet'] as const
 export type ResourceCategory = (typeof RESOURCE_CATEGORIES)[number]
+export const RESOURCE_CATEGORY_LABELS: Readonly<Record<ResourceCategory, string>> = {
+  'plan-pdf': 'Plan PDF',
+  checklist: 'Checklist',
+  guide: 'Guide',
+  spreadsheet: 'Spreadsheet',
+}
 
 export type DownloadableResource = Published & {
   kind: 'resource'

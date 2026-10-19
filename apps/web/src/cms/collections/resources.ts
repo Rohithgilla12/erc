@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import type { ResourceCategory } from '@erc/domain'
+import { RESOURCE_CATEGORY_LABELS } from '@erc/domain'
 import { ValidationError, type CollectionBeforeOperationHook, type UploadConfig } from 'payload'
 
 import { staffOf } from '../access'
@@ -25,13 +25,6 @@ export const RESOURCE_MIME_TYPES = [
 ]
 
 export const MAX_RESOURCE_BYTES = 20 * 1024 * 1024
-
-const CATEGORY_LABELS: Record<ResourceCategory, string> = {
-  'plan-pdf': 'Plan PDF',
-  checklist: 'Checklist',
-  guide: 'Guide',
-  spreadsheet: 'Spreadsheet',
-}
 
 type UploadHandler = NonNullable<UploadConfig['handlers']>[number]
 
@@ -68,7 +61,7 @@ export const Resources = defineEditorial({
     { name: 'title', type: 'text', required: true },
     slugField,
     { name: 'description', type: 'textarea', required: true },
-    { name: 'category', label: 'Kind', type: 'select', required: true, options: optionsFrom(CATEGORY_LABELS) },
+    { name: 'category', label: 'Kind', type: 'select', required: true, options: optionsFrom(RESOURCE_CATEGORY_LABELS) },
     accessField,
     seoField,
   ],

@@ -1,20 +1,15 @@
-import { goalLabel, PLAN_GOALS, WEEK_DAYS, type PlanLevel, type SessionIntensity, type SessionTarget } from '@erc/domain'
+import {
+  goalLabel,
+  PLAN_GOALS,
+  PLAN_LEVEL_LABELS,
+  SESSION_INTENSITY_LABELS,
+  WEEK_DAYS,
+  type SessionTarget,
+} from '@erc/domain'
 
 import { accessField, seoField, slugField } from '../editorial-fields'
 import { optionsFrom, shownWhen } from '../fields'
 import { defineEditorial } from '../kinds'
-
-const LEVEL_LABELS: Record<PlanLevel, string> = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' }
-
-const INTENSITY_LABELS: Record<SessionIntensity, string> = {
-  easy: 'Easy',
-  steady: 'Steady',
-  tempo: 'Tempo',
-  intervals: 'Intervals',
-  long: 'Long run',
-  strength: 'Strength',
-  rest: 'Rest',
-}
 
 const TARGET_LABELS: Record<SessionTarget['kind'], string> = { distance: 'Distance', duration: 'Time', none: 'No target' }
 
@@ -40,7 +35,7 @@ export const TrainingPlans = defineEditorial({
           index: true,
           options: PLAN_GOALS.map((goal) => ({ value: goal, label: goalLabel(goal) })),
         },
-        { name: 'level', type: 'select', required: true, index: true, options: optionsFrom(LEVEL_LABELS) },
+        { name: 'level', type: 'select', required: true, index: true, options: optionsFrom(PLAN_LEVEL_LABELS) },
       ],
     },
     {
@@ -70,7 +65,7 @@ export const TrainingPlans = defineEditorial({
               type: 'row',
               fields: [
                 { name: 'day', type: 'select', required: true, options: WEEK_DAYS.map((day) => ({ value: String(day), label: `Day ${day}` })) },
-                { name: 'intensity', type: 'select', required: true, options: optionsFrom(INTENSITY_LABELS) },
+                { name: 'intensity', type: 'select', required: true, options: optionsFrom(SESSION_INTENSITY_LABELS) },
               ],
             },
             { name: 'title', type: 'text', required: true },
