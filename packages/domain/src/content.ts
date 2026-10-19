@@ -1,3 +1,4 @@
+import type { VideoCategory } from './learn'
 import type {
   Brand,
   HttpsUrl,
@@ -11,10 +12,13 @@ import type {
 } from './primitives'
 import type { DistanceCategory } from './running'
 
-export type Topic = { id: Id<'topics'>; slug: Slug; title: string }
+export type Topic = { id: Id<'topics'>; slug: Slug; title: string; description: string; order: number }
 export type CoachProfile = { id: Id<'coaches'>; slug: Slug; name: string; credentials: string; photoUrl: HttpsUrl | null }
+/** A coach's public profile page; lists show the shorter `CoachProfile`. */
+export type Coach = CoachProfile & { bio: RichText | null }
 export type Reference = { title: string; url: HttpsUrl; publisher: string | null }
 export type Seo = { title: string; description: string; imageUrl: HttpsUrl | null; noindex: boolean }
+export type CoverImage = { url: HttpsUrl; alt: string; width: number; height: number }
 
 /** Lexical JSON from the CMS. Opaque here; each client brings its own renderer. */
 export type RichText = Brand<unknown, 'RichText'>
@@ -27,26 +31,41 @@ export type ContentRef =
   | { kind: 'trainingPlan'; slug: Slug }
   | { kind: 'race'; slug: Slug }
 
+/** A reference resolved far enough to render as a link. */
+export type ContentLink = ContentRef & { title: string }
+
+/**
+ * Every post is saved with at least one topic and one author, but an unpublished topic or coach drops out of the
+ * public copy, so readers can see none.
+ */
 export type Post = Published & {
   kind: 'post'
   title: string
-  topics: NonEmpty<Topic>
-  authors: NonEmpty<CoachProfile>
+  excerpt: string
+  cover: CoverImage | null
+  topics: readonly Topic[]
+  authors: readonly CoachProfile[]
   body: RichText
+  readingMinutes: number
   references: readonly Reference[]
-  related: readonly ContentRef[]
+  related: readonly ContentLink[]
 }
+
+export type PostSummary = Pick<Post, 'kind' | 'slug' | 'title' | 'excerpt' | 'cover' | 'topics' | 'authors' | 'publishedAt' | 'readingMinutes'>
 
 export type Video = Published & {
   kind: 'video'
   title: string
   youtubeId: YouTubeId
   duration: Seconds
+  category: VideoCategory
   description: RichText
   transcript: RichText | null
-  topics: NonEmpty<Topic>
-  related: readonly ContentRef[]
+  topics: readonly Topic[]
+  related: readonly ContentLink[]
 }
+
+export type VideoSummary = Pick<Video, 'kind' | 'slug' | 'title' | 'youtubeId' | 'duration' | 'category' | 'publishedAt'>
 
 /** Phase 1 ships only `free`. Phase 3 adds `paid`; `canAccess` is already the single gate. */
 export type AccessTier = { kind: 'free' }
