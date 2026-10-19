@@ -36,7 +36,9 @@ const stateCounts = (entries: readonly DirectoryEntry[]) => {
 }
 
 export default async function AthletesPage({ searchParams }: Props) {
-  const [entries, state] = await Promise.all([listAthletes(), stateOf(searchParams)])
+  // Reading searchParams first marks the page dynamic before any query starts, so `next build` never touches the database.
+  const state = await stateOf(searchParams)
+  const entries = await listAthletes()
   const shown = state ? entries.filter(({ athlete }) => athlete.home.subdivision === state.code) : entries
 
   return (
