@@ -1,0 +1,43 @@
+name: erc
+
+services:
+  erc-web:
+    image: ghcr.io/rohithgilla12/erc-web:${ERC_WEB_TAG:?set ERC_WEB_TAG to a version, never latest}
+    container_name: erc-web
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://erc:${POSTGRES_PASSWORD:?}@erc-postgres:5432/erc
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET:?}
+    depends_on:
+      erc-postgres:
+        condition: service_healthy
+    labels:
+      # Upgrades can carry Payload migrations, so they ship by changing ERC_WEB_TAG, not by Watchtower.
+      com.centurylinklabs.watchtower.enable: "false"
+
+  erc-postgres:
+    # The image name must keep "postgres" in it: the host's nightly backup finds databases to dump by image name.
+    image: postgres:17-alpine
+    container_name: erc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: erc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: erc
+    volumes:
+      - /data/media/erc/pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erc -d erc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  erc-cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: erc-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?}
+    depends_on:
+      - erc-web
