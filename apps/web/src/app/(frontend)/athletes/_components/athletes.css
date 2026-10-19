@@ -1,0 +1,418 @@
+.athletes-page,
+.athlete-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+.athlete-page {
+  max-width: 48rem;
+}
+
+.athletes-head {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 42rem;
+}
+
+.athletes-lede,
+.athlete-bio {
+  font-size: var(--text-lg);
+  color: var(--color-text-muted);
+}
+
+.athletes-note {
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.athletes-note strong {
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+
+.athletes-page .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.athletes-page .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  touch-action: manipulation;
+  transition: transform var(--duration-press) var(--ease-out);
+}
+
+.athletes-page .chip .count {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.athletes-page .chip[aria-current='true'] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: var(--weight-medium);
+}
+
+.athletes-page .chip[aria-current='true'] .count {
+  color: inherit;
+}
+
+.athletes-page .chip:active {
+  transform: scale(var(--press-scale));
+}
+
+.athlete-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The name link covers the whole card, so the card is one large tap target without nesting interactive elements. */
+.athlete-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: transform var(--duration-press) var(--ease-out);
+}
+
+.athlete-card:active {
+  transform: scale(0.99);
+}
+
+.athlete-card-head,
+.athlete-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.athlete-card h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.athlete-card h2 a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.athlete-card h2 a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.athlete-card h2 a:focus-visible {
+  outline: none;
+}
+
+.athlete-card:has(h2 a:focus-visible) {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.athlete-home {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.athlete-card-quiet {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.athlete-avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.athlete-avatar-card {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.athlete-avatar-profile {
+  width: 6rem;
+  height: 6rem;
+}
+
+.athlete-avatar-initials {
+  display: inline-grid;
+  place-items: center;
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.02em;
+}
+
+.athlete-avatar-card.athlete-avatar-initials {
+  font-size: var(--text-lg);
+}
+
+.athlete-avatar-profile.athlete-avatar-initials {
+  font-size: var(--text-2xl);
+}
+
+.headline-bests {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.headline-bests > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.headline-bests dt {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.headline-bests dd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.finish-time {
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.proof {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.0625rem var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.proof-verified {
+  color: var(--color-text);
+}
+
+.proof-self {
+  border-style: dashed;
+  color: var(--color-text-muted);
+}
+
+:is(.athletes-page, .athlete-page) .empty {
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.athlete-page .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  justify-self: start;
+  min-height: var(--tap-target);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.athlete-head {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.athlete-page h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.best-list,
+.ultra-list,
+.result-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.best-list > li,
+.ultra-list > li,
+.result-list > li {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.best-list > li:last-child,
+.ultra-list > li:last-child,
+.result-list > li:last-child {
+  border-bottom: 0;
+}
+
+.best {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.best-distance {
+  font-weight: var(--weight-medium);
+}
+
+.best-time {
+  font-size: var(--text-lg);
+}
+
+.best-event {
+  grid-column: 1 / -1;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.ultra-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.ultra-category {
+  min-width: 5.5rem;
+  font-weight: var(--weight-medium);
+}
+
+.result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.result-date {
+  grid-column: 1 / -1;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.result-event {
+  font-weight: var(--weight-medium);
+}
+
+.result-distance {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-align: right;
+}
+
+.result .proof {
+  justify-self: end;
+}
+
+.result-source {
+  justify-self: end;
+  font-size: var(--text-sm);
+}
+
+@media (min-width: 40rem) {
+  .result {
+    grid-template-columns: 7rem minmax(0, 1fr) auto 5.5rem auto;
+  }
+
+  .result-date {
+    grid-column: auto;
+    font-size: var(--text-sm);
+  }
+
+  .result-time {
+    text-align: right;
+  }
+
+  .result .proof {
+    justify-self: start;
+  }
+
+  .result-source {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .athletes-page a.chip:not([aria-current='true']):hover {
+    border-color: var(--color-text-muted);
+    background: var(--color-surface-sunken);
+  }
+
+  .athlete-card:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  .athlete-card:hover h2 a {
+    text-decoration: underline;
+  }
+
+  .athlete-page .back-link:hover {
+    color: var(--color-text);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .athletes-page .chip:active,
+  .athlete-card:active {
+    transform: none;
+    opacity: 0.75;
+  }
+
+  .athletes-page .chip,
+  .athlete-card {
+    transition: opacity var(--duration-press) var(--ease-out);
+  }
+}
