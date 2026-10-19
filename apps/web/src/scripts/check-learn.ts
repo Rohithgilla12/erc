@@ -68,6 +68,23 @@ const postData = (slug: string, title: string): RequiredDataFromCollectionSlug<'
   body: paragraph(`Check body ${run}`),
 })
 
+const LINKED_SLUG = 'placeholder-reading-an-easy-pace'
+
+const withInternalLink = (postId: number) => {
+  const body = paragraph('Check link: ')
+  const link = {
+    type: 'link',
+    version: 3,
+    direction: 'ltr',
+    format: '',
+    indent: 0,
+    fields: { linkType: 'internal', newTab: false, doc: { relationTo: 'posts', value: postId } },
+    children: [{ type: 'text', version: 1, text: 'internal link' }],
+  }
+  ;(body.root.children[0]!.children as object[]).push(link)
+  return body
+}
+
 const anonymousTitles = async (slug: string, draft: boolean) => {
   const { docs } = await payload.find({ collection: 'posts', overrideAccess: false, draft, where: { slug: { equals: slug } } })
   return docs.map((post) => post.title)
@@ -85,7 +102,13 @@ async function writeCases() {
   expect('a never-published post is invisible to anonymous reads', await anonymousTitles(draftSlug, false), [])
   expect('a never-published post is invisible to anonymous draft reads', await anonymousTitles(draftSlug, true), [])
 
-  const live = await payload.create({ collection: 'posts', data: { ...postData(liveSlug, liveTitle), _status: 'published' }, ...as(editor) })
+  const linked = (await payload.find({ collection: 'posts', where: { slug: { equals: LINKED_SLUG } }, limit: 1 })).docs[0]
+  if (!linked) throw new Error('Run src/scripts/seed-learn.ts first')
+  const live = await payload.create({
+    collection: 'posts',
+    data: { ...postData(liveSlug, liveTitle), body: withInternalLink(linked.id), _status: 'published' },
+    ...as(editor),
+  })
   created.posts.push(live.id)
   expect('publishing stamps the first publication time', typeof live.publishedAt === 'string', true)
   await payload.update({ collection: 'posts', id: live.id, data: { title: revisionTitle }, draft: true, ...as(author) })
@@ -195,6 +218,7 @@ async function siteCases(site: string) {
   const live = await html(site, `/learn/${liveSlug}`)
   expect('route: a post with a pending revision shows the live title', [live.status, live.body.includes(liveTitle)], [200, true])
   expect('route: the unpublished revision never appears', live.body.includes(revisionTitle), false)
+  expect('route: an internal link in the body points at the linked post', live.body.includes(`href="/learn/${LINKED_SLUG}"`), true)
 
   const rest = async (query: string) => {
     const response = await fetch(new URL(`/api/posts${query}`, site))
@@ -207,6 +231,10 @@ async function siteCases(site: string) {
   expect('REST: the revision is absent from the anonymous list', (await rest(`?where[slug][equals]=${liveSlug}`)).text.includes(revisionTitle), false)
   expect('REST: the revision is absent with ?draft=true', (await rest(`?where[slug][equals]=${liveSlug}&draft=true`)).text.includes(revisionTitle), false)
   expect('REST: by id, a never-published post is refused', (await rest(`/${created.posts[0]}`)).status, 404)
+  const liveId = created.posts[1]
+  expect('REST: by id with ?draft=true, the revision is absent', (await rest(`/${liveId}?draft=true`)).text.includes(revisionTitle), false)
+  const versions = await rest(`/versions?where[parent][equals]=${liveId}`)
+  expect('REST: anonymous version history is refused', [versions.status >= 400, versions.text.includes(revisionTitle)], [true, false])
 
   const gone = await payload.create({ collection: 'posts', data: { ...postData(goneSlug, `Learn check gone ${run}`), _status: 'published' }, ...as(editor) })
   created.posts.push(gone.id)

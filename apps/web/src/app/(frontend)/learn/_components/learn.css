@@ -154,6 +154,11 @@
   overflow: hidden;
 }
 
+/* The card clips its cover, which would also clip a ring drawn outside it. */
+.post-card :is(h2, h3) a:focus-visible::after {
+  outline-offset: -2px;
+}
+
 .post-card-cover {
   width: 100%;
   aspect-ratio: 16 / 9;

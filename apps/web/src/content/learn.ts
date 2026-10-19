@@ -188,7 +188,7 @@ export const findVideos = cache(async (category: VideoCategory, page: number): P
   return last === 1 ? first : readVideoPage(category, last, VIDEOS_PER_PAGE)
 })
 
-const readVideo = cachedRead('learn:video', ['videos', 'posts', 'topics'], async (payload, slug: string) => {
+const readVideo = cachedRead('learn:video', ['videos', 'posts', 'topics', 'media'], async (payload, slug: string) => {
   const { docs } = await payload.find({
     collection: 'videos',
     ...anonymous,
