@@ -15,7 +15,7 @@ const readR2Settings = (env: NodeJS.ProcessEnv): R2Settings | null => {
 export const mediaStorage = (env: NodeJS.ProcessEnv = process.env) => {
   const r2 = readR2Settings(env)
   // The plugin stays registered when disabled so its `prefix` column exists everywhere and migrations match production.
-  if (!r2) return s3Storage({ enabled: false, alwaysInsertFields: true, bucket: '', config: {}, collections: { media: true } })
+  if (!r2) return s3Storage({ enabled: false, alwaysInsertFields: true, bucket: '', config: {}, collections: { media: true, resources: true } })
   const publicUrl = r2.R2_PUBLIC_URL.replace(/\/+$/, '')
   return s3Storage({
     alwaysInsertFields: true,
@@ -30,6 +30,9 @@ export const mediaStorage = (env: NodeJS.ProcessEnv = process.env) => {
         disablePayloadAccessControl: true,
         generateFileURL: ({ filename, prefix }) => [publicUrl, prefix, filename].filter(Boolean).join('/'),
       },
+      // Read through Payload rather than the public domain, so `/downloads/[slug]` stays the only way in. The object
+      // still sits in the public bucket; a paid file needs a private bucket (see the design doc's Downloads section).
+      resources: { prefix: 'resources' },
     },
   })
 }

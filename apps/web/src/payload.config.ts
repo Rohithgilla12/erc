@@ -7,7 +7,9 @@ import { fileURLToPath } from 'url'
 import { Coaches } from './cms/collections/coaches'
 import { Media } from './cms/collections/media'
 import { raceCalendarIndexes, Races } from './cms/collections/races'
+import { Resources } from './cms/collections/resources'
 import { Staff } from './cms/collections/staff'
+import { TrainingPlans } from './cms/collections/training-plans'
 import { buildErcConfig } from './cms/kinds'
 import { revalidateEndpoint } from './cms/revalidate'
 import { mediaStorage } from './cms/storage'
@@ -23,7 +25,7 @@ export default buildErcConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Staff, Media, Coaches, Races],
+  collections: [Staff, Media, Coaches, Races, Resources, TrainingPlans],
   endpoints: [revalidateEndpoint],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

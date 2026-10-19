@@ -53,7 +53,6 @@ export type Video = Published & {
  * `kind`, `canAccess` first, stops compiling until it handles it.
  */
 export type AccessTier = { kind: 'free' }
-export const ACCESS_TIER_KINDS = ['free'] as const satisfies readonly AccessTier['kind'][]
 
 /** Phase 1 has no member accounts, so every reader is anonymous. */
 export type Viewer = { kind: 'anonymous' }
