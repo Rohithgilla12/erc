@@ -1,5 +1,6 @@
 import { canonicalPathOf, nearestLandingPath, parseRaceQuery, todayIn, type LocalDate, type QueryParams, type RaceQuery } from '@erc/domain'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 
 import { findRaces } from '@/content/races'
 
@@ -25,6 +26,26 @@ export const calendarMetadata = (query: RaceQuery, today: LocalDate, title: stri
   }
 }
 
+const CALENDAR_PATH = /^\/races(\/|$)/
+
+/**
+ * True unless the runner came here from a calendar or race page on this site. Filter chips, the filter form,
+ * pagination and "All races" all send a same-origin Referer, so this tells a first visit from a filter change
+ * without JavaScript. A missing or unparseable Referer counts as an arrival.
+ */
+const isArrival = async () => {
+  const request = await headers()
+  const referer = request.get('referer')
+  if (!referer) return true
+  try {
+    const from = new URL(referer)
+    return from.host !== request.get('host') || !CALENDAR_PATH.test(from.pathname)
+  } catch {
+    return true
+  }
+}
+
 export async function CalendarPage({ heading, query, today }: { heading: string; query: RaceQuery; today: LocalDate }) {
-  return <RaceCalendar heading={heading} page={await findRaces(query)} query={query} today={today} />
+  const [page, arrival] = await Promise.all([findRaces(query), isArrival()])
+  return <RaceCalendar heading={heading} page={page} query={query} today={today} arrival={arrival} />
 }

@@ -21,7 +21,7 @@ declare module 'react' {
   }
 }
 
-type Props = { heading: string; page: RacePage; query: RaceQuery; today: LocalDate }
+type Props = { heading: string; page: RacePage; query: RaceQuery; today: LocalDate; arrival: boolean }
 
 const toggle = <T,>(list: readonly T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
 
@@ -36,7 +36,7 @@ const activeFilters = (query: RaceQuery, today: LocalDate): string[] => [
   ...(query.registrationOpen ? ['Registration open'] : []),
 ]
 
-export function RaceCalendar({ heading, page, query, today }: Props) {
+export function RaceCalendar({ heading, page, query, today, arrival }: Props) {
   const href = (change: Partial<RaceQuery>) => racesHref({ ...query, page: 1, ...change }, today)
   const active = activeFilters(query, today)
 
@@ -123,7 +123,7 @@ export function RaceCalendar({ heading, page, query, today }: Props) {
             No races match these filters. <a href="/races">See every upcoming race</a>.
           </p>
         ) : (
-          <ol className="race-list">
+          <ol className="race-list" data-arrival={arrival ? '' : undefined}>
             {page.races.map((race) => (
               <RaceCard key={race.id} race={race} today={today} />
             ))}
