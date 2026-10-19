@@ -131,13 +131,16 @@
   border-radius: inherit;
 }
 
-.athlete-card h2 a:focus-visible {
-  outline: none;
-}
+/* Where :has is missing, the link keeps its own focus ring instead of the card's. */
+@supports selector(:has(*)) {
+  .athlete-card h2 a:focus-visible {
+    outline: none;
+  }
 
-.athlete-card:has(h2 a:focus-visible) {
-  outline: 2px solid var(--color-accent-text);
-  outline-offset: 2px;
+  .athlete-card:has(h2 a:focus-visible) {
+    outline: 2px solid var(--color-accent-text);
+    outline-offset: 2px;
+  }
 }
 
 .athlete-home {
@@ -357,7 +360,8 @@
 }
 
 .result-source {
-  justify-self: end;
+  grid-column: 1 / -1;
+  justify-self: start;
   font-size: var(--text-sm);
 }
 

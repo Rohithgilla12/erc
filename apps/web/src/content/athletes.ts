@@ -34,10 +34,10 @@ export type RaceSlugs = Readonly<Record<number, Slug>>
 
 export type AthleteProfile = { athlete: Athlete; record: AthleteRecord; raceSlugs: RaceSlugs }
 
-// An athlete page shows race names from `races`, so a race edit expires it as well.
+// Results link to races only while a race is approved, and avatars come from `media`, so edits to either expire these reads.
 const cacheAthleteReads = <A extends unknown[], R>(read: (...args: A) => Promise<R>, key: string) =>
   unstable_cache(read, [key], {
-    tags: [collectionTag('athletes'), collectionTag('results'), collectionTag('races')],
+    tags: [collectionTag('athletes'), collectionTag('results'), collectionTag('races'), collectionTag('media')],
     revalidate: 3600,
   })
 
@@ -112,7 +112,12 @@ async function approvedRaceSlugs(payload: Payload, results: readonly RaceResult[
     pagination: false,
     select: { slug: true },
   })
-  return Object.fromEntries(docs.flatMap((race) => (parseSlug(race.slug).ok ? [[race.id, race.slug as Slug]] : [])))
+  return Object.fromEntries(
+    docs.flatMap((race) => {
+      const slug = parseSlug(race.slug)
+      return slug.ok ? [[race.id, slug.value]] : []
+    }),
+  )
 }
 
 const parsedOrLogged = <D extends { id: number }, T>(

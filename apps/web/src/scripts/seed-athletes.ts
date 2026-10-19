@@ -20,6 +20,7 @@ type SeedResult = {
   distance: number
   finishTime: string
   official?: boolean
+  timingUrl?: string
   pending?: boolean
   atRace?: boolean
 }
@@ -50,7 +51,7 @@ const ATHLETES: readonly (readonly [AthleteData, readonly SeedResult[]])[] = [
       { eventName: 'Placeholder Monsoon 10K', date: '2025-07-20', distance: 10_000, finishTime: '0:45:30' },
       { eventName: 'Placeholder Park Run', date: '2026-05-03', distance: 5_000, finishTime: '0:20:41', official: false },
       { eventName: 'Placeholder City Half', date: '2025-08-24', distance: 21_097, finishTime: '1:39:58' },
-      { eventName: 'Placeholder City Marathon', date: '2026-01-18', distance: 42_195, finishTime: '3:41:07' },
+      { eventName: 'Placeholder City Marathon', date: '2026-01-18', distance: 42_195, finishTime: '3:41:07', timingUrl: 'https://example.org/placeholder-city-marathon/results' },
       { eventName: 'Placeholder Hills 50K', date: '2026-02-22', distance: 50_000, finishTime: '6:12:40' },
       { eventName: 'Placeholder Fast 10K', date: '2026-09-13', distance: 10_000, finishTime: '0:38:00', pending: true },
     ],
@@ -123,7 +124,7 @@ const race = await payload.create({
 let resultCount = 0
 for (const [data, results] of ATHLETES) {
   const athlete = await payload.create({ collection: 'athletes', data, user, context })
-  for (const { atRace, eventName, date, distance, finishTime, official = true, pending = false } of results) {
+  for (const { atRace, eventName, date, distance, finishTime, official = true, timingUrl, pending = false } of results) {
     await payload.create({
       collection: 'results',
       user,
@@ -133,7 +134,7 @@ for (const [data, results] of ATHLETES) {
         ...(atRace ? { race: race.id } : { eventName, date }),
         distance,
         finishTime,
-        provenance: official ? { kind: 'official' } : { kind: 'self_reported' },
+        provenance: official ? { kind: 'official', timingUrl } : { kind: 'self_reported' },
         moderation: { state: 'submitted' },
         ...(pending ? {} : { moderationDecision: 'approve' }),
       } as RequiredDataFromCollectionSlug<'results'>,

@@ -124,8 +124,8 @@ function UltraFinishes({ finishes }: { finishes: Achievements['ultraFinishes'] }
     <section aria-labelledby="ultras-heading">
       <h2 id="ultras-heading">Ultra finishes</h2>
       <ul className="ultra-list">
-        {finishes.map((finish, index) => (
-          <li key={index}>
+        {finishes.map((finish) => (
+          <li key={`${finish.date}-${finish.category}-${finish.eventName}`}>
             <span className="ultra-category">{categoryLabel(finish.category)}</span>
             <span>
               {finish.eventName}, {formatResultDate(finish.date)}

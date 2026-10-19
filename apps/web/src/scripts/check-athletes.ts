@@ -65,7 +65,7 @@ const createAthlete = async (key: string, visibility: AthleteData['visibility'],
   return doc
 }
 
-const createResult = (athlete: number, data: Partial<ResultData> & { finishTime?: string }, approve = true) =>
+const createResult = (athlete: number, data: Partial<ResultData>, approve = true) =>
   payload.create({
     collection: 'results',
     ...asStaff,
@@ -78,6 +78,7 @@ const createResult = (athlete: number, data: Partial<ResultData> & { finishTime?
       moderation: { state: 'submitted' },
       ...(approve ? { moderationDecision: 'approve' } : {}),
       ...data,
+      // The hook derives `time` from `finishTime`, which the generated type cannot know.
     } as ResultData,
   })
 
@@ -178,7 +179,7 @@ try {
 
   const renamed = await payload.update({ collection: 'results', id: official10k.id, ...asStaff, data: { eventName: `Renamed ${run}` } })
   expect('an update without a finish time keeps the stored time', renamed.time, 2_400)
-  const retimed = await payload.update({ collection: 'results', id: official10k.id, ...asStaff, data: { finishTime: '0:40:05' } as Partial<ResultData> })
+  const retimed = await payload.update({ collection: 'results', id: official10k.id, ...asStaff, data: { finishTime: '0:40:05' } })
   expect('an update with a finish time changes it', retimed.time, 2_405)
 
   const race = await payload.create({
@@ -205,7 +206,9 @@ try {
   raceIds.push(race.id)
   const atRace = await createResult(shown.id, { race: race.id, eventName: undefined, date: undefined, distance: 120_000, finishTime: '30:00:00' })
   expect('a linked race fills the event name and date', [atRace.eventName, atRace.date], [race.name, '2026-02-10'])
-  expect('a multi-day race makes the result a multi-day ultra', atRace.category, 'ultra-multiday')
+  expect('a long result at a multi-day race is a multi-day ultra', atRace.category, 'ultra-multiday')
+  const tenKAtRace = await createResult(shown.id, { race: race.id, eventName: undefined, date: undefined, finishTime: '0:50:00' })
+  expect('a 10K at a multi-day race stays a 10K', tenKAtRace.category, '10k')
   const raceSlugs = (await athleteProfile(payload, shown.slug))?.raceSlugs
   expect('the profile links the result to its race', raceSlugs, { [race.id]: race.slug })
 
@@ -267,6 +270,18 @@ async function overHttp(f: Record<'shown' | 'quiet' | 'hidden' | 'pending', Doc>
   const person = jsonLd.find((value) => value['@type'] === 'Person')
   expect('Person JSON-LD carries only type, name, and URL', person ? Object.keys(person).sort() : null, ['@context', '@type', 'name', 'url'])
   expect('the profile has breadcrumbs', jsonLd.some((value) => value['@type'] === 'BreadcrumbList'), true)
+
+  // The pages above are now cached; hiding must expire them, not wait out the cache.
+  const shownResultNames = [`Renamed ${run}`, `Shown 50K ${run}`]
+  expect('the cached profile showed those results before', shownResultNames.map((name) => shownPage.body.includes(name)), [true, true])
+  await payload.update({ collection: 'athletes', id: f.shown.id, ...asStaff, data: { visibility: { profile: 'public', results: 'hidden' } } })
+  const nowQuiet = await get(`/athletes/${f.shown.slug}`)
+  expect('hiding results takes them off the cached profile', [nowQuiet.status, shownResultNames.some((name) => nowQuiet.body.includes(name))], [200, false])
+  const resultsAfter = JSON.parse((await get(`/api/results?where[athlete][equals]=${f.shown.id}`)).body) as { totalDocs: number }
+  expect('hiding results takes them off REST', resultsAfter.totalDocs, 0)
+  await payload.update({ collection: 'athletes', id: f.shown.id, ...asStaff, data: { visibility: { profile: 'hidden', results: 'hidden' } } })
+  expect('hiding the profile 404s the cached page', (await get(`/athletes/${f.shown.slug}`)).status, 404)
+  expect('hiding the profile takes it off the cached directory', (await get('/athletes')).body.includes(f.shown.name ?? ''), false)
 }
 
 if (failures.length > 0) {
