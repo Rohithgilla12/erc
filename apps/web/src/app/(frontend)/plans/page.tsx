@@ -71,7 +71,10 @@ export default async function PlansPage({ searchParams }: Props) {
       {isFiltered(query) ? null : <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(itemList(plans))} />}
       <header className="plans-head">
         <h1>Training plans</h1>
-        <p className="lede">Free plans from ERC coaches. Each one says who it is for and what you should manage before you start.</p>
+        <p className="lede">
+          Free plans from ERC coaches. Each one says who it is for and what you should manage before you start. Printable copies and
+          checklists are on the <a href="/resources">downloads page</a>.
+        </p>
       </header>
 
       {plans.length === 0 ? null : (
