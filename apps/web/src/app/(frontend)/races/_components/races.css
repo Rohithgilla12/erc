@@ -1,0 +1,196 @@
+.races {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.races h1 {
+  margin: 1rem 0;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.races h2 {
+  font-size: 1.1rem;
+  line-height: 1.4;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.races p {
+  margin: 0.5rem 0;
+}
+
+.filters {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.filters label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.filters .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-right: 1rem;
+}
+
+.filters-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.filters input,
+.filters select,
+.filters button {
+  font: inherit;
+  padding: 0.5rem;
+  min-height: 2.75rem;
+}
+
+.filters fieldset {
+  border: 1px solid #444;
+  padding: 0.5rem 0.75rem;
+}
+
+.chip-group h2 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid #666;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.chip[aria-current='true'] {
+  background: #fff;
+  color: #000;
+}
+
+.chip[aria-disabled='true'] {
+  opacity: 0.4;
+}
+
+.count {
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.race-list {
+  list-style: none;
+  margin: 1.5rem 0;
+  padding: 0;
+}
+
+.race-card {
+  border-top: 1px solid #333;
+  padding: 1rem 0;
+}
+
+.race-card h2 {
+  margin: 0.25rem 0;
+}
+
+.race-date,
+.race-place,
+.race-distances {
+  opacity: 0.85;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  background: #333;
+}
+
+.badges .badge {
+  margin-left: 0;
+}
+
+.badge-cancelled {
+  background: #8b1d1d;
+}
+
+.badge-postponed {
+  background: #7a5a00;
+}
+
+.badge-stale {
+  background: #444;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.race-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.race-facts dt {
+  font-weight: bold;
+}
+
+.race-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.distances {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.distances th,
+.distances td {
+  text-align: left;
+  padding: 0.25rem 0.5rem 0.25rem 0;
+  border-bottom: 1px solid #333;
+}
+
+@media (max-width: 30rem) {
+  .race-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .race-facts dd {
+    margin-bottom: 0.5rem;
+  }
+}
