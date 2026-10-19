@@ -12,7 +12,7 @@ import { cache } from 'react'
 import { collectionTag } from '@/cms/revalidate'
 import type { Resource as ResourceDoc } from '@/payload-types'
 
-import { nonEmpty, parsing, present, publishedFields } from './published'
+import { nonEmpty, parsing, present, publishedFields, type Logger } from './published'
 
 /** The one public URL for a file. Plan pages, the downloads list, and JSON-LD all link here, never to storage. */
 export const downloadPath = (resource: Pick<DownloadableResource, 'slug'>) => `/downloads/${resource.slug}`
@@ -40,8 +40,6 @@ export function parseResourceDoc(doc: ResourceDoc): Result<DownloadableResource,
     }
   })
 }
-
-type Logger = { error: (details: object, message: string) => void }
 
 export const publicResources = (docs: readonly ResourceDoc[], logger: Logger): DownloadableResource[] =>
   docs.flatMap((doc) => {
@@ -92,7 +90,7 @@ export async function findDownload(slug: string): Promise<Download | null> {
   const payload = await getPayload({ config })
   const doc = (await findPublished(payload, slug)).docs[0]
   const resource = doc ? publicResources([doc], payload.logger)[0] : undefined
-  return doc && resource ? { resource, open: () => openStoredFile(payload, doc) } : null
+  return doc && resource ? { resource, open: () => openStoredFile(payload, doc, resource.file.filename) } : null
 }
 
 /**
@@ -100,8 +98,7 @@ export async function findDownload(slug: string): Promise<Download | null> {
  * marked as already authorised. With R2 configured the storage adapter's handler streams the object; without it no
  * handler answers and the file is read from the collection's folder on disk.
  */
-async function openStoredFile(payload: Payload, doc: ResourceDoc) {
-  const filename = present(doc.filename, 'filename')
+async function openStoredFile(payload: Payload, doc: ResourceDoc, filename: string) {
   const { upload } = payload.collections.resources.config
   const req = await createLocalReq({ context: { resourceDownload: true } }, payload)
   for (const handler of upload.handlers ?? []) {
@@ -114,6 +111,8 @@ async function openStoredFile(payload: Payload, doc: ResourceDoc) {
   const directory = path.resolve(upload.staticDir ?? 'resources')
   const filePath = path.resolve(directory, filename)
   if (!filePath.startsWith(directory + path.sep)) throw new Error(`Resource ${doc.id} has an unsafe filename`)
-  const { size } = await stat(filePath)
+  const { size } = await stat(filePath).catch((error: unknown) => {
+    throw new Error(`Resource ${doc.id} is published but its file is missing at ${filePath}`, { cause: error })
+  })
   return { body: Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>, bytes: size }
 }

@@ -12,6 +12,8 @@ import {
 
 import type { Coach as CoachDoc, Media as MediaDoc } from '@/payload-types'
 
+export type Logger = { error: (details: object, message: string) => void }
+
 /** Thrown by the field readers below and caught by each document parser, which reports the field instead. */
 export class InvalidField extends Error {}
 

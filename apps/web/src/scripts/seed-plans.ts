@@ -80,7 +80,12 @@ const fiveKWeeks: WeekData[] = [
     )
     return {
       focus: `Placeholder: build to ${run}-minute runs`,
-      sessions: [runWalk, strengthSession(3), { ...runWalk, day: '5' }, { ...runWalk, day: '7', title: `${runWalk.title} with a longer warm-up walk` }],
+      sessions: [
+        runWalk,
+        strengthSession(3),
+        { ...runWalk, day: '5' },
+        { ...runWalk, day: '7', title: `Run ${run} min, walk ${walk} min, longer warm-up walk (placeholder)` },
+      ],
     }
   }),
   {
