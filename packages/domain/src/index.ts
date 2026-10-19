@@ -2,6 +2,8 @@ export * from './athletes'
 export * from './content'
 export * from './moderation'
 export {
+  addDays,
+  daysBetween,
   parseLocalDate,
   parseYouTubeId,
   todayIn,
