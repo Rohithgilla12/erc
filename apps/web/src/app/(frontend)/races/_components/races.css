@@ -272,7 +272,7 @@ a.chip:active {
 }
 
 .race-card h2 a:focus-visible::after {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;
 }
 

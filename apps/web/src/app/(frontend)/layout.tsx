@@ -1,14 +1,18 @@
 import type { Metadata, Viewport } from 'next'
+import Image from 'next/image'
 import React from 'react'
 
 import { siteConfig } from '@/site-config'
 
+import { CLUB, SITE_SECTIONS } from './site-nav'
+import { SiteNavLinks } from './site-nav-links'
 import './styles.css'
 
 export const metadata: Metadata = {
   metadataBase: siteConfig().siteUrl,
-  title: { default: 'ERC', template: '%s | ERC' },
-  description: 'Race calendar, training plans and stories for runners in Telangana and Andhra Pradesh.',
+  title: { default: CLUB.name, template: `%s | ${CLUB.name}` },
+  description: `${CLUB.description} Race calendar, training plans and coaching for runners in Telangana and Andhra Pradesh.`,
+  applicationName: CLUB.name,
 }
 
 export const viewport: Viewport = {
@@ -33,14 +37,32 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
         <header className="site-header">
           <div className="site-header-inner">
             <a className="brand" href="/">
-              ERC
+              <Image className="brand-mark" src="/brand/erc-mark.png" alt="" width={97} height={40} priority unoptimized />
+              <span className="brand-name-full">{CLUB.name}</span>
+              <span className="brand-name-short">{CLUB.shortName}</span>
             </a>
             <nav className="site-nav" aria-label="Site">
-              <a href="/races">Race calendar</a>
+              <SiteNavLinks />
             </nav>
           </div>
         </header>
         <main id="content">{children}</main>
+        <footer className="site-footer">
+          <div className="site-footer-inner">
+            <p className="tagline">{CLUB.tagline}</p>
+            <nav aria-label="Footer">
+              {SITE_SECTIONS.map(({ href, label }) => (
+                <a key={href} href={href}>
+                  {label}
+                </a>
+              ))}
+              <a href={CLUB.instagramUrl} rel="me noopener">
+                Instagram
+              </a>
+            </nav>
+            <p>{CLUB.name}</p>
+          </div>
+        </footer>
       </body>
     </html>
   )
