@@ -16,7 +16,7 @@ import {
   type Slug,
 } from './primitives'
 import { DISCIPLINES, DISTANCE_BANDS, type Discipline, type DistanceBand, type DistanceCategory } from './running'
-import { parseSubdivision, type Subdivision } from './subdivisions'
+import { parseSubdivision, subdivisionOf, type Subdivision } from './subdivisions'
 
 export type RaceLocation =
   | { kind: 'venue'; venue: string; city: string; subdivision: Subdivision; country: 'IN' | (string & {}) }
@@ -89,6 +89,8 @@ export type RaceFacets = {
 
 export type RacePage = {
   races: readonly PublicRace[]
+  /** Races matching the query across all pages. */
+  total: number
   page: number
   totalPages: number
   /** Counts for the current query minus each facet's own filter, so every chip shows what tapping it would yield. */
@@ -179,6 +181,40 @@ export const serialiseRaceQuery = (query: RaceQuery, today: LocalDate): string =
     .filter((pair): pair is [string, string] => pair[1] !== null)
     .map(([key, value]) => `${key}=${value}`)
     .join('&')
+}
+
+export const RACES_PATH = '/races'
+export const stateLandingPath = (subdivision: Subdivision): string => `${RACES_PATH}/in/${subdivisionOf(subdivision).slug}`
+export const disciplineLandingPath = (discipline: Discipline): string => `${RACES_PATH}/discipline/${discipline}`
+
+const withPage = (path: string, page: number) => (page === 1 ? path : `${path}?page=${page}`)
+
+/**
+ * The indexable route for a query, or null when it should be `noindex`. Only the unfiltered calendar and single-facet
+ * queries (one state, or one discipline) have landing pages; pagination keeps its own canonical URL.
+ */
+export const canonicalPathOf = (query: RaceQuery, today: LocalDate): string | null => {
+  const filters = serialiseRaceQuery({ ...query, page: 1 }, today)
+  const [discipline] = query.disciplines
+  if (filters === '') return withPage(RACES_PATH, query.page)
+  if (query.subdivision && filters === `state=${query.subdivision}`) return withPage(stateLandingPath(query.subdivision), query.page)
+  if (discipline && filters === `discipline=${discipline}`) return withPage(disciplineLandingPath(discipline), query.page)
+  return null
+}
+
+/** Where a `noindex` view points its canonical link: the landing page it narrows. */
+export const nearestLandingPath = (query: RaceQuery): string => {
+  const [discipline, ...others] = query.disciplines
+  if (query.subdivision) return stateLandingPath(query.subdivision)
+  if (discipline && others.length === 0) return disciplineLandingPath(discipline)
+  return RACES_PATH
+}
+
+/** Internal links go to the landing route when one exists, so crawlers and shared links meet one URL per view. */
+export const racesHref = (query: RaceQuery, today: LocalDate): string => {
+  const canonical = canonicalPathOf(query, today)
+  if (canonical) return canonical
+  return `${RACES_PATH}?${serialiseRaceQuery(query, today)}`
 }
 
 /** Submitters give raw metres; `category` and `band` are derived, never accepted from a form. */
