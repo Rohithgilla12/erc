@@ -44,8 +44,7 @@ function FieldError({ errors, field }: { errors: EnquiryErrors; field: EnquiryFi
   ) : null
 }
 
-/** Props for a field's control: marks it invalid and points at its message when there is one. */
-const describe = (errors: EnquiryErrors, field: EnquiryField) =>
+const invalidProps = (errors: EnquiryErrors, field: EnquiryField) =>
   errors[field] ? { 'aria-invalid': true as const, 'aria-describedby': errorId(field) } : {}
 
 // With JavaScript off the browser posts to this URL, and the fragment brings the reader back to the form.
@@ -94,13 +93,13 @@ export function EnquiryForm({ initial }: { initial: EnquiryFormState }) {
 
       <label className="enquiry-field">
         <span>Name</span>
-        <input id="enquiry-name" name="name" type="text" autoComplete="name" required maxLength={120} defaultValue={values.name} {...describe(errors, 'name')} />
+        <input id="enquiry-name" name="name" type="text" autoComplete="name" required maxLength={120} defaultValue={values.name} {...invalidProps(errors, 'name')} />
         <FieldError errors={errors} field="name" />
       </label>
 
       <label className="enquiry-field">
         <span>Email</span>
-        <input id="enquiry-email" name="email" type="email" autoComplete="email" required maxLength={254} defaultValue={values.email} {...describe(errors, 'email')} />
+        <input id="enquiry-email" name="email" type="email" autoComplete="email" required maxLength={254} defaultValue={values.email} {...invalidProps(errors, 'email')} />
         <FieldError errors={errors} field="email" />
       </label>
 
@@ -108,13 +107,13 @@ export function EnquiryForm({ initial }: { initial: EnquiryFormState }) {
         <span>
           Phone <span className="enquiry-optional">(optional)</span>
         </span>
-        <input id="enquiry-phone" name="phone" type="tel" autoComplete="tel" maxLength={32} defaultValue={values.phone} {...describe(errors, 'phone')} />
+        <input id="enquiry-phone" name="phone" type="tel" autoComplete="tel" maxLength={32} defaultValue={values.phone} {...invalidProps(errors, 'phone')} />
         <FieldError errors={errors} field="phone" />
       </label>
 
       <label className="enquiry-field">
         <span>What is it about?</span>
-        <select id="enquiry-topic" name="topic" required defaultValue={values.topic} {...describe(errors, 'topic')}>
+        <select id="enquiry-topic" name="topic" required defaultValue={values.topic} {...invalidProps(errors, 'topic')}>
           <option value="" disabled>
             Choose one
           </option>
@@ -129,7 +128,7 @@ export function EnquiryForm({ initial }: { initial: EnquiryFormState }) {
 
       <label className="enquiry-field">
         <span>Message</span>
-        <textarea id="enquiry-message" name="message" rows={6} required maxLength={4000} defaultValue={values.message} {...describe(errors, 'message')} />
+        <textarea id="enquiry-message" name="message" rows={6} required maxLength={4000} defaultValue={values.message} {...invalidProps(errors, 'message')} />
         <FieldError errors={errors} field="message" />
       </label>
 
@@ -142,7 +141,7 @@ export function EnquiryForm({ initial }: { initial: EnquiryFormState }) {
 
       <div className="enquiry-field">
         <label className="enquiry-check">
-          <input id="enquiry-consent" name="consent" type="checkbox" required defaultChecked={values.consent} {...describe(errors, 'consent')} />
+          <input id="enquiry-consent" name="consent" type="checkbox" required defaultChecked={values.consent} {...invalidProps(errors, 'consent')} />
           <span>You may contact me by email or phone about this message.</span>
         </label>
         <FieldError errors={errors} field="consent" />

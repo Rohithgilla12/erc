@@ -10,10 +10,19 @@ export const emailAdapter = () =>
     ? nodemailerAdapter({
         defaultFromName: settings.fromName,
         defaultFromAddress: settings.fromAddress,
-        // Port 465 speaks TLS from the first byte; the others upgrade with STARTTLS.
-        transportOptions: { host: settings.host, port: settings.port, secure: settings.port === 465, auth: { user: settings.user, pass: settings.pass } },
+        transportOptions: {
+          host: settings.host,
+          port: settings.port,
+          // Port 465 speaks TLS from the first byte. Elsewhere STARTTLS is required, so the password never goes out in clear.
+          secure: settings.port === 465,
+          requireTLS: settings.port !== 465,
+          auth: { user: settings.user, pass: settings.pass },
+          // A stalled relay should cost seconds, not Nodemailer's default minutes.
+          connectionTimeout: 10_000,
+          greetingTimeout: 10_000,
+          socketTimeout: 20_000,
+        },
       })
     : undefined
 
-/** Who hears about a new enquiry, or null when email is off or nobody is named. */
 export const enquiryRecipient = (): string | null => (settings && process.env.ENQUIRY_NOTIFY_TO?.trim()) || null

@@ -1,6 +1,7 @@
 import { ENQUIRY_TOPICS, type EnquiryTopic } from '@erc/domain'
-import type { CollectionAfterChangeHook } from 'payload'
+import type { Payload } from 'payload'
 
+import type { Enquiry } from '../../payload-types'
 import { siteConfig } from '../../site-config'
 import { enquiryRecipient } from '../email'
 import { optionsFrom } from '../fields'
@@ -10,36 +11,37 @@ type EnquiryStatus = 'new' | 'handled'
 
 const TOPIC_LABELS = Object.fromEntries(ENQUIRY_TOPICS.map(({ key, label }) => [key, label])) as Record<EnquiryTopic, string>
 
-/** Never throws: the enquiry is already stored, and staff see it in the admin whether or not the email goes out. */
-const notifyStaff: CollectionAfterChangeHook = async ({ doc, operation, req }) => {
+/**
+ * Never throws: the enquiry is already stored and staff see it in the admin whether or not the email goes out. Callers
+ * run it after the create has committed, so a slow relay never holds a transaction open.
+ */
+export async function notifyStaffOfEnquiry(payload: Payload, enquiry: Enquiry) {
   const to = enquiryRecipient()
-  if (operation !== 'create' || !to) return doc
-  const topic = TOPIC_LABELS[doc.topic as EnquiryTopic] ?? doc.topic
+  if (!to) return
+  const topic = TOPIC_LABELS[enquiry.topic]
   try {
-    await req.payload.sendEmail({
+    await payload.sendEmail({
       to,
-      replyTo: doc.email,
-      subject: `${topic} enquiry from ${doc.name}`,
+      replyTo: enquiry.email,
+      subject: `${topic} enquiry from ${enquiry.name}`,
       text: [
-        `${doc.name} <${doc.email}>${doc.phone ? `, ${doc.phone}` : ''}`,
+        `${enquiry.name} <${enquiry.email}>${enquiry.phone ? `, ${enquiry.phone}` : ''}`,
         `Topic: ${topic}`,
         '',
-        doc.message,
+        enquiry.message,
         '',
-        `Reply to this email to answer them, then mark it handled: ${new URL(`/admin/collections/enquiries/${doc.id}`, siteConfig().siteUrl).href}`,
+        `Reply to this email to answer them, then mark it handled: ${new URL(`/admin/collections/enquiries/${enquiry.id}`, siteConfig().siteUrl).href}`,
       ].join('\n'),
     })
   } catch (error) {
-    req.payload.logger.error({ err: error, enquiry: doc.id }, 'Could not email staff about a new enquiry')
+    payload.logger.error({ err: error, enquiry: enquiry.id }, 'Could not email staff about a new enquiry')
   }
-  return doc
 }
 
 const fromSender = { readOnly: true, description: 'As the sender wrote it.' }
 
 export const Enquiries = defineRecord({
   slug: 'enquiries',
-  // Staff only. The public writes through the contact form's server action, never through this collection's API.
   visibility: 'private',
   labels: { singular: 'Enquiry', plural: 'Enquiries' },
   defaultSort: '-createdAt',
@@ -49,7 +51,6 @@ export const Enquiries = defineRecord({
     description: 'Messages from the contact form. Mark each one handled once someone has replied.',
   },
   indexes: [{ fields: ['senderKey', 'createdAt'] }],
-  hooks: { afterChange: [notifyStaff] },
   fields: [
     { name: 'name', type: 'text', required: true, admin: fromSender },
     { name: 'email', type: 'email', required: true, admin: fromSender },
