@@ -8,7 +8,7 @@ Evidence labels: **[V]** verified on 2026-10-19 with the URL given, **[I]** infe
 
 Use **Payload CMS 3.x inside the Next.js app, on Postgres**. One deploy, one database, one admin at `/admin`. Editorial content and structured records are separated by structure inside that one system, not by running two systems.
 
-Hosting (revised 2026-10-19): ERC has no revenue, so every component is free and open source where one exists. Everything runs on `boxy`, an existing [cloud] Cloud Always Free Arm VM (4 Arm cores, 24 GB RAM, Ubuntu 24.04) in the **Hyderabad** region, as a Docker Compose project published through a Cloudflare Tunnel, with media and downloads on Cloudflare R2's free tier. Running cost is US$0; the only spend is a domain.
+Hosting (revised 2026-10-19): ERC has no revenue, so every component is free and open source where one exists. Everything runs on `boxy`, an existing free-tier Arm server in **Hyderabad** shared with other personal projects, as a Docker Compose project published through a Cloudflare Tunnel, with media and downloads on Cloudflare R2's free tier. Running cost is US$0; the only spend is a domain.
 
 ## Framework: Next.js, not TanStack Start or Astro
 
@@ -225,10 +225,10 @@ Authors can edit and submit. Editors and admins also request changes, publish, s
 
 ### Hosting and cost
 
-The host is `boxy`, inspected on 2026-10-19 **[V]**: [cloud] `[instance]` in `[region]`, 4 Arm cores, 24 GB RAM (about 18 GB available), Ubuntu 24.04, Docker 28 with Compose v2, up 196 days. It already runs about 40 containers, including three apps published the same way ([other app], [other app], [other app]). Only ports 22 and 80 answer from the internet; everything else is reachable only over [private network].
+The host is `boxy`, a free-tier Arm server in Hyderabad with Docker and Compose, shared with other personal projects that are published the same way. Operational details of the host live in the operator's private notes, not in this public repository.
 
 ```
- boxy (free-tier Arm, Hyderabad)        compose project: erc
+ boxy (free-tier Arm, Hyderabad)              compose project: erc
  ┌───────────────────────────────────────────────────────────────────┐
  │ erc-cloudflared ──> erc-web :3000 (Next.js + Payload, arm64) ──────┼──> R2 public bucket (images)
  │                         │                                          │    R2 private bucket (downloads)
@@ -256,11 +256,11 @@ The three components that are free but not open source are the Cloudflare Tunnel
 
 Hyderabad is the best possible origin for a Telangana and Andhra Pradesh audience. Even an uncached page is one short hop away.
 
-Capacity: ERC adds roughly 1 to 2 GB of RAM across its containers **[G]**, comfortable within 18 GB available. Two constraints matter:
-- **The root disk is tight.** Postgres data therefore lives on the 125 GB `/data/media` volume (plenty free), and uploads go to R2. The `erc-web` image is the only thing that lands on the root disk.
+Capacity: ERC adds well under 1 GB of RAM across its containers (about 200 MB measured at idle), with memory limits set in compose. Two constraints matter:
+- **The root disk is tight.** Postgres data, the page cache, and local uploads therefore live on a separate large volume under `/data/media/erc`, and uploads move to R2. The `erc-web` image is the only thing that lands on the root disk.
 - **R2 is durable storage, not a backup.** A deleted object is gone. Payload keeps the upload records in Postgres, which is backed up nightly. Whether to also sync the buckets into the restic run is an open question.
 
-Build and deploy: a GitHub Actions workflow builds a `linux/arm64` image and pushes it to GHCR, the same pattern as the host's other apps. Pin a version tag rather than `latest`, so the Watchtower container on boxy never runs a Payload schema migration nobody asked for. Payload's `prodMigrations` runs pending migrations on boot.
+Build and deploy: `infra/boxy/ship.sh` builds the committed HEAD as a `linux/arm64` image on a workstation (the shared host never builds), streams it over SSH with `docker load`, and runs `deploy.sh`, which dumps the database, swaps the image tag, waits for health, and keeps three images for rollback. Every ERC container opts out of automatic image updates, because an upgrade can carry a Payload migration. Payload's `prodMigrations` runs pending migrations on boot.
 
 Risks of one box: no redundancy, and a host outage takes the site down except for assets cached at the edge. That is accepted for a club site with no revenue. The exit is unchanged. The same image runs anywhere Docker runs, and Postgres moves with `pg_dump`.
 
