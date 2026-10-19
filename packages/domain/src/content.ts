@@ -48,40 +48,77 @@ export type Video = Published & {
   related: readonly ContentRef[]
 }
 
-/** Phase 1 ships only `free`. Phase 3 adds `paid`; `canAccess` is already the single gate. */
+/**
+ * Who may open a plan or a file. Phase 1 ships only `free`. Phase 3 adds a `paid` variant, and every switch over
+ * `kind`, `canAccess` first, stops compiling until it handles it.
+ */
 export type AccessTier = { kind: 'free' }
+export const ACCESS_TIER_KINDS = ['free'] as const satisfies readonly AccessTier['kind'][]
+
+/** Phase 1 has no member accounts, so every reader is anonymous. */
 export type Viewer = { kind: 'anonymous' }
+export const ANONYMOUS: Viewer = { kind: 'anonymous' }
+
+/**
+ * The one access gate for plans and downloads. Phase 3 changes this policy, never the URLs that call it. `viewer`
+ * goes unread until there are members, but callers pass it now so that change touches no call site.
+ */
+export const canAccess = (viewer: Viewer, access: AccessTier): boolean => {
+  switch (access.kind) {
+    case 'free':
+      return true
+  }
+}
+
+export const PLAN_LEVELS = ['beginner', 'intermediate', 'advanced'] as const
+export type PlanLevel = (typeof PLAN_LEVELS)[number]
+
+export const SESSION_INTENSITIES = ['easy', 'steady', 'tempo', 'intervals', 'long', 'strength', 'rest'] as const
+export type SessionIntensity = (typeof SESSION_INTENSITIES)[number]
+
+export const WEEK_DAYS = [1, 2, 3, 4, 5, 6, 7] as const
+export type WeekDay = (typeof WEEK_DAYS)[number]
+
+/** A session is measured by distance or by time, never both; rest and strength sessions usually have neither. */
+export type SessionTarget = { kind: 'distance'; metres: Metres } | { kind: 'duration'; seconds: Seconds } | { kind: 'none' }
 
 export type PlanSession = {
-  day: 1 | 2 | 3 | 4 | 5 | 6 | 7
+  day: WeekDay
   title: string
-  distance: Metres | null
-  duration: Seconds | null
-  intensity: 'easy' | 'steady' | 'tempo' | 'intervals' | 'long' | 'strength' | 'rest'
+  target: SessionTarget
+  intensity: SessionIntensity
   notes: string
 }
 
-/** Plan length is `weeks.length`; it is never stored separately. */
+/** A week's number is its position in `weeks`, so it is never stored. */
+export type PlanWeek = { focus: string; sessions: NonEmpty<PlanSession> }
+
+/** Plan length is `weeks.length` (`planWeekCount`); it is never stored separately. */
 export type TrainingPlan = Published & {
   kind: 'trainingPlan'
   title: string
   goal: DistanceCategory
-  level: 'beginner' | 'intermediate' | 'advanced'
+  level: PlanLevel
   prerequisites: string
   audience: string
-  weeks: NonEmpty<{ week: number; focus: string; sessions: readonly PlanSession[] }>
   overview: RichText
-  coaches: NonEmpty<CoachProfile>
+  weeks: NonEmpty<PlanWeek>
+  strength: RichText | null
+  recovery: RichText | null
+  /** Published coach profiles only. A plan whose coaches are all unpublished is credited to the club. */
+  coaches: readonly CoachProfile[]
   access: AccessTier
-  pdf: Id<'resources'> | null
+  pdf: DownloadableResource | null
 }
+
+export const RESOURCE_CATEGORIES = ['plan-pdf', 'checklist', 'guide', 'spreadsheet'] as const
+export type ResourceCategory = (typeof RESOURCE_CATEGORIES)[number]
 
 export type DownloadableResource = Published & {
   kind: 'resource'
   title: string
   description: string
-  file: { key: string; mimeType: string; bytes: number }
+  category: ResourceCategory
+  file: { filename: string; mimeType: string; bytes: number }
   access: AccessTier
 }
-
-export const canAccess = (viewer: Viewer, access: AccessTier): boolean => true

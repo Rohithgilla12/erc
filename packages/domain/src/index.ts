@@ -22,6 +22,7 @@ export {
   type Slug,
   type YouTubeId,
 } from './primitives'
+export * from './plans'
 export * from './races'
 export * from './running'
 export * from './subdivisions'
