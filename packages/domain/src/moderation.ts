@@ -2,6 +2,7 @@ import { err, ok, type Email, type Id, type Instant, type Result } from './primi
 
 export type StaffRole = 'admin' | 'editor' | 'author'
 export type StaffId = Id<'staff'>
+export type StaffActor = { id: StaffId; role: StaffRole }
 
 /** One moderation model for every public intake: race submissions now, profile claims and results in Phase 2. */
 export type Submitter = { name: string; email: Email }

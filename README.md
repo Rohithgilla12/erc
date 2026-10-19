@@ -28,6 +28,7 @@ docker compose -f infra/dev/compose.yaml up -d
 pnpm --filter @erc/web payload migrate                       # apply migrations
 pnpm --filter @erc/web payload migrate:create <name>         # after changing a collection
 pnpm --filter @erc/web payload run src/scripts/check-record-access.ts
+pnpm --filter @erc/web payload run src/scripts/check-write-rules.ts     # ERC_CHECK_URL=<site> adds the REST cases
 pnpm --filter @erc/web payload run src/scripts/check-race-hook.ts
 pnpm --filter @erc/web payload run src/scripts/seed-races.ts          # 3,000 synthetic races, replaced on re-run
 pnpm --filter @erc/web payload run src/scripts/check-race-calendar.ts # after seeding

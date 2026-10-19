@@ -1,89 +1,115 @@
-import type { StaffId, StaffRole } from './moderation'
+import type { StaffActor, StaffId, StaffRole } from './moderation'
 import { err, ok, type Instant, type Result } from './primitives'
 
-export type EditorialState =
+/** What readers see. */
+export type LiveState = { kind: 'none' } | { kind: 'published'; at: Instant; by: StaffId }
+
+/** The working copy on its way to replacing `live`. A published document can carry one, so its edits are reviewed too. */
+export type RevisionState =
+  | { kind: 'none' }
   | { kind: 'draft' }
   | { kind: 'in_review'; submittedBy: StaffId; at: Instant }
   | { kind: 'changes_requested'; by: StaffId; note: string; at: Instant }
   | { kind: 'scheduled'; publishAt: Instant; by: StaffId }
-  | { kind: 'published'; at: Instant; by: StaffId }
+
+export type EditorialState = { live: LiveState; revision: RevisionState }
+
+export const NEW_DOCUMENT: EditorialState = { live: { kind: 'none' }, revision: { kind: 'draft' } }
 
 export type WorkflowAction =
+  | { kind: 'edit' }
   | { kind: 'submit' }
   | { kind: 'request_changes'; note: string }
   | { kind: 'publish' }
   | { kind: 'schedule'; publishAt: Instant }
   | { kind: 'unpublish' }
 
-export type WorkflowRefusal =
-  | { kind: 'role_cannot'; role: StaffRole; action: WorkflowAction['kind'] }
-  | { kind: 'invalid_from'; from: EditorialState['kind']; action: WorkflowAction['kind'] }
-  | { kind: 'schedule_in_past' }
-
-type StateKind = EditorialState['kind']
+type RevisionKind = RevisionState['kind']
 type ActionKind = WorkflowAction['kind']
-type Actor = { id: StaffId; role: StaffRole }
+
+export type WorkflowRefusal =
+  | { kind: 'role_cannot'; role: StaffRole; action: ActionKind }
+  | { kind: 'invalid_from'; from: RevisionKind; action: ActionKind }
+  | { kind: 'schedule_in_past' }
 
 type ActionRule<A extends WorkflowAction> = {
   roles: readonly StaffRole[]
+  /** True when `state` is what this action produces, so a retry returns it unchanged. */
   producedBy(state: EditorialState, action: A): boolean
-  next(action: A, actor: Actor, now: Instant): Result<EditorialState, WorkflowRefusal>
+  next(state: EditorialState, action: A, actor: StaffActor, now: Instant): Result<EditorialState, WorkflowRefusal>
 }
 
+const EVERYONE: readonly StaffRole[] = ['author', 'editor', 'admin']
 const EDITORS: readonly StaffRole[] = ['editor', 'admin']
 
-const ALLOWED: Readonly<Record<StateKind, readonly ActionKind[]>> = {
-  draft: ['submit', 'publish', 'schedule'],
-  in_review: ['request_changes', 'publish', 'schedule'],
-  changes_requested: ['submit', 'publish'],
-  scheduled: ['publish', 'unpublish'],
-  published: ['unpublish'],
+/** Which revisions each action may start from. `unpublish` acts on `live`, so every revision allows it. */
+const ALLOWED: Readonly<Record<RevisionKind, readonly ActionKind[]>> = {
+  none: ['edit', 'unpublish'],
+  draft: ['edit', 'submit', 'publish', 'schedule', 'unpublish'],
+  in_review: ['edit', 'request_changes', 'publish', 'schedule', 'unpublish'],
+  changes_requested: ['edit', 'submit', 'publish', 'unpublish'],
+  scheduled: ['edit', 'publish', 'unpublish'],
 }
 
+const withRevision = (state: EditorialState, revision: RevisionState): Result<EditorialState, WorkflowRefusal> =>
+  ok({ live: state.live, revision })
+
 const RULES: { [K in ActionKind]: ActionRule<Extract<WorkflowAction, { kind: K }>> } = {
+  edit: {
+    roles: EVERYONE,
+    producedBy: ({ revision }) => revision.kind === 'draft' || revision.kind === 'in_review' || revision.kind === 'changes_requested',
+    // Editing scheduled content drops the schedule, so changes nobody reviewed never go live at `publishAt`.
+    next: (state) => withRevision(state, { kind: 'draft' }),
+  },
   submit: {
-    roles: ['author', 'editor', 'admin'],
-    producedBy: (state) => state.kind === 'in_review',
-    next: (_, actor, now) => ok({ kind: 'in_review', submittedBy: actor.id, at: now }),
+    roles: EVERYONE,
+    producedBy: ({ revision }) => revision.kind === 'in_review',
+    next: (state, _, actor, now) => withRevision(state, { kind: 'in_review', submittedBy: actor.id, at: now }),
   },
   request_changes: {
     roles: EDITORS,
-    producedBy: (state, action) => state.kind === 'changes_requested' && state.note === action.note,
-    next: (action, actor, now) => ok({ kind: 'changes_requested', by: actor.id, note: action.note, at: now }),
+    producedBy: ({ revision }, action) => revision.kind === 'changes_requested' && revision.note === action.note,
+    next: (state, action, actor, now) => withRevision(state, { kind: 'changes_requested', by: actor.id, note: action.note, at: now }),
   },
   publish: {
     roles: EDITORS,
-    producedBy: (state) => state.kind === 'published',
-    next: (_, actor, now) => ok({ kind: 'published', at: now, by: actor.id }),
+    producedBy: ({ live, revision }) => live.kind === 'published' && revision.kind === 'none',
+    next: (_, __, actor, now) => ok({ live: { kind: 'published', at: now, by: actor.id }, revision: { kind: 'none' } }),
   },
   schedule: {
     roles: EDITORS,
-    producedBy: (state, action) => state.kind === 'scheduled' && state.publishAt === action.publishAt,
-    next: (action, actor, now) =>
+    producedBy: ({ revision }, action) => revision.kind === 'scheduled' && revision.publishAt === action.publishAt,
+    next: (state, action, actor, now) =>
       Date.parse(action.publishAt) > Date.parse(now)
-        ? ok({ kind: 'scheduled', publishAt: action.publishAt, by: actor.id })
+        ? withRevision(state, { kind: 'scheduled', publishAt: action.publishAt, by: actor.id })
         : err({ kind: 'schedule_in_past' }),
   },
   unpublish: {
     roles: EDITORS,
-    producedBy: (state) => state.kind === 'draft',
-    next: () => ok({ kind: 'draft' }),
+    producedBy: ({ live }) => live.kind === 'none',
+    // The content that was live becomes the draft, so a document is never left with nothing to work on.
+    next: ({ revision }) => ok({ live: { kind: 'none' }, revision: revision.kind === 'none' ? { kind: 'draft' } : revision }),
   },
 }
 
+export const mayAct = (role: StaffRole, action: ActionKind): boolean => RULES[action].roles.includes(role)
+
 /**
- * The stored `workflow` field is the only owner of editorial state; the CMS adapter derives Payload's
- * `_status` from it. Authors can only `submit`. Re-applying an action to the state it produced returns that state.
+ * The stored `workflow` field is the only owner of editorial state; the CMS adapter derives Payload's `_status`
+ * from `live`. Authors can edit and submit; editors and admins do the rest. Re-applying an action to the state it
+ * produced returns that state.
  */
 export const transition = (
   state: EditorialState,
   action: WorkflowAction,
-  actor: { id: StaffId; role: StaffRole },
+  actor: StaffActor,
   now: Instant,
 ): Result<EditorialState, WorkflowRefusal> => {
   const rule = RULES[action.kind] as ActionRule<WorkflowAction>
   if (!rule.roles.includes(actor.role)) return err({ kind: 'role_cannot', role: actor.role, action: action.kind })
   if (rule.producedBy(state, action)) return ok(state)
-  if (!ALLOWED[state.kind].includes(action.kind)) return err({ kind: 'invalid_from', from: state.kind, action: action.kind })
-  return rule.next(action, actor, now)
+  if (!ALLOWED[state.revision.kind].includes(action.kind)) {
+    return err({ kind: 'invalid_from', from: state.revision.kind, action: action.kind })
+  }
+  return rule.next(state, action, actor, now)
 }

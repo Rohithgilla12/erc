@@ -179,7 +179,7 @@ export interface Coach {
   slug: string;
   credentials: string;
   photo?: (number | null) | Media;
-  workflow:
+  workflow?:
     | {
         [k: string]: unknown;
       }
@@ -188,6 +188,11 @@ export interface Coach {
     | number
     | boolean
     | null;
+  /**
+   * Applied when you save.
+   */
+  reviewRequest?: ('submit' | 'request_changes') | null;
+  reviewNote?: string | null;
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
@@ -436,6 +441,8 @@ export interface CoachesSelect<T extends boolean = true> {
   credentials?: T;
   photo?: T;
   workflow?: T;
+  reviewRequest?: T;
+  reviewNote?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;

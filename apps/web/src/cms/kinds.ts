@@ -4,7 +4,14 @@ import { isStaff } from './access'
 import { approvedUnlessStaff, moderationField } from './moderation'
 import { revalidateOnChange, revalidateOnDelete } from './revalidate'
 import type { EditorialSlug, ErcSlug, RecordSlug } from './slugs'
-import { applyWorkflow, publishedUnlessStaff, workflowField } from './workflow'
+import {
+  applyWorkflow,
+  captureEditorialSave,
+  editorialUpdate,
+  publishedUnlessStaff,
+  reviewRequestFields,
+  workflowField,
+} from './workflow'
 
 declare const built: unique symbol
 
@@ -55,11 +62,15 @@ export const defineEditorial = ({ slug, fields, admin, access, hooks, ...rest }:
       ...rest,
       slug,
       admin: { ...admin, group: 'Content' },
-      access: { ...staffWrites, ...access, read: publishedUnlessStaff, readVersions: isStaff },
+      access: { ...staffWrites, update: editorialUpdate, ...access, read: publishedUnlessStaff, readVersions: isStaff },
       versions: { drafts: true },
-      fields: [...fields, workflowField],
-      // Last, so the workflow is the final word on `_status` whatever earlier hooks wrote.
-      hooks: withRevalidation(slug, { ...hooks, beforeChange: [...(hooks?.beforeChange ?? []), applyWorkflow] }),
+      fields: [...fields, workflowField, ...reviewRequestFields],
+      hooks: withRevalidation(slug, {
+        ...hooks,
+        beforeOperation: [...(hooks?.beforeOperation ?? []), captureEditorialSave],
+        // Last, so the workflow is the final word on `_status` whatever earlier hooks wrote.
+        beforeChange: [...(hooks?.beforeChange ?? []), applyWorkflow],
+      }),
     },
   })
 
