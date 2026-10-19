@@ -331,7 +331,7 @@ export interface Athlete {
   name: string;
   slug: string;
   /**
-   * Uploaded images are public files, even while this profile is hidden. Add a photo only once the athlete agrees.
+   * Uploaded images and their alt text are public, even while this profile is hidden. Add a photo only once the athlete agrees, and leave their name out of the alt text.
    */
   photo?: (number | null) | Media;
   bio?: string | null;

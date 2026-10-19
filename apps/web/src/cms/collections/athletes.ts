@@ -56,7 +56,7 @@ export const Athletes = defineRecord({
       type: 'upload',
       relationTo: 'media',
       admin: {
-        description: 'Uploaded images are public files, even while this profile is hidden. Add a photo only once the athlete agrees.',
+        description: 'Uploaded images and their alt text are public, even while this profile is hidden. Add a photo only once the athlete agrees, and leave their name out of the alt text.',
       },
     },
     { name: 'bio', type: 'textarea', maxLength: 400 },

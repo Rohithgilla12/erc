@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   athleteRecordOf,
+  categoriseResult,
   deriveAchievements,
   formatFinishTime,
   headlineBests,
@@ -176,5 +177,19 @@ describe('parseFinishTime', () => {
       if (!parsed.ok) throw new Error(`did not parse ${raw}`)
       expect(formatFinishTime(parsed.value)).toBe(raw)
     }
+  })
+})
+
+describe('categoriseResult', () => {
+  it.each([
+    [10_000, 2, '10k'],
+    [42_195, 3, 'marathon'],
+    [42_195, 1, 'marathon'],
+    [120_000, 3, 'ultra-multiday'],
+    [50_000, 2, 'ultra-multiday'],
+    [50_000, 1, 'ultra-50k'],
+    [161_000, 1, 'ultra-100mi'],
+  ] as const)('%i m at a %i-day race is %s', (metres, days, category) => {
+    expect(categoriseResult(metres as Metres, days)).toBe(category)
   })
 })

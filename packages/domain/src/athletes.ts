@@ -1,6 +1,6 @@
 import type { Moderation } from './moderation'
 import { err, ok, type HttpsUrl, type Id, type LocalDate, type Metres, type Result, type Seconds, type Slug } from './primitives'
-import { DISTANCE_CATEGORIES, type DistanceCategory } from './running'
+import { categoriseDistance, DISTANCE_CATEGORIES, type DistanceCategory } from './running'
 import type { Subdivision } from './subdivisions'
 
 export type Athlete = {
@@ -113,3 +113,12 @@ export const formatFinishTime = (time: Seconds): string => {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${Math.floor(whole / 3600)}:${pad(Math.floor((whole % 3600) / 60))}:${pad(whole % 60)}`
 }
+
+const MARATHON_MAX = DISTANCE_CATEGORIES.find((c) => c.key === 'marathon')?.max ?? 42_300
+
+/**
+ * A result's category. A multi-day race weekend often includes a 10K or a marathon, which are not multi-day ultras,
+ * so only a distance beyond the marathon run at a race spanning several days counts as one.
+ */
+export const categoriseResult = (metres: Metres, raceDays: number): DistanceCategory =>
+  categoriseDistance(metres, raceDays > 1 && metres > MARATHON_MAX)

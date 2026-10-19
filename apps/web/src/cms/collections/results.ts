@@ -1,7 +1,8 @@
 import {
-  categoriseDistance,
+  categoriseResult,
   formatFinishTime,
   parseFinishTime,
+  parseLocalDate,
   todayIn,
   type Athlete,
   type DistanceCategory,
@@ -21,10 +22,6 @@ const PUBLIC: Athlete['visibility']['profile'] = 'public'
 
 const idOf = (value: number | { id: number } | null | undefined) => (typeof value === 'object' && value !== null ? value.id : value)
 
-/** What the request sent, else what is stored when the request left it out, else the race's value. */
-const sentStoredOrRace = <T,>(sent: T | null | undefined, stored: T | null | undefined, fromRace: T | undefined) =>
-  sent || (sent === undefined ? stored : null) || fromRace
-
 const raceOf = async (req: PayloadRequest, race: ResultDoc['race']) => {
   const id = idOf(race)
   if (id == null) return null
@@ -33,28 +30,28 @@ const raceOf = async (req: PayloadRequest, race: ResultDoc['race']) => {
 
 /**
  * Owns every derived field. A linked race fills an empty event name and date, `finishTime` is the only way to set
- * `time`, and `category` comes from the distance, multi-day when the linked race spans several days. Runs before
- * validation so the required stored fields are present by then.
+ * `time`, and `category` comes from the distance and the linked race's length. Runs before validation so the required
+ * stored fields are present by then. Payload has already filled the fields an update left out from the stored document.
  */
 const deriveResultFields: CollectionBeforeValidateHook<ResultDoc> = async ({ data = {}, originalDoc, req }) => {
-  const { finishTime, time: _sent, ...rest } = data as typeof data & { finishTime?: unknown }
+  const { finishTime, time: _sent, ...rest } = data
   const race = await raceOf(req, rest.race === undefined ? originalDoc?.race : rest.race)
   const parsedTime = typeof finishTime === 'string' && finishTime.trim() ? parseFinishTime(finishTime) : null
   const time = parsedTime?.ok ? parsedTime.value : originalDoc?.time
   const metres = rest.distance ?? originalDoc?.distance
-  const date = sentStoredOrRace(rest.date, originalDoc?.date, race?.dates.start)
+  const date = rest.date || race?.dates.start
 
-  if (date && date > todayIn('Asia/Kolkata')) {
+  if (date && parseLocalDate(date).ok && date > todayIn('Asia/Kolkata')) {
     throw new ValidationError({ errors: [{ message: 'A result cannot be dated in the future.', path: 'date' }] })
   }
 
   return {
     ...rest,
     ...(finishTime === undefined ? {} : { finishTime }),
-    eventName: sentStoredOrRace(rest.eventName?.trim(), originalDoc?.eventName, race?.name),
+    eventName: rest.eventName?.trim() || race?.name,
     date,
     time,
-    category: typeof metres === 'number' && metres > 0 ? categoriseDistance(metres as Metres, (race?.dates.dayCount ?? 1) > 1) : undefined,
+    category: typeof metres === 'number' && metres > 0 ? categoriseResult(metres as Metres, race?.dates.dayCount ?? 1) : undefined,
     ...(rest.provenance ? { provenance: withOneUrl(rest.provenance) } : {}),
   }
 }
