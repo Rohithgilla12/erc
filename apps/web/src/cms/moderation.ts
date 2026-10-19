@@ -9,6 +9,13 @@ const approved: Where = { 'moderation.state': { equals: 'approved' satisfies Mod
 /** Staff see every row; everyone else sees approved rows only, enforced as a query filter rather than page logic. */
 export const approvedUnlessStaff = ({ req }: { req: PayloadRequest }) => (staffOf(req) ? true : approved)
 
+/** Deleting an approved record takes it off the site, which only someone who may decide can do. */
+export const moderatedDelete = ({ req }: { req: PayloadRequest }) => {
+  const staff = staffOf(req)
+  if (!staff) return false
+  return mayDecide(staff.role) ? true : { 'moderation.state': { not_equals: 'approved' satisfies Moderation['state'] } }
+}
+
 /** Written only by `applyModeration`, so the admin shows it read-only and the hook discards whatever a request sends. */
 export const moderationField: GroupField = {
   name: 'moderation',

@@ -1,12 +1,13 @@
 import { buildConfig, type CollectionConfig, type Config, type Field } from 'payload'
 
 import { isStaff } from './access'
-import { applyModeration, approvedUnlessStaff, decisionFields, moderationField } from './moderation'
+import { applyModeration, approvedUnlessStaff, decisionFields, moderatedDelete, moderationField } from './moderation'
 import { revalidateOnChange, revalidateOnDelete } from './revalidate'
 import type { EditorialSlug, ErcSlug, RecordSlug } from './slugs'
 import {
   applyWorkflow,
   captureEditorialSave,
+  editorialDelete,
   editorialUpdate,
   publishedUnlessStaff,
   reviewRequestFields,
@@ -62,7 +63,7 @@ export const defineEditorial = ({ slug, fields, admin, access, hooks, ...rest }:
       ...rest,
       slug,
       admin: { ...admin, group: 'Content' },
-      access: { ...staffWrites, update: editorialUpdate, ...access, read: publishedUnlessStaff, readVersions: isStaff },
+      access: { ...staffWrites, update: editorialUpdate, delete: editorialDelete, ...access, read: publishedUnlessStaff, readVersions: isStaff },
       versions: { drafts: true },
       fields: [...fields, workflowField, ...reviewRequestFields],
       hooks: withRevalidation(slug, {
@@ -84,7 +85,12 @@ export const defineRecord = ({ slug, fields, admin, access, visibility, hooks, .
       ...rest,
       slug,
       admin: { ...admin, group: 'Records' },
-      access: { ...staffWrites, ...access, read: readByVisibility[visibility] },
+      access: {
+        ...staffWrites,
+        ...(visibility === 'moderated' ? { delete: moderatedDelete } : {}),
+        ...access,
+        read: readByVisibility[visibility],
+      },
       hooks: withRevalidation(
         slug,
         visibility === 'moderated' ? { ...hooks, beforeChange: [...(hooks?.beforeChange ?? []), applyModeration] } : hooks,

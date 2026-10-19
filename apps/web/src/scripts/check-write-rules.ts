@@ -106,6 +106,14 @@ async function editorialCases() {
   await payload.update({ collection: 'coaches', id: coach.id, data: { reviewRequest: 'submit' }, draft: true, ...as(author) })
   expect('an author submits the revision for review', await stateOf(coach.id), { live: 'published', revision: 'in_review' })
   expect(
+    'a bulk non-draft save is refused, since Payload would act on the stale live copy',
+    await outcome(payload.update({ collection: 'coaches', where: { slug: { equals: slug } }, data: { _status: 'draft' }, ...as(editor) })),
+    409,
+  )
+  expect('the refused bulk save leaves the pending revision alone', await stateOf(coach.id), { live: 'published', revision: 'in_review' })
+  const authorDelete = await outcome(payload.delete({ collection: 'coaches', id: coach.id, ...as(author) }))
+  expect('an author cannot delete a published doc', [authorDelete !== 'allowed', await publicCredentials(slug, false)], [true, ['v1 live']])
+  expect(
     'an author cannot request changes',
     await outcome(
       payload.update({ collection: 'coaches', id: coach.id, data: { reviewRequest: 'request_changes', reviewNote: 'x' }, draft: true, ...as(author) }),
@@ -138,6 +146,11 @@ async function editorialCases() {
   expect('unpublish hides the doc from anonymous reads', await publicCredentials(slug, false), [])
   expect('unpublish hides the doc from anonymous draft reads', await publicCredentials(slug, true), [])
   expect('unpublish keeps the content as a draft revision', await stateOf(coach.id), { live: 'none', revision: 'draft' })
+
+  const draft = await payload.create({ collection: 'coaches', data: coachData(`write-check-draft-${run}`, 'never live'), draft: true, ...as(author) })
+  coachIds.push(draft.id)
+  expect('an author can delete a doc that was never published', await outcome(payload.delete({ collection: 'coaches', id: draft.id, ...as(author) })), 'allowed')
+  coachIds.splice(coachIds.indexOf(draft.id), 1)
 }
 
 const raceData = (slug: string): RequiredDataFromCollectionSlug<'races'> => ({
@@ -210,6 +223,9 @@ async function moderationCases() {
     await outcome(payload.update({ collection: 'races', id: race.id, data: { moderationDecision: 'reject', rejectionReason: 'x' }, ...as(editor) })),
     409,
   )
+  const authorDelete = await outcome(payload.delete({ collection: 'races', id: race.id, ...as(author) }))
+  const stillThere = await payload.count({ collection: 'races', where: { id: { equals: race.id } } })
+  expect('an author cannot delete an approved race', [authorDelete !== 'allowed', stillThere.totalDocs], [true, 1])
 }
 
 async function staffDeletionCases() {

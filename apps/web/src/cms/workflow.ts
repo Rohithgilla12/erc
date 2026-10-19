@@ -53,6 +53,11 @@ const saveOf = (operation: 'create' | 'update', draft: boolean, status: SentStat
  * after which "sent nothing" and "sent the current status" look the same.
  */
 export const captureEditorialSave: CollectionBeforeOperationHook = ({ args, operation, req }) => {
+  // Payload loads a bulk non-draft update's documents from the main row, which is the last live copy, so the save
+  // would act on stale state and overwrite any pending revision with it.
+  if (operation === 'update' && 'where' in args && args.where && !args.draft) {
+    throw new APIError('Publish, unpublish, or save live content one document at a time, or save drafts in bulk.', 409, undefined, true)
+  }
   if (operation === 'create' || operation === 'update') {
     req.context.editorialSave = saveOf(operation, Boolean(args.draft), sentStatus(args.data))
   }
@@ -141,6 +146,16 @@ export const editorialUpdate: Access = ({ req, data }) => {
 }
 
 /** Not `required`: callers never send it, and the change hook always writes it. */
+/**
+ * Deleting a published document takes it off the site, which is the publisher's call; anyone else may delete only
+ * what is not live.
+ */
+export const editorialDelete: Access = ({ req }) => {
+  const staff = staffOf(req)
+  if (!staff) return false
+  return mayAct(staff.role, 'unpublish') ? true : { _status: { not_equals: 'published' } }
+}
+
 export const workflowField: Field = {
   name: 'workflow',
   type: 'json',
