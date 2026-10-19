@@ -38,6 +38,9 @@ if [ -f cloudflared.yml ] && [ "${ERC_PUBLIC:-1}" = "1" ]; then
   docker restart erc-cloudflared >/dev/null
 fi
 
-docker images erc-web --format '{{.Tag}}' | grep -vx "$tag" | grep -vx "${previous:-}" | tail -n +$((keep_images - 1)) \
-  | xargs -r -I{} docker image rm "erc-web:{}" || echo "WARNING: image prune failed; deploy itself succeeded" >&2
+# Newest first; keep the running tag, the previous one for rollback, and one older.
+stale=$(docker images erc-web --format '{{.Tag}}' | grep -vxF -e "$tag" -e "${previous:-$tag}" | tail -n +$((keep_images - 1)) || true)
+if [ -n "$stale" ]; then
+  echo "$stale" | xargs -I{} docker image rm "erc-web:{}" >/dev/null || echo "WARNING: image prune failed; deploy itself succeeded" >&2
+fi
 docker inspect -f 'running {{.Config.Image}} ({{.Image}})' erc-web
