@@ -77,6 +77,7 @@ export interface Config {
     posts: Post;
     videos: Video;
     pages: Page;
+    enquiries: Enquiry;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -94,6 +95,7 @@ export interface Config {
     posts: PostsSelect<false> | PostsSelect<true>;
     videos: VideosSelect<false> | VideosSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
+    enquiries: EnquiriesSelect<false> | EnquiriesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -877,6 +879,40 @@ export interface Page {
   _status?: ('draft' | 'published') | null;
 }
 /**
+ * Messages from the contact form. Mark each one handled once someone has replied.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "enquiries".
+ */
+export interface Enquiry {
+  id: number;
+  /**
+   * As the sender wrote it.
+   */
+  name: string;
+  /**
+   * As the sender wrote it.
+   */
+  email: string;
+  /**
+   * As the sender wrote it.
+   */
+  phone?: string | null;
+  /**
+   * As the sender wrote it.
+   */
+  topic: 'coaching' | 'general' | 'partnership' | 'race-listing';
+  /**
+   * As the sender wrote it.
+   */
+  message: string;
+  consent: boolean;
+  status: 'new' | 'handled';
+  senderKey?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -939,6 +975,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'pages';
         value: number | Page;
+      } | null)
+    | ({
+        relationTo: 'enquiries';
+        value: number | Enquiry;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1382,6 +1422,22 @@ export interface PagesSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "enquiries_select".
+ */
+export interface EnquiriesSelect<T extends boolean = true> {
+  name?: T;
+  email?: T;
+  phone?: T;
+  topic?: T;
+  message?: T;
+  consent?: T;
+  status?: T;
+  senderKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

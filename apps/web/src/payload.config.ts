@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url'
 
 import { Athletes } from './cms/collections/athletes'
 import { Coaches } from './cms/collections/coaches'
+import { Enquiries } from './cms/collections/enquiries'
 import { Media } from './cms/collections/media'
 import { Pages } from './cms/collections/pages'
 import { raceCalendarIndexes, Races } from './cms/collections/races'
@@ -14,6 +15,7 @@ import { Staff } from './cms/collections/staff'
 import { Posts } from './cms/collections/posts'
 import { Topics } from './cms/collections/topics'
 import { Videos } from './cms/collections/videos'
+import { emailAdapter } from './cms/email'
 import { buildErcConfig } from './cms/kinds'
 import { revalidateEndpoint } from './cms/revalidate'
 import { mediaStorage } from './cms/storage'
@@ -29,9 +31,10 @@ export default buildErcConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, Pages],
+  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, Pages, Enquiries],
   endpoints: [revalidateEndpoint],
   editor: lexicalEditor(),
+  email: emailAdapter(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
