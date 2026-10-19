@@ -2,15 +2,9 @@ import { buildConfig, type CollectionConfig, type Config, type Field } from 'pay
 
 import { isStaff } from './access'
 import { approvedUnlessStaff, moderationField } from './moderation'
+import { revalidateOnChange, revalidateOnDelete } from './revalidate'
+import type { EditorialSlug, ErcSlug, RecordSlug } from './slugs'
 import { applyWorkflow, publishedUnlessStaff, workflowField } from './workflow'
-
-/** The only place a collection is classified. Admin group, access rules, and lifecycle derive from membership. */
-export const EDITORIAL_SLUGS = ['posts', 'videos', 'trainingPlans', 'resources', 'pages', 'coaches', 'topics'] as const
-export const RECORD_SLUGS = ['races', 'athletes', 'results', 'subscribers', 'enquiries', 'media', 'staff'] as const
-
-export type EditorialSlug = (typeof EDITORIAL_SLUGS)[number]
-export type RecordSlug = (typeof RECORD_SLUGS)[number]
-export type ErcSlug = EditorialSlug | RecordSlug
 
 declare const built: unique symbol
 
@@ -44,6 +38,15 @@ export type RecordSpec = SpecBase &
 
 const staffWrites: WriteAccess = { create: isStaff, update: isStaff, delete: isStaff }
 
+type Hooks = NonNullable<CollectionConfig['hooks']>
+
+/** Appended last on every collection, so no collection can forget to expire its cached reads. */
+const withRevalidation = (slug: ErcSlug, hooks: Hooks = {}): Hooks => ({
+  ...hooks,
+  afterChange: [...(hooks.afterChange ?? []), revalidateOnChange(slug)],
+  afterDelete: [...(hooks.afterDelete ?? []), revalidateOnDelete(slug)],
+})
+
 export const defineEditorial = ({ slug, fields, admin, access, hooks, ...rest }: EditorialSpec): ErcCollection =>
   brand({
     kind: 'editorial',
@@ -56,13 +59,13 @@ export const defineEditorial = ({ slug, fields, admin, access, hooks, ...rest }:
       versions: { drafts: true },
       fields: [...fields, workflowField],
       // Last, so the workflow is the final word on `_status` whatever earlier hooks wrote.
-      hooks: { ...hooks, beforeChange: [...(hooks?.beforeChange ?? []), applyWorkflow] },
+      hooks: withRevalidation(slug, { ...hooks, beforeChange: [...(hooks?.beforeChange ?? []), applyWorkflow] }),
     },
   })
 
 const readByVisibility = { moderated: approvedUnlessStaff, public: () => true, private: isStaff } as const
 
-export const defineRecord = ({ slug, fields, admin, access, visibility, ...rest }: RecordSpec): ErcCollection =>
+export const defineRecord = ({ slug, fields, admin, access, visibility, hooks, ...rest }: RecordSpec): ErcCollection =>
   brand({
     kind: 'record',
     slug,
@@ -71,6 +74,7 @@ export const defineRecord = ({ slug, fields, admin, access, visibility, ...rest 
       slug,
       admin: { ...admin, group: 'Records' },
       access: { ...staffWrites, ...access, read: readByVisibility[visibility] },
+      hooks: withRevalidation(slug, hooks),
       fields: visibility === 'moderated' ? [...fields, moderationField] : fields,
     },
   })

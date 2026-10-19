@@ -9,6 +9,7 @@ import { Media } from './cms/collections/media'
 import { raceCalendarIndexes, Races } from './cms/collections/races'
 import { Staff } from './cms/collections/staff'
 import { buildErcConfig } from './cms/kinds'
+import { revalidateEndpoint } from './cms/revalidate'
 import { mediaStorage } from './cms/storage'
 import { migrations } from './migrations'
 
@@ -23,6 +24,7 @@ export default buildErcConfig({
     },
   },
   collections: [Staff, Media, Coaches, Races],
+  endpoints: [revalidateEndpoint],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

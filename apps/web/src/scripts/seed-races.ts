@@ -7,6 +7,8 @@ import config from '@payload-config'
 import { addDays, type Discipline, type LocalDate, type Subdivision } from '@erc/domain'
 import { getPayload, type RequiredDataFromCollectionSlug } from 'payload'
 
+import { collectionTag, refreshRunningSite } from '@/cms/revalidate'
+
 type RaceData = RequiredDataFromCollectionSlug<'races'>
 type Distance = NonNullable<RaceData['distances']>[number]
 
@@ -194,7 +196,8 @@ const staff =
   (await payload.create({ collection: 'staff', data: { email: seedEmail, password: `seed-${Date.now()}`, role: 'editor' } }))
 
 const races = Array.from({ length: RACE_COUNT }, (_, index) => raceAt(index, staff.id))
-const removed = await payload.delete({ collection: 'races', where: { officialUrl: { like: '.example.in' } } })
+const context = { skipRevalidation: true }
+const removed = await payload.delete({ collection: 'races', where: { officialUrl: { like: '.example.in' } }, context })
 console.log(`Removed ${removed.docs.length} previously seeded races`)
 
 const started = performance.now()
@@ -202,9 +205,10 @@ let next = 0
 const worker = async () => {
   while (next < races.length) {
     const data = races[next++]!
-    await payload.create({ collection: 'races', data })
+    await payload.create({ collection: 'races', data, context })
   }
 }
 await Promise.all(Array.from({ length: CONCURRENCY }, worker))
 console.log(`Created ${races.length} races in ${((performance.now() - started) / 1000).toFixed(1)} s`)
+await refreshRunningSite(payload, [collectionTag('races')])
 process.exit(0)
