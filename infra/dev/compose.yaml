@@ -1,0 +1,22 @@
+name: erc-dev
+
+services:
+  erc-dev-postgres:
+    image: postgres:17-alpine
+    container_name: erc-dev-postgres
+    environment:
+      POSTGRES_USER: erc
+      POSTGRES_PASSWORD: erc
+      POSTGRES_DB: erc
+    ports:
+      - "54329:5432"
+    volumes:
+      - erc-dev-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erc -d erc"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  erc-dev-pg:
