@@ -20,10 +20,6 @@ export type WorkflowRefusal =
   | { kind: 'invalid_from'; from: EditorialState['kind']; action: WorkflowAction['kind'] }
   | { kind: 'schedule_in_past' }
 
-/**
- * The stored `workflow` field is the only owner of editorial state; the CMS adapter derives Payload's
- * `_status` from it. Authors can only `submit`. Re-applying an action to the state it produced returns that state.
- */
 type StateKind = EditorialState['kind']
 type ActionKind = WorkflowAction['kind']
 type Actor = { id: StaffId; role: StaffRole }
@@ -75,6 +71,10 @@ const RULES: { [K in ActionKind]: ActionRule<Extract<WorkflowAction, { kind: K }
   },
 }
 
+/**
+ * The stored `workflow` field is the only owner of editorial state; the CMS adapter derives Payload's
+ * `_status` from it. Authors can only `submit`. Re-applying an action to the state it produced returns that state.
+ */
 export const transition = (
   state: EditorialState,
   action: WorkflowAction,
