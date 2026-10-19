@@ -8,7 +8,6 @@ import {
   type PublicRace,
   type RaceDistanceOption,
   type RaceSource,
-  type RaceStatus,
   type Seconds,
 } from '@erc/domain'
 
@@ -43,7 +42,14 @@ const TERRAIN_LABELS: Record<NonNullable<RaceDistanceOption['terrain']>, string>
 const dateFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 export const formatDate = (date: LocalDate) => dateFormat.format(new Date(`${date}T00:00:00Z`))
 
-export const formatDates = ({ start, dayCount }: PublicRace['dates']) =>
+const datePartsFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+export const dateParts = (date: LocalDate) => {
+  const parts = datePartsFormat.formatToParts(new Date(`${date}T00:00:00Z`))
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ''
+  return { weekday: part('weekday'), day: part('day'), month: part('month') }
+}
+
+export const formatDates =({ start, dayCount }: PublicRace['dates']) =>
   dayCount === 1 ? formatDate(start) : `${formatDate(start)} to ${formatDate(addDays(start, dayCount - 1))} (${dayCount} days)`
 
 const namedCategories = new Map<string, string>(DISTANCE_CATEGORIES.map(({ key, label }) => [key, label]))
@@ -64,9 +70,6 @@ export const terrainLabel = (terrain: NonNullable<RaceDistanceOption['terrain']>
 
 export const placeOf = (race: PublicRace) =>
   race.location.kind === 'virtual' ? 'Virtual' : `${race.location.city}, ${subdivisionOf(race.location.subdivision).name}`
-
-export const statusBadge = (status: RaceStatus): string | null =>
-  status.kind === 'cancelled' ? 'Cancelled' : status.kind === 'postponed' ? 'Postponed' : null
 
 /** Coach-knowledge sources never name the staff member who confirmed them. */
 export const sourceLabel = (source: RaceSource): { text: string; url: string | null } => {

@@ -20,12 +20,18 @@ export default defineConfig([
   },
   {
     // Public pages read through src/content, which maps CMS documents to @erc/domain types.
+    // They navigate with plain <a> so every navigation is a full page load: identical with JavaScript off, and
+    // eligible for cross-document view transitions, which client-side <Link> navigations skip.
     files: ['src/app/(frontend)/**/*.{ts,tsx}'],
     rules: {
+      '@next/next/no-html-link-for-pages': 'off',
       'no-restricted-imports': [
         'error',
         {
-          paths: [{ name: 'payload', message: 'Read through src/content instead.' }],
+          paths: [
+            { name: 'payload', message: 'Read through src/content instead.' },
+            { name: 'next/link', message: 'Use a plain <a>; public pages navigate with full page loads.' },
+          ],
           patterns: [
             {
               group: ['@payloadcms/**', '@/cms', '@/cms/**', '@/payload.config', '@/payload-types', '@/migrations', '@/migrations/**'],

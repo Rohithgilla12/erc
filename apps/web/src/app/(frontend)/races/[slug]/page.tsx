@@ -8,11 +8,11 @@ import {
   type RaceStatus,
 } from '@erc/domain'
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { getRace } from '@/content/races'
 
+import { StaleBadge, StatusBadge } from '../_components/badges'
 import {
   DISCIPLINE_LABELS,
   formatCutoff,
@@ -21,7 +21,6 @@ import {
   formatDistance,
   placeOf,
   sourceLabel,
-  statusBadge,
   terrainLabel,
 } from '../_components/format'
 
@@ -91,26 +90,50 @@ const jsonLd = (value: unknown) => JSON.stringify(value).replace(/</g, '\\u003c'
 export default async function RacePage({ params }: Props) {
   const race = await raceOf(params)
   const today = todayIn('Asia/Kolkata')
-  const status = statusBadge(race.status)
   const source = sourceLabel(race.source)
-  const stale = isVerificationStale(race, today)
+  const flagged = race.status.kind !== 'scheduled' || isVerificationStale(race, today)
 
   return (
-    <article className="races race-detail">
+    <article className="page race-detail">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(sportsEvent(race)) }} />
-      <p>
-        <Link href="/races">All races</Link>
-      </p>
-      <h1>{race.name}</h1>
-      {status ? (
-        <p className="badges">
-          <span className={`badge badge-${race.status.kind}`}>{status}</span>
-          {race.status.kind === 'postponed' ? (
-            <span> {race.status.newStart ? `New date: ${formatDate(race.status.newStart)}` : 'New date not announced yet'}</span>
-          ) : null}
-        </p>
-      ) : null}
-      <p className="race-summary">{race.summary}</p>
+      <header className="race-detail-head">
+        <a className="back-link" href="/races">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M10 3.5 5.5 8l4.5 4.5" />
+          </svg>
+          All races
+        </a>
+        <h1>{race.name}</h1>
+        {flagged ? (
+          <p className="badges">
+            <StatusBadge status={race.status} />
+            <StaleBadge race={race} today={today} />
+          </p>
+        ) : null}
+        <p className="race-summary">{race.summary}</p>
+        <ul className="cta-row">
+          <li>
+            <a className="button" href={race.registration.url} rel="noopener">
+              Register
+            </a>
+          </li>
+          <li>
+            <a className="button button-secondary" href={race.officialUrl} rel="noopener">
+              Official website
+            </a>
+          </li>
+        </ul>
+      </header>
 
       <dl className="race-facts">
         <dt>Date</dt>
@@ -121,12 +144,6 @@ export default async function RacePage({ params }: Props) {
         <dd>{DISCIPLINE_LABELS[race.discipline]}</dd>
         <dt>Registration closes</dt>
         <dd>{race.registration.closesOn ? formatDate(race.registration.closesOn) : 'Not announced'}</dd>
-        <dt>Register</dt>
-        <dd>
-          <a href={race.registration.url} rel="noopener">
-            Registration page
-          </a>
-        </dd>
         <dt>Official website</dt>
         <dd>
           <a href={race.officialUrl} rel="noopener">
@@ -144,45 +161,50 @@ export default async function RacePage({ params }: Props) {
           )}
         </dd>
         <dt>Last checked</dt>
-        <dd>
-          {formatDate(race.lastVerifiedOn)}
-          {stale ? <span className="badge badge-stale">Not recently checked</span> : null}
-        </dd>
+        <dd>{formatDate(race.lastVerifiedOn)}</dd>
       </dl>
 
-      <h2>Distances</h2>
-      <table className="distances">
-        <thead>
-          <tr>
-            <th scope="col">Distance</th>
-            <th scope="col">Elevation gain</th>
-            <th scope="col">Terrain</th>
-            <th scope="col">Cutoff</th>
-          </tr>
-        </thead>
-        <tbody>
-          {race.distances.map((option, index) => (
-            <tr key={index}>
-              <td>{formatDistance(option)}</td>
-              <td>{option.elevationGainMetres === undefined ? '' : `${option.elevationGainMetres} m`}</td>
-              <td>{option.terrain ? terrainLabel(option.terrain) : ''}</td>
-              <td>{option.cutoff === undefined ? '' : formatCutoff(option.cutoff)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <section>
+        <h2 id="distances-heading">Distances</h2>
+        <div className="table-scroll" role="region" aria-labelledby="distances-heading" tabIndex={0}>
+          <table className="distances">
+            <thead>
+              <tr>
+                <th scope="col">Distance</th>
+                <th scope="col">Elevation gain</th>
+                <th scope="col">Terrain</th>
+                <th scope="col">Cutoff</th>
+              </tr>
+            </thead>
+            <tbody>
+              {race.distances.map((option, index) => (
+                <tr key={index}>
+                  <td>{formatDistance(option)}</td>
+                  <td>{option.elevationGainMetres === undefined ? '' : `${option.elevationGainMetres} m`}</td>
+                  <td>{option.terrain ? terrainLabel(option.terrain) : ''}</td>
+                  <td>{option.cutoff === undefined ? '' : formatCutoff(option.cutoff)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <h2>Add to calendar</h2>
-      <ul className="calendar-links">
-        <li>
-          <a href={`/races/${race.slug}/calendar.ics`}>Download calendar file (.ics)</a>
-        </li>
-        <li>
-          <a href={googleCalendarUrl(race)} rel="noopener">
-            Add to Google Calendar
-          </a>
-        </li>
-      </ul>
+      <section>
+        <h2>Add to calendar</h2>
+        <ul className="cta-row">
+          <li>
+            <a className="button button-secondary" href={`/races/${race.slug}/calendar.ics`}>
+              Download calendar file (.ics)
+            </a>
+          </li>
+          <li>
+            <a className="button button-secondary" href={googleCalendarUrl(race)} rel="noopener">
+              Add to Google Calendar
+            </a>
+          </li>
+        </ul>
+      </section>
     </article>
   )
 }
