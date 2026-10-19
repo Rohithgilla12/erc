@@ -1,27 +1,15 @@
-import { dirname } from 'path'
-import { fileURLToPath } from 'url'
-import { FlatCompat } from '@eslint/eslintrc'
+import { defineConfig, globalIgnores } from 'eslint/config'
+import nextVitals from 'eslint-config-next/core-web-vitals'
+import nextTs from 'eslint-config-next/typescript'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-})
-
-const eslintConfig = [
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+export default defineConfig([
+  ...nextVitals,
+  ...nextTs,
   {
     rules: {
-      '@typescript-eslint/ban-ts-comment': 'warn',
-      '@typescript-eslint/no-empty-object-type': 'warn',
-      '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'warn',
         {
-          vars: 'all',
-          args: 'after-used',
-          ignoreRestSiblings: false,
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
           destructuredArrayIgnorePattern: '^_',
@@ -31,8 +19,17 @@ const eslintConfig = [
     },
   },
   {
-    ignores: ['.next/', 'src/payload-types.ts', 'src/payload-generated-schema.ts'],
+    // Public pages read through src/content, which maps CMS documents to @erc/domain types.
+    files: ['src/app/(frontend)/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [{ name: 'payload', message: 'Read through src/content instead.' }],
+          patterns: [{ group: ['@payloadcms/*', '@/cms/*', '@/payload.config'], message: 'Read through src/content instead.' }],
+        },
+      ],
+    },
   },
-]
-
-export default eslintConfig
+  globalIgnores(['.next/', 'src/payload-types.ts', 'src/migrations/', 'src/app/(payload)/']),
+])
