@@ -28,4 +28,10 @@ docker compose -f infra/dev/compose.yaml up -d
 pnpm --filter @erc/web payload migrate                       # apply migrations
 pnpm --filter @erc/web payload migrate:create <name>         # after changing a collection
 pnpm --filter @erc/web payload run src/scripts/check-record-access.ts
+pnpm --filter @erc/web payload run src/scripts/check-race-hook.ts
+pnpm --filter @erc/web payload run src/scripts/seed-races.ts          # 3,000 synthetic races, replaced on re-run
+pnpm --filter @erc/web payload run src/scripts/check-race-calendar.ts # after seeding
+pnpm --filter @erc/web payload run src/scripts/check-revalidation.ts  # with the site running
 ```
+
+Scripts write through the Local API in their own process, so they cannot expire the running site's cache directly. Set `ERC_SITE_URL` and `REVALIDATE_SECRET` in `apps/web/.env` (the server needs the same secret) and they ask the site to do it. `next start` keeps cached reads in `.next/cache/fetch-cache` across rebuilds; delete that folder after changing the shape a content function returns.

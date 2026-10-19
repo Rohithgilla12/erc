@@ -1,6 +1,6 @@
 /**
  * Proves the record read rules against a migrated database: `pnpm payload run src/scripts/check-record-access.ts`.
- * Races are inserted with SQL so the distance hook, which needs @erc/domain, does not run. Everything it writes is removed.
+ * Everything it writes is removed.
  */
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'

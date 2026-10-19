@@ -152,12 +152,13 @@ The ownership rule for every future entity: **people curate or moderate it, so i
                                v
                  boxy, Hyderabad: erc-web (Next.js + Payload) ── erc-postgres
                                ^
- coach publishes ── Payload afterChange hook ── revalidateTag(cacheTagsFor(doc))
+ coach publishes ── Payload afterChange hook ── revalidateTag(collectionTag(slug), { expire: 0 })
 ```
 
-- Every public page is statically rendered and cache-tagged in Next.js's own cache. Reads and invalidation hooks use the same `cacheTagsFor`, so a new collection cannot forget to invalidate. `revalidateTag` is idempotent, so a retried hook is harmless.
+- Reads are cached in Next.js's data cache and tagged per collection (`collection:races`). `defineEditorial` and `defineRecord` append the `afterChange` and `afterDelete` hooks that expire the tag, so a new collection cannot forget to invalidate. `revalidateTag` is idempotent, so a retried hook is harmless. Writes made outside the server process (`payload run` scripts) cannot reach its cache, so the hook sends their tags to `POST /api/revalidate`, authorised by `REVALIDATE_SECRET`.
+- Race pages render per request from those cached reads, so they work without JavaScript, return real 404s, and read today's IST date per request. Next.js 16 Cache Components were tried and rejected for now: with them every route streams a static shell first, so a missing race returns a soft 200 unless a proxy checks the database, and anything behind `<Suspense>` needs JavaScript to appear. Prerendering landing pages at build time also needs a database inside the image build, which the Dockerfile does not have.
 - Cloudflare caches only immutable assets (`/_next/static`, uploaded images) at the edge. HTML is cached by Next.js on boxy, so a publish is live immediately with no edge purge to wire up **[I]**.
-- `erc-web` is a long-running Node server, not serverless, so Payload's job queue runs in-process with `autoRun` **[V]** https://payloadcms.com/docs/jobs-queue/overview. A scheduled job at 00:05 IST revalidates the race lists, and the same queue handles scheduled publishing and email. No external cron.
+- `erc-web` is a long-running Node server, not serverless, so Payload's job queue runs in-process with `autoRun` **[V]** https://payloadcms.com/docs/jobs-queue/overview. The race list cache is keyed on today's IST date, so lists roll over at midnight with no job. The queue handles scheduled publishing and email. No external cron.
 - Images upload to a public R2 bucket through Payload's S3 storage adapter (MIT; R2 speaks the S3 API) with Payload-generated sizes, served from an R2 custom domain on Cloudflare's edge. Pages use those sizes directly, so there is no image service and boxy serves no image bytes. YouTube uses a click-to-load facade, so a video page ships no YouTube script until tapped.
 - Performance budget: LCP under 2.5 s and under 100 KB of JavaScript on content pages, on a mid-range Android over 4G **[G]**. Server Components by default; the calendar filter is a plain GET form that works without JavaScript.
 - SEO: per-document SEO fields; JSON-LD for `Article`, `VideoObject`, `Event`, and `Person`; sitemap and RSS built from published documents; drafts and unapproved records are unreachable because anonymous read access is a Payload where-clause, not page logic.
@@ -178,8 +179,8 @@ Dominant read: approved races starting on or after today, filtered by discipline
 
 - `findRaces` returns the page plus **facet counts**, so each filter chip shows how many races tapping it yields. `serialiseRaceQuery` is the inverse of `parseRaceQuery`, so chips are plain links and any filtered view is shareable on WhatsApp.
 - Bands are exhaustive (under 10K through over 100K) so trail races at 25K or 35K are filterable. Categories (5K, 10K, half, marathon, standard ultras) remain the PB slots.
-- Indexable landing pages exist only for single facets: `/races/trail`, `/races/in/telangana`, `/races/in/andhra-pradesh`. Multi-facet and text views are `noindex` with a canonical to the nearest landing page, which avoids crawl traps.
-- Each race shows its typed `source` (organiser, listing site, runner submission, or coach knowledge), `lastVerifiedOn`, official link, registration deadline, and `status`. Postponed and cancelled races stay listed with a badge. Races not verified in 90 days show "not recently checked" and appear on a stale list in the admin.
+- Indexable landing pages exist only for single facets: `/races/discipline/trail`, `/races/in/telangana`, `/races/in/andhra-pradesh`. `canonicalPathOf` and `nearestLandingPath` in `@erc/domain` decide this. Multi-facet and text views are `noindex` with a canonical to the nearest landing page, which avoids crawl traps; filter chips to them carry `rel="nofollow"`.
+- Each race shows its typed `source` (organiser, listing site, runner submission, or coach knowledge, shown as "ERC coaches" and stored as the confirming staff account, never a coach profile), `lastVerifiedOn`, official link, registration deadline, and `status`. Postponed and cancelled races stay listed with a badge. Races not verified in 90 days show "not recently checked" and appear on a stale list in the admin.
 - "Save to my calendar" is a per-race `.ics` with a stable UID, plus a Google Calendar link. No account needed.
 - Public race submissions land as `submitted` records behind ALTCHA (MIT, proof-of-work, no third party), a honeypot field, and a per-IP rate limit, idempotent on normalised name plus start date.
 - Scale: perhaps 1,000 to 3,000 races a year **[G]**. Postgres with trigram search is enough; no search service.
@@ -324,7 +325,7 @@ Deviations accepted while moving the sketch into `packages/domain` on 2026-10-19
 - `serialiseRaceQuery` returns a query string, not `URLSearchParams`, and `parseRaceSubmission` takes a field record, not `FormData`. This keeps the package free of DOM types. The contract is unchanged.
 - `Id` is generic over an entity name rather than a CMS collection slug, so the domain does not depend on the CMS.
 - Image references in domain types are URLs (`photoUrl`), not CMS media ids. Resolving media is the content layer's job.
-- `payloadStatusOf` and everything that touches Payload (`defineEditorial`, `defineRecord`, `cacheTagsFor`, `findRaces`) stay in `apps/web`. They are still only signatures in the original sketch.
+- `payloadStatusOf` and everything that touches Payload (`defineEditorial`, `defineRecord`, `collectionTag`, `findRaces`) stay in `apps/web`.
 - `canAccess` is implemented as "always allow", which is exactly the Phase 1 policy.
 
 ## Trade-offs accepted
@@ -358,4 +359,6 @@ Deviations accepted while moving the sketch into `packages/domain` on 2026-10-19
 
 ## Next implementation step
 
-Write `src/cms/kinds.ts` and the `races` collection, seed 3,000 synthetic races into a local Postgres, and confirm with `EXPLAIN ANALYZE` that `findRaces` uses the indexes before building any page. In parallel, prove the deploy path once: an empty Payload app built as an `arm64` image, running on boxy under the `erc` compose project with Postgres on `/data/media/erc`, uploading an image to R2, and reachable through a tunnel.
+The race calendar is built: `src/content/races.ts`, the `/races` pages, and `src/scripts/seed-races.ts`. On 3,000 seeded races the planner serves the default list from `races_approved_start_idx`, probes `races_distances_band_parent_idx` for a band filter, and uses the trigram indexes when a search term is rare. A state-led filter walks the date index and filters by state; at tens of thousands of races, a partial index on `(location_subdivision, dates_start) WHERE moderation_state = 'approved'` is the next index to add **[I]**.
+
+In parallel, prove the deploy path once: an empty Payload app built as an `arm64` image, running on boxy under the `erc` compose project with Postgres on `/data/media/erc`, uploading an image to R2, and reachable through a tunnel.
