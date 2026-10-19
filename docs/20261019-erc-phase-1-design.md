@@ -362,3 +362,19 @@ Deviations accepted while moving the sketch into `packages/domain` on 2026-10-19
 The race calendar is built: `src/content/races.ts`, the `/races` pages, and `src/scripts/seed-races.ts`. On 3,000 seeded races the planner serves the default list from `races_approved_start_idx`, probes `races_distances_band_parent_idx` for a band filter, and uses the trigram indexes when a search term is rare. A state-led filter walks the date index and filters by state; at tens of thousands of races, a partial index on `(location_subdivision, dates_start) WHERE moderation_state = 'approved'` is the next index to add **[I]**.
 
 In parallel, prove the deploy path once: an empty Payload app built as an `arm64` image, running on boxy under the `erc` compose project with Postgres on `/data/media/erc`, uploading an image to R2, and reachable through a tunnel.
+
+## Known gaps (2026-10-19)
+
+Correctness gaps, scheduled for workstream C:
+
+- Editorial workflow (independent review H1, H2, M1). Draft saves of published documents were stamped `published` in Payload's versions, so an anonymous `?draft=true` read could return unpublished content. Authors could push live edits without review, and the admin's Publish and Unpublish buttons did nothing. Operator decision: revisions to published posts go through submit, review, and publish too. Editorial state therefore splits into `live` (none or published) and `revision` (none, draft, in review, changes requested, or scheduled).
+- Moderation (review M2). Any staff role could approve a race and type any name as the approver, because `decide()` was never called. Submitter details are not stored yet.
+- Deleting a staff member sets `confirmedBy` to null, which silently drops their coach-knowledge races from the site.
+- A race slugged `in` or `discipline` would be shadowed by the landing routes.
+
+Product and later work:
+
+- `.ics` for a postponed race uses the original start date.
+- No sitemap yet, and no admin list of stale races.
+- A state-led filter will want a partial index on `(location_subdivision, dates_start)` for approved races as the table grows (inferred from the EXPLAIN plans at 3,000 rows).
+- Image sizes and remote image patterns for the R2 domain.
