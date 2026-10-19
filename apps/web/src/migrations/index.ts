@@ -2,6 +2,7 @@ import * as migration_20261019_113052_initial from './20261019_113052_initial';
 import * as migration_20261019_114743_race_source_confirmed_by from './20261019_114743_race_source_confirmed_by';
 import * as migration_20261019_122421_editorial_live_and_revision from './20261019_122421_editorial_live_and_revision';
 import * as migration_20261019_123018_race_moderation_submitter from './20261019_123018_race_moderation_submitter';
+import * as migration_20261019_153553_athletes_results from './20261019_153553_athletes_results';
 
 export const migrations = [
   {
@@ -22,6 +23,11 @@ export const migrations = [
   {
     up: migration_20261019_123018_race_moderation_submitter.up,
     down: migration_20261019_123018_race_moderation_submitter.down,
-    name: '20261019_123018_race_moderation_submitter'
+    name: '20261019_123018_race_moderation_submitter',
+  },
+  {
+    up: migration_20261019_153553_athletes_results.up,
+    down: migration_20261019_153553_athletes_results.down,
+    name: '20261019_153553_athletes_results'
   },
 ];
