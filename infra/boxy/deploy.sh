@@ -25,6 +25,16 @@ sed -i.bak -E "s/^ERC_WEB_TAG=.*/ERC_WEB_TAG=$tag/" .env && rm -f .env.bak
 grep -q "^ERC_WEB_TAG=$tag$" .env || echo "ERC_WEB_TAG=$tag" >> .env
 echo "erc-web: ${previous:-none} -> $tag (roll back with: ./deploy.sh ${previous:-<tag>})"
 
+# Next never deletes fetch-cache entries, and every race list key carries the IST date, so a file older than a day is dead.
+prune_marker='# erc-next-cache-prune'
+# Read the whole crontab before writing, so the host's other jobs can never be truncated away.
+current_crontab=$(crontab -l 2>/dev/null || true)
+if ! grep -qF "$prune_marker" <<<"$current_crontab"; then
+  prune_job="0 19 * * * find /data/media/erc/next-cache/fetch-cache -type f -mmin +1440 -delete $prune_marker (00:30 IST)"
+  if [ -n "$current_crontab" ]; then printf '%s\n%s\n' "$current_crontab" "$prune_job"; else printf '%s\n' "$prune_job"; fi | crontab -
+  echo "installed daily fetch-cache prune"
+fi
+
 docker compose up -d erc-postgres erc-web
 for _ in $(seq 1 60); do
   if docker exec erc-web wget -qO /dev/null http://127.0.0.1:3000/races 2>/dev/null; then break; fi
