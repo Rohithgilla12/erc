@@ -9,6 +9,7 @@ import { Media } from './cms/collections/media'
 import { raceCalendarIndexes, Races } from './cms/collections/races'
 import { Staff } from './cms/collections/staff'
 import { buildErcConfig } from './cms/kinds'
+import { mediaStorage } from './cms/storage'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -33,5 +34,5 @@ export default buildErcConfig({
     afterSchemaInit: [raceCalendarIndexes],
   }),
   sharp,
-  plugins: [],
+  plugins: [mediaStorage()],
 })
