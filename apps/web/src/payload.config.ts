@@ -4,9 +4,11 @@ import path from 'path'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
+import { Athletes } from './cms/collections/athletes'
 import { Coaches } from './cms/collections/coaches'
 import { Media } from './cms/collections/media'
 import { raceCalendarIndexes, Races } from './cms/collections/races'
+import { Results } from './cms/collections/results'
 import { Staff } from './cms/collections/staff'
 import { buildErcConfig } from './cms/kinds'
 import { revalidateEndpoint } from './cms/revalidate'
@@ -23,7 +25,7 @@ export default buildErcConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Staff, Media, Coaches, Races],
+  collections: [Staff, Media, Coaches, Races, Athletes, Results],
   endpoints: [revalidateEndpoint],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

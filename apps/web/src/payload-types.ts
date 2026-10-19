@@ -71,6 +71,8 @@ export interface Config {
     media: Media;
     coaches: Coach;
     races: Race;
+    athletes: Athlete;
+    results: Result;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -82,6 +84,8 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     coaches: CoachesSelect<false> | CoachesSelect<true>;
     races: RacesSelect<false> | RacesSelect<true>;
+    athletes: AthletesSelect<false> | AthletesSelect<true>;
+    results: ResultsSelect<false> | ResultsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -320,6 +324,158 @@ export interface Race {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "athletes".
+ */
+export interface Athlete {
+  id: number;
+  name: string;
+  slug: string;
+  /**
+   * Uploaded images are public files, even while this profile is hidden. Add a photo only once the athlete agrees.
+   */
+  photo?: (number | null) | Media;
+  bio?: string | null;
+  home: {
+    city?: string | null;
+    subdivision:
+      | 'IN-AN'
+      | 'IN-AP'
+      | 'IN-AR'
+      | 'IN-AS'
+      | 'IN-BR'
+      | 'IN-CH'
+      | 'IN-CG'
+      | 'IN-DH'
+      | 'IN-DL'
+      | 'IN-GA'
+      | 'IN-GJ'
+      | 'IN-HR'
+      | 'IN-HP'
+      | 'IN-JK'
+      | 'IN-JH'
+      | 'IN-KA'
+      | 'IN-KL'
+      | 'IN-LA'
+      | 'IN-LD'
+      | 'IN-MP'
+      | 'IN-MH'
+      | 'IN-MN'
+      | 'IN-ML'
+      | 'IN-MZ'
+      | 'IN-NL'
+      | 'IN-OD'
+      | 'IN-PY'
+      | 'IN-PB'
+      | 'IN-RJ'
+      | 'IN-SK'
+      | 'IN-TN'
+      | 'IN-TS'
+      | 'IN-TR'
+      | 'IN-UP'
+      | 'IN-UK'
+      | 'IN-WB';
+  };
+  runningSince?: number | null;
+  /**
+   * The athlete decides. Both stay hidden until they agree to show them.
+   */
+  visibility: {
+    profile: 'hidden' | 'public';
+    results: 'hidden' | 'public';
+  };
+  moderation: {
+    state: 'submitted' | 'approved' | 'rejected';
+    /**
+     * Who sent a public submission. Empty when staff added the record.
+     */
+    submitter?: {
+      name?: string | null;
+      email?: string | null;
+    };
+    submittedAt?: string | null;
+    decidedBy?: (number | null) | Staff;
+    decidedAt?: string | null;
+    reason?: string | null;
+  };
+  /**
+   * Applied when you save.
+   */
+  moderationDecision?: ('approve' | 'reject') | null;
+  rejectionReason?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "results".
+ */
+export interface Result {
+  id: number;
+  athlete: number | Athlete;
+  /**
+   * Optional. When set, an empty event name and date are filled from the race.
+   */
+  race?: (number | null) | Race;
+  /**
+   * Filled from the race when left empty.
+   */
+  eventName: string;
+  date: string;
+  distance: number;
+  /**
+   * Hours, minutes and seconds, such as 0:19:45 or 27:03:10.
+   */
+  finishTime?: string | null;
+  time: number;
+  /**
+   * Set from the distance when you save.
+   */
+  category?:
+    | (
+        | '5k'
+        | '10k'
+        | 'half'
+        | 'marathon'
+        | 'ultra-50k'
+        | 'ultra-50mi'
+        | 'ultra-100k'
+        | 'ultra-100mi'
+        | 'ultra-multiday'
+        | 'other'
+      )
+    | null;
+  /**
+   * Official means the race published this result. Only official results show as verified.
+   */
+  provenance: {
+    kind: 'official' | 'self_reported';
+    timingUrl?: string | null;
+    evidenceUrl?: string | null;
+  };
+  moderation: {
+    state: 'submitted' | 'approved' | 'rejected';
+    /**
+     * Who sent a public submission. Empty when staff added the record.
+     */
+    submitter?: {
+      name?: string | null;
+      email?: string | null;
+    };
+    submittedAt?: string | null;
+    decidedBy?: (number | null) | Staff;
+    decidedAt?: string | null;
+    reason?: string | null;
+  };
+  /**
+   * Applied when you save.
+   */
+  moderationDecision?: ('approve' | 'reject') | null;
+  rejectionReason?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -357,6 +513,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'races';
         value: number | Race;
+      } | null)
+    | ({
+        relationTo: 'athletes';
+        value: number | Athlete;
+      } | null)
+    | ({
+        relationTo: 'results';
+        value: number | Result;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -518,6 +682,88 @@ export interface RacesSelect<T extends boolean = true> {
       };
   lastVerifiedOn?: T;
   summary?: T;
+  moderation?:
+    | T
+    | {
+        state?: T;
+        submitter?:
+          | T
+          | {
+              name?: T;
+              email?: T;
+            };
+        submittedAt?: T;
+        decidedBy?: T;
+        decidedAt?: T;
+        reason?: T;
+      };
+  moderationDecision?: T;
+  rejectionReason?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "athletes_select".
+ */
+export interface AthletesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  photo?: T;
+  bio?: T;
+  home?:
+    | T
+    | {
+        city?: T;
+        subdivision?: T;
+      };
+  runningSince?: T;
+  visibility?:
+    | T
+    | {
+        profile?: T;
+        results?: T;
+      };
+  moderation?:
+    | T
+    | {
+        state?: T;
+        submitter?:
+          | T
+          | {
+              name?: T;
+              email?: T;
+            };
+        submittedAt?: T;
+        decidedBy?: T;
+        decidedAt?: T;
+        reason?: T;
+      };
+  moderationDecision?: T;
+  rejectionReason?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "results_select".
+ */
+export interface ResultsSelect<T extends boolean = true> {
+  athlete?: T;
+  race?: T;
+  eventName?: T;
+  date?: T;
+  distance?: T;
+  finishTime?: T;
+  time?: T;
+  category?: T;
+  provenance?:
+    | T
+    | {
+        kind?: T;
+        timingUrl?: T;
+        evidenceUrl?: T;
+      };
   moderation?:
     | T
     | {

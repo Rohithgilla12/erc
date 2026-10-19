@@ -1,7 +1,14 @@
-import { buildConfig, type CollectionConfig, type Config, type Field } from 'payload'
+import { buildConfig, type CollectionConfig, type Config, type Field, type Where } from 'payload'
 
 import { isStaff } from './access'
-import { applyModeration, approvedUnlessStaff, decisionFields, moderatedDelete, moderationField } from './moderation'
+import {
+  applyModeration,
+  approvedMatchingUnlessStaff,
+  approvedUnlessStaff,
+  decisionFields,
+  moderatedDelete,
+  moderationField,
+} from './moderation'
 import { revalidateOnChange, revalidateOnDelete } from './revalidate'
 import type { EditorialSlug, ErcSlug, RecordSlug } from './slugs'
 import {
@@ -42,7 +49,14 @@ export type EditorialSpec = SpecBase & { slug: EditorialSlug }
 export type RecordVisibility = 'moderated' | 'public' | 'private'
 
 export type RecordSpec = SpecBase &
-  Pick<CollectionConfig, 'auth' | 'upload'> & { slug: RecordSlug; visibility: RecordVisibility }
+  Pick<CollectionConfig, 'auth' | 'upload'> & { slug: RecordSlug } & (
+    | {
+        visibility: 'moderated'
+        /** Narrows what the public reads beyond "approved", such as an athlete's own visibility choice. Staff read every row. */
+        publicWhere?: Where
+      }
+    | { visibility: 'public' | 'private'; publicWhere?: never }
+  )
 
 const staffWrites: WriteAccess = { create: isStaff, update: isStaff, delete: isStaff }
 
@@ -77,7 +91,7 @@ export const defineEditorial = ({ slug, fields, admin, access, hooks, ...rest }:
 
 const readByVisibility = { moderated: approvedUnlessStaff, public: () => true, private: isStaff } as const
 
-export const defineRecord = ({ slug, fields, admin, access, visibility, hooks, ...rest }: RecordSpec): ErcCollection =>
+export const defineRecord = ({ slug, fields, admin, access, visibility, publicWhere, hooks, ...rest }: RecordSpec): ErcCollection =>
   brand({
     kind: 'record',
     slug,
@@ -89,7 +103,7 @@ export const defineRecord = ({ slug, fields, admin, access, visibility, hooks, .
         ...staffWrites,
         ...(visibility === 'moderated' ? { delete: moderatedDelete } : {}),
         ...access,
-        read: readByVisibility[visibility],
+        read: publicWhere ? approvedMatchingUnlessStaff(publicWhere) : readByVisibility[visibility],
       },
       hooks: withRevalidation(
         slug,

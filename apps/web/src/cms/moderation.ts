@@ -9,6 +9,12 @@ const approved: Where = { 'moderation.state': { equals: 'approved' satisfies Mod
 /** Staff see every row; everyone else sees approved rows only, enforced as a query filter rather than page logic. */
 export const approvedUnlessStaff = ({ req }: { req: PayloadRequest }) => (staffOf(req) ? true : approved)
 
+/** As `approvedUnlessStaff`, with a further filter on what everyone but staff may read. */
+export const approvedMatchingUnlessStaff =
+  (narrowing: Where) =>
+  ({ req }: { req: PayloadRequest }) =>
+    staffOf(req) ? true : { and: [approved, narrowing] }
+
 /** Deleting an approved record takes it off the site, which only someone who may decide can do. */
 export const moderatedDelete = ({ req }: { req: PayloadRequest }) => {
   const staff = staffOf(req)
