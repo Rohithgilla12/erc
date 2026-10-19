@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const race = await raceOf(params)
   return {
     title: race.name,
-    description: `${formatDates(race.dates)}, ${placeOf(race)}. ${race.summary}`,
+    description: `${formatDates(currentDates(race))}, ${placeOf(race)}. ${race.summary}`,
     alternates: { canonical: `/races/${race.slug}` },
   }
 }
@@ -86,6 +86,20 @@ const sportsEvent = (race: PublicRace) => {
 
 // JSON.stringify leaves `<` alone, so a race name containing `</script>` could otherwise end the tag early.
 const jsonLd = (value: unknown) => JSON.stringify(value).replace(/</g, '\\u003c')
+
+/** A postponed race leads with its new date, as its badge does; the original date stays visible but secondary. */
+function RaceDates({ race }: { race: PublicRace }) {
+  if (race.status.kind !== 'postponed') return formatDates(race.dates)
+  return (
+    <>
+      {race.status.newStart ? formatDates(currentDates(race)) : 'New date not announced'}
+      <span className="original-date">originally {formatDates(race.dates)}</span>
+    </>
+  )
+}
+
+const currentDates = (race: PublicRace): PublicRace['dates'] =>
+  race.status.kind === 'postponed' && race.status.newStart ? { ...race.dates, start: race.status.newStart } : race.dates
 
 export default async function RacePage({ params }: Props) {
   const race = await raceOf(params)
@@ -137,7 +151,9 @@ export default async function RacePage({ params }: Props) {
 
       <dl className="race-facts">
         <dt>Date</dt>
-        <dd>{formatDates(race.dates)}</dd>
+        <dd>
+          <RaceDates race={race} />
+        </dd>
         <dt>Location</dt>
         <dd>{race.location.kind === 'virtual' ? 'Virtual' : `${race.location.venue}, ${placeOf(race)}`}</dd>
         <dt>Discipline</dt>

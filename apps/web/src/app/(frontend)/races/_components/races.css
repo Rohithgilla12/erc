@@ -405,8 +405,10 @@ a.chip:active {
 /* Without popover support the panel stays in the page flow, so phones still get every filter. */
 @supports selector(:popover-open) {
   @media (max-width: 59.99rem) {
-    .calendar {
-      padding-bottom: calc(var(--space-7) + var(--tap-target) + env(safe-area-inset-bottom));
+    /* The space sits on .results, not on .calendar: .page in styles.css sets padding with equal specificity, so on
+       .calendar the reserve depended on which stylesheet loaded last. This covers the button, its offset, and a gap. */
+    .results {
+      padding-bottom: calc(var(--space-4) + var(--tap-target) + var(--space-4) + env(safe-area-inset-bottom));
     }
 
     .filters-toggle {
@@ -684,6 +686,12 @@ a.chip:active {
   gap: var(--space-2);
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.original-date {
+  flex-basis: 100%;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
 }
 
 .race-facts dd a {
