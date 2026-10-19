@@ -287,7 +287,7 @@ export interface Race {
     kind: 'organiser' | 'listing-site' | 'runner-submission' | 'coach-knowledge';
     name?: string | null;
     url?: string | null;
-    coach?: (number | null) | Coach;
+    confirmedBy?: (number | null) | Staff;
   };
   lastVerifiedOn: string;
   summary: string;
@@ -494,7 +494,7 @@ export interface RacesSelect<T extends boolean = true> {
         kind?: T;
         name?: T;
         url?: T;
-        coach?: T;
+        confirmedBy?: T;
       };
   lastVerifiedOn?: T;
   summary?: T;

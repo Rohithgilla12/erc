@@ -211,7 +211,7 @@ export type Race = {
     | { kind: 'organiser'; url: HttpsUrl }
     | { kind: 'listing-site'; name: string; url: HttpsUrl }
     | { kind: 'runner-submission' }
-    | { kind: 'coach-knowledge'; coach: Id<'coaches'> }
+    | { kind: 'coach-knowledge'; confirmedBy: Id<'staff'> }
   lastVerifiedOn: LocalDate
   summary: string
   moderation: Moderation

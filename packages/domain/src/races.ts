@@ -1,4 +1,4 @@
-import type { Moderation, Submitter } from './moderation'
+import type { Moderation, StaffId, Submitter } from './moderation'
 import {
   addDays,
   daysBetween,
@@ -39,7 +39,8 @@ export type RaceSource =
   | { kind: 'organiser'; url: HttpsUrl }
   | { kind: 'listing-site'; name: string; url: HttpsUrl }
   | { kind: 'runner-submission' }
-  | { kind: 'coach-knowledge'; coach: Id<'coaches'> }
+  /** Points at staff, not a coach profile: records never reference editorial. Pages show "ERC coaches", not the person. */
+  | { kind: 'coach-knowledge'; confirmedBy: StaffId }
 
 export type Race = {
   id: Id<'races'>

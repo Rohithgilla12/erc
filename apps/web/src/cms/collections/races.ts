@@ -176,9 +176,9 @@ export const Races = defineRecord({
         },
         httpsUrlField('url', { required: true, condition: shownWhen('kind', 'organiser', 'listing-site') }),
         {
-          name: 'coach',
+          name: 'confirmedBy',
           type: 'relationship',
-          relationTo: 'coaches',
+          relationTo: 'staff',
           required: true,
           admin: { condition: shownWhen('kind', 'coach-knowledge') },
         },
