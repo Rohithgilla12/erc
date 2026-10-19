@@ -63,12 +63,14 @@ export type SupportedTimezones =
 
 export interface Config {
   auth: {
-    users: UserAuthOperations;
+    staff: StaffAuthOperations;
   };
   blocks: {};
   collections: {
-    users: User;
+    staff: Staff;
     media: Media;
+    coaches: Coach;
+    races: Race;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -76,15 +78,17 @@ export interface Config {
   };
   collectionsJoins: {};
   collectionsSelect: {
-    users: UsersSelect<false> | UsersSelect<true>;
+    staff: StaffSelect<false> | StaffSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    coaches: CoachesSelect<false> | CoachesSelect<true>;
+    races: RacesSelect<false> | RacesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
   };
   db: {
-    defaultIDType: string;
+    defaultIDType: number;
   };
   fallbackLocale: null;
   globals: {};
@@ -93,13 +97,13 @@ export interface Config {
   widgets: {
     collections: CollectionsWidget;
   };
-  user: User;
+  user: Staff;
   jobs: {
     tasks: unknown;
     workflows: unknown;
   };
 }
-export interface UserAuthOperations {
+export interface StaffAuthOperations {
   forgotPassword: {
     email: string;
     password: string;
@@ -119,10 +123,11 @@ export interface UserAuthOperations {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
+ * via the `definition` "staff".
  */
-export interface User {
-  id: string;
+export interface Staff {
+  id: number;
+  role: 'admin' | 'editor' | 'author';
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -130,6 +135,7 @@ export interface User {
   resetPasswordExpiration?: string | null;
   salt?: string | null;
   hash?: string | null;
+  resetPasswordRequestedAt?: string | null;
   loginAttempts?: number | null;
   lockUntil?: string | null;
   sessions?:
@@ -140,14 +146,14 @@ export interface User {
       }[]
     | null;
   password?: string | null;
-  collection: 'users';
+  collection: 'staff';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media".
  */
 export interface Media {
-  id: string;
+  id: number;
   alt: string;
   updatedAt: string;
   createdAt: string;
@@ -163,10 +169,141 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "coaches".
+ */
+export interface Coach {
+  id: number;
+  name: string;
+  slug: string;
+  credentials: string;
+  photo?: (number | null) | Media;
+  workflow:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "races".
+ */
+export interface Race {
+  id: number;
+  name: string;
+  slug: string;
+  discipline: 'road' | 'trail' | 'mountain' | 'skyrunning' | 'cross-country' | 'track' | 'virtual' | 'community';
+  dates: {
+    start: string;
+    dayCount: number;
+  };
+  timeZone: string;
+  location: {
+    kind: 'venue' | 'virtual';
+    venue?: string | null;
+    city?: string | null;
+    subdivision?:
+      | (
+          | 'IN-AN'
+          | 'IN-AP'
+          | 'IN-AR'
+          | 'IN-AS'
+          | 'IN-BR'
+          | 'IN-CH'
+          | 'IN-CG'
+          | 'IN-DH'
+          | 'IN-DL'
+          | 'IN-GA'
+          | 'IN-GJ'
+          | 'IN-HR'
+          | 'IN-HP'
+          | 'IN-JK'
+          | 'IN-JH'
+          | 'IN-KA'
+          | 'IN-KL'
+          | 'IN-LA'
+          | 'IN-LD'
+          | 'IN-MP'
+          | 'IN-MH'
+          | 'IN-MN'
+          | 'IN-ML'
+          | 'IN-MZ'
+          | 'IN-NL'
+          | 'IN-OD'
+          | 'IN-PY'
+          | 'IN-PB'
+          | 'IN-RJ'
+          | 'IN-SK'
+          | 'IN-TN'
+          | 'IN-TS'
+          | 'IN-TR'
+          | 'IN-UP'
+          | 'IN-UK'
+          | 'IN-WB'
+        )
+      | null;
+    country?: string | null;
+  };
+  distances: {
+    metres: number;
+    category?:
+      | (
+          | '5k'
+          | '10k'
+          | 'half'
+          | 'marathon'
+          | 'ultra-50k'
+          | 'ultra-50mi'
+          | 'ultra-100k'
+          | 'ultra-100mi'
+          | 'ultra-multiday'
+          | 'other'
+        )
+      | null;
+    band?: ('under-10k' | '10k-to-half' | 'half-to-marathon' | 'marathon-to-60k' | '60k-to-100k' | 'over-100k') | null;
+    elevationGainMetres?: number | null;
+    terrain?: ('road' | 'trail' | 'mixed' | 'track') | null;
+    cutoff?: number | null;
+    id?: string | null;
+  }[];
+  officialUrl: string;
+  registration: {
+    url: string;
+    closesOn?: string | null;
+  };
+  status: {
+    kind: 'scheduled' | 'postponed' | 'cancelled';
+    newStart?: string | null;
+  };
+  source: {
+    kind: 'organiser' | 'listing-site' | 'runner-submission' | 'coach-knowledge';
+    name?: string | null;
+    url?: string | null;
+    coach?: (number | null) | Coach;
+  };
+  lastVerifiedOn: string;
+  summary: string;
+  moderation: {
+    state: 'submitted' | 'approved' | 'rejected';
+    decidedBy?: (number | null) | Staff;
+    decidedAt?: string | null;
+    reason?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
-  id: string;
+  id: number;
   key: string;
   data:
     | {
@@ -183,20 +320,28 @@ export interface PayloadKv {
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
-  id: string;
+  id: number;
   document?:
     | ({
-        relationTo: 'users';
-        value: string | User;
+        relationTo: 'staff';
+        value: number | Staff;
       } | null)
     | ({
         relationTo: 'media';
-        value: string | Media;
+        value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'coaches';
+        value: number | Coach;
+      } | null)
+    | ({
+        relationTo: 'races';
+        value: number | Race;
       } | null);
   globalSlug?: string | null;
   user: {
-    relationTo: 'users';
-    value: string | User;
+    relationTo: 'staff';
+    value: number | Staff;
   };
   updatedAt: string;
   createdAt: string;
@@ -206,10 +351,10 @@ export interface PayloadLockedDocument {
  * via the `definition` "payload-preferences".
  */
 export interface PayloadPreference {
-  id: string;
+  id: number;
   user: {
-    relationTo: 'users';
-    value: string | User;
+    relationTo: 'staff';
+    value: number | Staff;
   };
   key?: string | null;
   value?:
@@ -229,7 +374,7 @@ export interface PayloadPreference {
  * via the `definition` "payload-migrations".
  */
 export interface PayloadMigration {
-  id: string;
+  id: number;
   name?: string | null;
   batch?: number | null;
   updatedAt: string;
@@ -237,9 +382,10 @@ export interface PayloadMigration {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users_select".
+ * via the `definition` "staff_select".
  */
-export interface UsersSelect<T extends boolean = true> {
+export interface StaffSelect<T extends boolean = true> {
+  role?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -247,6 +393,7 @@ export interface UsersSelect<T extends boolean = true> {
   resetPasswordExpiration?: T;
   salt?: T;
   hash?: T;
+  resetPasswordRequestedAt?: T;
   loginAttempts?: T;
   lockUntil?: T;
   sessions?:
@@ -274,6 +421,89 @@ export interface MediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "coaches_select".
+ */
+export interface CoachesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  credentials?: T;
+  photo?: T;
+  workflow?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "races_select".
+ */
+export interface RacesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  discipline?: T;
+  dates?:
+    | T
+    | {
+        start?: T;
+        dayCount?: T;
+      };
+  timeZone?: T;
+  location?:
+    | T
+    | {
+        kind?: T;
+        venue?: T;
+        city?: T;
+        subdivision?: T;
+        country?: T;
+      };
+  distances?:
+    | T
+    | {
+        metres?: T;
+        category?: T;
+        band?: T;
+        elevationGainMetres?: T;
+        terrain?: T;
+        cutoff?: T;
+        id?: T;
+      };
+  officialUrl?: T;
+  registration?:
+    | T
+    | {
+        url?: T;
+        closesOn?: T;
+      };
+  status?:
+    | T
+    | {
+        kind?: T;
+        newStart?: T;
+      };
+  source?:
+    | T
+    | {
+        kind?: T;
+        name?: T;
+        url?: T;
+        coach?: T;
+      };
+  lastVerifiedOn?: T;
+  summary?: T;
+  moderation?:
+    | T
+    | {
+        state?: T;
+        decidedBy?: T;
+        decidedAt?: T;
+        reason?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

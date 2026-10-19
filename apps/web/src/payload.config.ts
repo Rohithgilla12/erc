@@ -1,24 +1,26 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
-import { buildConfig } from 'payload'
-import { fileURLToPath } from 'url'
 import sharp from 'sharp'
+import { fileURLToPath } from 'url'
 
-import { Users } from './collections/Users'
-import { Media } from './collections/Media'
+import { Coaches } from './cms/collections/coaches'
+import { Media } from './cms/collections/media'
+import { raceCalendarIndexes, Races } from './cms/collections/races'
+import { Staff } from './cms/collections/staff'
+import { buildErcConfig } from './cms/kinds'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-export default buildConfig({
+export default buildErcConfig({
   admin: {
-    user: Users.slug,
+    user: 'staff',
     importMap: {
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media],
+  collections: [Staff, Media, Coaches, Races],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
@@ -28,6 +30,7 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
     },
+    afterSchemaInit: [raceCalendarIndexes],
   }),
   sharp,
   plugins: [],
