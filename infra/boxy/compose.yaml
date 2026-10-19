@@ -1,20 +1,14 @@
+# Installed on the host as ~/erc/compose.yaml next to .env, cloudflared.yml, tunnel.json and deploy.sh.
+# Values come from ~/erc/.env (host-only). Required ones fail the deploy when missing instead of failing open.
 name: erc
 
-services:
-  erc-web:
-    image: ghcr.io/rohithgilla12/erc-web:${ERC_WEB_TAG:?set ERC_WEB_TAG to a version, never latest}
-    container_name: erc-web
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgres://erc:${POSTGRES_PASSWORD:?}@erc-postgres:5432/erc
-      PAYLOAD_SECRET: ${PAYLOAD_SECRET:?}
-    depends_on:
-      erc-postgres:
-        condition: service_healthy
-    labels:
-      # Upgrades can carry Payload migrations, so they ship by changing ERC_WEB_TAG, not by Watchtower.
-      com.centurylinklabs.watchtower.enable: "false"
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
+services:
   erc-postgres:
     # The image name must keep "postgres" in it: the host's nightly backup finds databases to dump by image name.
     image: postgres:17-alpine
@@ -22,7 +16,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: erc
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: erc
     volumes:
       - /data/media/erc/pg:/var/lib/postgresql/data
@@ -31,13 +25,64 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
+    mem_limit: 512m
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+    logging: *logging
+    networks: [erc-internal]
+
+  erc-web:
+    # Built on a workstation and loaded with `docker load`; the host never builds or pulls this image.
+    image: erc-web:${ERC_WEB_TAG:?ERC_WEB_TAG is required}
+    pull_policy: never
+    container_name: erc-web
+    restart: unless-stopped
+    depends_on:
+      erc-postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://erc:${POSTGRES_PASSWORD}@erc-postgres:5432/erc
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET:?PAYLOAD_SECRET is required}
+      ERC_SITE_URL: ${ERC_SITE_URL:?ERC_SITE_URL is required}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?REVALIDATE_SECRET is required}
+      MEDIA_DIR: /data/uploads
+      R2_BUCKET: ${R2_BUCKET:-}
+      R2_ENDPOINT: ${R2_ENDPOINT:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_PUBLIC_URL: ${R2_PUBLIC_URL:-}
+    volumes:
+      - /data/media/erc/uploads:/data/uploads
+      # The page cache grows with distinct URLs, so it lives on the large volume, not the root disk.
+      - /data/media/erc/next-cache:/app/apps/web/.next/cache
+    cpus: 1.0
+    mem_limit: 768m
+    stop_grace_period: 10s
+    labels:
+      # Upgrades can carry Payload migrations, so they ship through deploy.sh, never Watchtower.
+      com.centurylinklabs.watchtower.enable: "false"
+    logging: *logging
+    networks: [erc-internal]
 
   erc-cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.10.1
     container_name: erc-cloudflared
     restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?}
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared.yml:/etc/cloudflared/config.yml:ro
+      - ./tunnel.json:/etc/cloudflared/tunnel.json:ro
     depends_on:
       - erc-web
+    mem_limit: 128m
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+    logging: *logging
+    networks: [erc-internal]
+    # Brought up separately by deploy.sh, after the first admin exists.
+    profiles: [public]
+
+networks:
+  erc-internal:
+    name: erc-internal
