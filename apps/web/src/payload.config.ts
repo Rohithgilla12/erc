@@ -10,6 +10,7 @@ import { raceCalendarIndexes, Races } from './cms/collections/races'
 import { Staff } from './cms/collections/staff'
 import { buildErcConfig } from './cms/kinds'
 import { mediaStorage } from './cms/storage'
+import { migrations } from './migrations'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -31,6 +32,10 @@ export default buildErcConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
     },
+    // Migrations are the only schema path in every environment, so hand-written SQL in them is never undone by a dev push.
+    push: false,
+    migrationDir: path.resolve(dirname, 'migrations'),
+    prodMigrations: migrations,
     afterSchemaInit: [raceCalendarIndexes],
   }),
   sharp,
