@@ -1,4 +1,4 @@
-import { notImplemented, type Metres } from './primitives'
+import type { Metres } from './primitives'
 
 export const DISCIPLINES = ['road', 'trail', 'mountain', 'skyrunning', 'cross-country', 'track', 'virtual', 'community'] as const
 export type Discipline = (typeof DISCIPLINES)[number]
@@ -33,5 +33,11 @@ export const DISTANCE_BANDS = [
 ] as const
 export type DistanceBand = (typeof DISTANCE_BANDS)[number]['key']
 
-export const categoriseDistance = (metres: Metres, multiDay: boolean): DistanceCategory => notImplemented()
-export const bandOf = (metres: Metres): DistanceBand => notImplemented()
+export const categoriseDistance = (metres: Metres, multiDay: boolean): DistanceCategory => {
+  if (multiDay) return 'ultra-multiday'
+  return DISTANCE_CATEGORIES.find((c) => metres >= c.min && metres <= c.max)?.key ?? 'other'
+}
+
+// The last band's bound is Infinity, so the fallback is unreachable for any finite distance.
+export const bandOf = (metres: Metres): DistanceBand =>
+  DISTANCE_BANDS.find((b) => metres < b.maxExclusive)?.key ?? 'over-100k'
