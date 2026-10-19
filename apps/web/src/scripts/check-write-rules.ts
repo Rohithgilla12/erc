@@ -1,5 +1,5 @@
 /**
- * Proves the editorial workflow and moderation write rules against a migrated database:
+ * Proves the editorial workflow, moderation, staff deletion, and race slug rules against a migrated database:
  * `pnpm payload run src/scripts/check-write-rules.ts`. Set `ERC_CHECK_URL` to a running site (for example
  * `http://localhost:3000`) to repeat the editorial cases over REST. Everything it writes is removed.
  */
@@ -237,6 +237,16 @@ async function staffDeletionCases() {
   expect('with no races left, the staff member can be deleted', await outcome(payload.delete({ collection: 'staff', id: coach.id, ...system() })), 'allowed')
 }
 
+async function reservedSlugCases() {
+  for (const slug of ['in', 'discipline']) {
+    expect(
+      `a race cannot take the landing route slug "${slug}"`,
+      await outcome(payload.create({ collection: 'races', data: raceData(slug), ...system() }).then((race) => raceIds.push(race.id))),
+      400,
+    )
+  }
+}
+
 async function restEditorialCases(site: string) {
   const login = async (user: StaffUser) => {
     const response = await fetch(new URL('/api/staff/login', site), {
@@ -292,6 +302,7 @@ try {
   await editorialCases()
   await moderationCases()
   await staffDeletionCases()
+  await reservedSlugCases()
   const site = process.env.ERC_CHECK_URL
   if (site) await restEditorialCases(site)
   else console.log('SKIP REST cases: set ERC_CHECK_URL to a running site')

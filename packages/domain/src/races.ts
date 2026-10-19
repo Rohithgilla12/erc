@@ -184,8 +184,13 @@ export const serialiseRaceQuery = (query: RaceQuery, today: LocalDate): string =
 }
 
 export const RACES_PATH = '/races'
-export const stateLandingPath = (subdivision: Subdivision): string => `${RACES_PATH}/in/${subdivisionOf(subdivision).slug}`
-export const disciplineLandingPath = (discipline: Discipline): string => `${RACES_PATH}/discipline/${discipline}`
+const LANDING_SEGMENTS = { state: 'in', discipline: 'discipline' } as const
+export const stateLandingPath = (subdivision: Subdivision): string =>
+  `${RACES_PATH}/${LANDING_SEGMENTS.state}/${subdivisionOf(subdivision).slug}`
+export const disciplineLandingPath = (discipline: Discipline): string => `${RACES_PATH}/${LANDING_SEGMENTS.discipline}/${discipline}`
+
+/** A race at `/races/<slug>` with one of these slugs would be shadowed by a landing route. */
+export const isReservedRaceSlug = (slug: string): boolean => (Object.values(LANDING_SEGMENTS) as string[]).includes(slug)
 
 const withPage = (path: string, page: number) => (page === 1 ? path : `${path}?page=${page}`)
 

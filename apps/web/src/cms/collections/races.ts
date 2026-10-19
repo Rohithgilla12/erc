@@ -3,6 +3,7 @@ import {
   categoriseDistance,
   DISCIPLINES,
   DISTANCE_BANDS,
+  isReservedRaceSlug,
   type DistanceCategory,
   type Metres,
   type RaceDistanceOption,
@@ -12,7 +13,8 @@ import {
 } from '@erc/domain'
 import { sql, type PostgresAdapterArgs } from '@payloadcms/db-postgres'
 import { index } from '@payloadcms/db-postgres/drizzle/pg-core'
-import type { CollectionBeforeChangeHook } from 'payload'
+import type { CollectionBeforeChangeHook, TextFieldSingleValidation } from 'payload'
+import { text } from 'payload/shared'
 
 import type { Race as RaceDoc } from '@/payload-types'
 
@@ -41,6 +43,9 @@ const deriveDistanceKeys: CollectionBeforeChangeHook<RaceDoc> = ({ data, origina
   }
 }
 
+const raceSlug: TextFieldSingleValidation = (value, args) =>
+  value && isReservedRaceSlug(value) ? `"${value}" is a landing route under /races; choose another slug` : text(value, args)
+
 export const Races = defineRecord({
   slug: 'races',
   visibility: 'moderated',
@@ -49,7 +54,7 @@ export const Races = defineRecord({
   hooks: { beforeChange: [deriveDistanceKeys] },
   fields: [
     { name: 'name', type: 'text', required: true },
-    { name: 'slug', type: 'text', required: true, unique: true },
+    { name: 'slug', type: 'text', required: true, unique: true, validate: raceSlug },
     { name: 'discipline', type: 'select', required: true, index: true, options: [...DISCIPLINES] },
     {
       name: 'dates',

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { canonicalPathOf, nearestLandingPath, parseRaceQuery, racesHref, type LocalDate, type QueryParams } from './index'
+import {
+  canonicalPathOf,
+  disciplineLandingPath,
+  isReservedRaceSlug,
+  nearestLandingPath,
+  parseRaceQuery,
+  racesHref,
+  stateLandingPath,
+  type LocalDate,
+  type QueryParams,
+} from './index'
 
 const today = '2026-10-19' as LocalDate
 const query = (params: QueryParams) => parseRaceQuery(params, today)
@@ -47,5 +57,17 @@ describe('racesHref', () => {
     expect(racesHref(query({ state: 'IN-TS' }), today)).toBe('/races/in/telangana')
     expect(racesHref(query({ state: 'IN-TS', open: '1' }), today)).toBe('/races?state=IN-TS&open=1')
     expect(racesHref(query({ state: 'IN-TS', page: '2' }), today)).toBe('/races/in/telangana?page=2')
+  })
+})
+
+describe('isReservedRaceSlug', () => {
+  const firstSegmentAfterRaces = (path: string) => path.split('/')[2] ?? ''
+
+  it.each([stateLandingPath('IN-TS'), disciplineLandingPath('trail')])('reserves the segment that %s starts with', (path) => {
+    expect(isReservedRaceSlug(firstSegmentAfterRaces(path))).toBe(true)
+  })
+
+  it.each(['hyderabad-10k-2026', 'india', 'disciplined-runners-5k'])('leaves %s free', (slug) => {
+    expect(isReservedRaceSlug(slug)).toBe(false)
   })
 })
