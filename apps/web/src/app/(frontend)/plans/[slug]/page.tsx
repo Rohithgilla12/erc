@@ -1,4 +1,6 @@
 import {
+  ANONYMOUS,
+  canAccess,
   goalLabel,
   PLAN_LEVEL_LABELS,
   planWeekCount,
@@ -39,7 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-const offerOf = (access: AccessTier) => {
+const offerOf = (access: AccessTier): Record<string, unknown> => {
   switch (access.kind) {
     case 'free':
       return { '@type': 'Offer', price: 0, priceCurrency: 'INR', category: 'Free' }
@@ -96,6 +98,8 @@ const credit = (plan: TrainingPlan) =>
 
 export default async function PlanPage({ params }: Props) {
   const plan = await planOf(params)
+  // Labels and overview are always public so a runner can judge the plan; the schedule and PDF are what access buys.
+  const open = canAccess(ANONYMOUS, plan.access)
 
   return (
     <article className="page plan-detail">
@@ -115,7 +119,7 @@ export default async function PlanPage({ params }: Props) {
           <li className="plan-tag-access">{accessLabel(plan.access)}</li>
         </ul>
         <p className="plan-credit">Written by {credit(plan)}</p>
-        {plan.pdf ? (
+        {open && plan.pdf ? (
           <p>
             <a className="button" href={downloadPath(plan.pdf)}>
               <DownloadIcon />
@@ -144,6 +148,28 @@ export default async function PlanPage({ params }: Props) {
         <RichText value={plan.overview} />
       </section>
 
+      {open ? <PlanContent plan={plan} /> : null}
+
+      {plan.coaches.length > 0 ? (
+        <section aria-labelledby="coaches-heading">
+          <h2 id="coaches-heading">{plan.coaches.length === 1 ? 'Your coach' : 'Your coaches'}</h2>
+          <ul className="plan-coaches">
+            {plan.coaches.map((coach) => (
+              <li key={coach.slug}>
+                <strong>{coach.name}</strong>
+                <span>{coach.credentials}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </article>
+  )
+}
+
+function PlanContent({ plan }: { plan: TrainingPlan }) {
+  return (
+    <>
       <section className="plan-schedule" aria-labelledby="schedule-heading">
         <p className="print-title">
           {plan.title}: {planLabels(plan).join(', ')}
@@ -180,21 +206,7 @@ export default async function PlanPage({ params }: Props) {
           <RichText value={plan.recovery} />
         </section>
       ) : null}
-
-      {plan.coaches.length > 0 ? (
-        <section aria-labelledby="coaches-heading">
-          <h2 id="coaches-heading">{plan.coaches.length === 1 ? 'Your coach' : 'Your coaches'}</h2>
-          <ul className="plan-coaches">
-            {plan.coaches.map((coach) => (
-              <li key={coach.slug}>
-                <strong>{coach.name}</strong>
-                <span>{coach.credentials}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-    </article>
+    </>
   )
 }
 

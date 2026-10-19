@@ -1,6 +1,14 @@
-import { goalLabel, PLAN_LEVEL_LABELS, planWeekCount, type AccessTier, type SessionTarget, type TrainingPlan } from '@erc/domain'
+import {
+  goalLabel,
+  PLAN_LEVEL_LABELS,
+  planWeekCount,
+  RESOURCE_FILE_TYPES,
+  type AccessTier,
+  type SessionTarget,
+  type TrainingPlan,
+} from '@erc/domain'
 
-export const accessLabel = (access: AccessTier) => {
+export const accessLabel = (access: AccessTier): string => {
   switch (access.kind) {
     case 'free':
       return 'Free'
@@ -32,19 +40,11 @@ export const formatTarget = (target: SessionTarget): string | null => {
   }
 }
 
-const FILE_TYPES: Readonly<Record<string, string>> = {
-  'application/pdf': 'PDF',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
-  'application/vnd.oasis.opendocument.text': 'OpenDocument text',
-  'application/vnd.oasis.opendocument.spreadsheet': 'OpenDocument spreadsheet',
-  'text/csv': 'CSV',
-}
+const FILE_TYPES: Readonly<Record<string, string>> = RESOURCE_FILE_TYPES
 
 const sizeFormat = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 })
 
-/** "PDF, 120 KB": what a runner on mobile data wants to know before tapping. */
-export const describeFile = ({ mimeType, bytes }: { mimeType: string; bytes: number }) => {
+export const describeFile = ({ mimeType, bytes }: { mimeType: string; bytes: number }): string => {
   const size = bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${sizeFormat.format(bytes / 1024 / 1024)} MB`
   return `${FILE_TYPES[mimeType] ?? 'File'}, ${size}`
 }
