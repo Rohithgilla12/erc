@@ -26,7 +26,12 @@ export default defineConfig([
         'error',
         {
           paths: [{ name: 'payload', message: 'Read through src/content instead.' }],
-          patterns: [{ group: ['@payloadcms/*', '@/cms/*', '@/payload.config'], message: 'Read through src/content instead.' }],
+          patterns: [
+            {
+              group: ['@payloadcms/**', '@/cms', '@/cms/**', '@/payload.config', '@/payload-types', '@/migrations', '@/migrations/**'],
+              message: 'Read through src/content instead.',
+            },
+          ],
         },
       ],
     },
