@@ -204,7 +204,49 @@ Dominant read: approved races starting on or after today, filtered by discipline
 | `enquiries` | record | contact and coaching enquiries, handled state |
 | `media`, `staff` | record | images with required alt text; staff with role admin, editor, or author |
 
-"Manually maintained achievements" are coach-entered `results` with `provenance: official`. The brief's verified-versus-self-reported split therefore exists from day one. Downloads go through `/downloads/[slug]`, which asks `canAccess(viewer, access)` and redirects to a five-minute signed URL on the private R2 bucket. In Phase 1 it always allows; Phase 3 changes the policy, not the URL.
+"Manually maintained achievements" are coach-entered `results` with `provenance: official`. The brief's verified-versus-self-reported split therefore exists from day one. Downloads go through `/downloads/[slug]`, which asks `canAccess(viewer, access)`. In Phase 1 it always allows; Phase 3 changes the policy, not the URL. See Downloads below for how the file is served now and how a paid file is protected later.
+
+### Downloads
+
+Built on 2026-10-19. A file has exactly one public door.
+
+```
+ Step 1: Phase 1, free files
+
+ /plans/[slug], /resources ──link──> /downloads/[slug]
+                                        │ published?            no ──> 404
+                                        │ canAccess(viewer, access)  (always true)
+                                        v
+                       collection upload handlers, on an in-process request marked as allowed
+                          R2 configured ──> storage adapter streams resources/<file> from the bucket
+                          otherwise     ──> read from MEDIA_DIR/resources on disk
+                                        v
+                       200, content-disposition: attachment; filename="<slug>.<ext>",
+                       cache-control: private, no-cache
+
+ /api/resources/file/<file>  (Payload's own route) ──> 404 unless the caller is staff
+```
+
+- **Streamed, not redirected.** Streaming lets the response name the file after its slug and keeps every response `private`, so no shared cache holds a copy. The cost is that the bytes pass through boxy rather than coming from Cloudflare's edge. Plan PDFs are tens to hundreds of kilobytes and downloads are occasional, so this is cheap **[I]**. Uploads are capped at 20 MB and limited to PDF, Word, Excel, OpenDocument and CSV.
+- **Payload's file route is closed to the public.** Its read access would serve any published file to anyone, which would become a second, unguarded way to a paid file. A first upload handler on `resources` answers 404 unless the caller is staff or the request is the one `/downloads` builds.
+- **Known gap.** With R2 configured, resource objects sit under `resources/` in the same bucket as images, and that bucket is public through its custom domain. Anyone who learns a stored filename can fetch the object directly. That is acceptable while every file is free, and it is the first thing Phase 3 must change.
+
+```
+ Step 2: Phase 3, adding a paid file
+
+ AccessTier = { kind: 'free' } | { kind: 'paid'; product }      <- tsc now lists canAccess and every other switch
+ viewer     = member session, or anonymous
+                                        │
+ /downloads/[slug] ──> canAccess(viewer, access) ── false ──> purchase page (or 404 for unknown viewers)
+                                        │ true
+                                        v
+                       private R2 bucket (no custom domain, no r2.dev URL)
+                       302 to a presigned GET URL that expires in 5 minutes
+```
+
+- **A private bucket.** Resources move to a second bucket with no public domain, through a second storage adapter registration with its own `R2_PRIVATE_BUCKET` variable. Without that, a paid file's key in the public bucket is the bypass.
+- **A short-lived signed URL.** The storage adapter supports `signedDownloads: { expiresIn: 300 }`, which turns its handler's answer into a 302 to a presigned URL **[V]** (`@payloadcms/storage-s3` 3.91.0, `getFile.js`). `/downloads` then forwards that redirect only after `canAccess` allows the viewer, so a leaked link stops working within five minutes. The presigned request should also set `ResponseContentDisposition` so the file keeps its slug name; the adapter does not do that today, so this needs a small handler of our own **[I]**.
+- **What does not change.** Every link to `/downloads/[slug]`, the plan pages, and the JSON-LD. Entitlements stay derived from orders, as in Step 6.
 
 Newsletter is signup only, with double opt-in. The confirmation email goes out through Payload's Nodemailer adapter (MIT) to a free SMTP relay; the default is a club Gmail account with an app password, which allows about 500 messages a day **[G]**, far above Phase 1 volume. The list lives in our database and exports as CSV. When the club starts sending issues, listmonk (AGPL, self-hosted) is the open-source sender, and moving to it is a sync, not a migration.
 
