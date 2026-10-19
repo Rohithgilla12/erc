@@ -1,4 +1,5 @@
-import type { PayloadRequest } from 'payload'
+import type { StaffActor, StaffId } from '@erc/domain'
+import { Forbidden, type PayloadRequest } from 'payload'
 
 type AccessArgs = { req: PayloadRequest }
 
@@ -13,4 +14,11 @@ export const isAdminOrSelf = ({ req }: AccessArgs) => {
   const staff = staffOf(req)
   if (!staff) return false
   return staff.role === 'admin' ? true : { id: { equals: staff.id } }
+}
+
+/** The acting staff member for a domain rule; anyone else is refused before the rule runs. */
+export function actorOf(req: PayloadRequest): StaffActor {
+  const staff = staffOf(req)
+  if (!staff) throw new Forbidden(req.t)
+  return { id: staff.id as StaffId, role: staff.role }
 }

@@ -178,12 +178,9 @@ const raceAt = (index: number, staffId: number): RaceData => {
             : { kind: source },
     lastVerifiedOn: addDays(TODAY, -(chance(0.2) ? int(91, 240) : int(0, 85))),
     summary: `${name}: ${distances.map((d) => `${(d.metres / 1000).toFixed(d.metres % 1000 === 0 ? 0 : 1)} km`).join(', ')}.`,
-    moderation:
-      moderation === 'submitted'
-        ? { state: 'submitted' }
-        : moderation === 'approved'
-          ? { state: 'approved', decidedBy: staffId, decidedAt: '2026-10-01T09:00:00.000Z' }
-          : { state: 'rejected', decidedBy: staffId, decidedAt: '2026-10-01T09:00:00.000Z', reason: 'Could not confirm with the organiser' },
+    moderation: { state: 'submitted' },
+    ...(moderation === 'approved' ? { moderationDecision: 'approve' } : {}),
+    ...(moderation === 'rejected' ? { moderationDecision: 'reject', rejectionReason: 'Could not confirm with the organiser' } : {}),
   }
 }
 
@@ -195,6 +192,9 @@ const staff =
   existingStaff.docs[0] ??
   (await payload.create({ collection: 'staff', data: { email: seedEmail, password: `seed-${Date.now()}`, role: 'editor' } }))
 
+// Decisions are stamped from the acting user, so the seed acts as its editor. Payload's auth strategy tags the user
+// with its collection; a Local API caller must do the same.
+const user = { ...staff, collection: 'staff' as const }
 const races = Array.from({ length: RACE_COUNT }, (_, index) => raceAt(index, staff.id))
 const context = { skipRevalidation: true }
 const removed = await payload.delete({ collection: 'races', where: { officialUrl: { like: '.example.in' } }, context })
@@ -205,7 +205,7 @@ let next = 0
 const worker = async () => {
   while (next < races.length) {
     const data = races[next++]!
-    await payload.create({ collection: 'races', data, context })
+    await payload.create({ collection: 'races', data, context, user })
   }
 }
 await Promise.all(Array.from({ length: CONCURRENCY }, worker))

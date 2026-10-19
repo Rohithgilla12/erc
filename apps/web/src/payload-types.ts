@@ -298,10 +298,23 @@ export interface Race {
   summary: string;
   moderation: {
     state: 'submitted' | 'approved' | 'rejected';
+    /**
+     * Who sent a public submission. Empty when staff added the record.
+     */
+    submitter?: {
+      name?: string | null;
+      email?: string | null;
+    };
+    submittedAt?: string | null;
     decidedBy?: (number | null) | Staff;
     decidedAt?: string | null;
     reason?: string | null;
   };
+  /**
+   * Applied when you save.
+   */
+  moderationDecision?: ('approve' | 'reject') | null;
+  rejectionReason?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -509,10 +522,19 @@ export interface RacesSelect<T extends boolean = true> {
     | T
     | {
         state?: T;
+        submitter?:
+          | T
+          | {
+              name?: T;
+              email?: T;
+            };
+        submittedAt?: T;
         decidedBy?: T;
         decidedAt?: T;
         reason?: T;
       };
+  moderationDecision?: T;
+  rejectionReason?: T;
   updatedAt?: T;
   createdAt?: T;
 }

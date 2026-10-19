@@ -12,17 +12,24 @@ export type Moderation =
   | { state: 'rejected'; by: StaffId; at: Instant; reason: string }
 
 export type ModerationDecision = { kind: 'approve' } | { kind: 'reject'; reason: string }
+export type ModerationRefusal = 'role_cannot' | 'already_decided'
 
+const DECIDERS: readonly StaffRole[] = ['editor', 'admin']
+
+export const mayDecide = (role: StaffRole): boolean => DECIDERS.includes(role)
+
+/** Only the state matters: a decision is final, and who decided and when come from the actor and the clock. */
 export const decide = (
-  current: Moderation,
+  current: Pick<Moderation, 'state'>,
   decision: ModerationDecision,
-  by: StaffId,
+  actor: StaffActor,
   now: Instant,
-): Result<Moderation, 'already_decided'> => {
+): Result<Moderation, ModerationRefusal> => {
+  if (!mayDecide(actor.role)) return err('role_cannot')
   if (current.state !== 'submitted') return err('already_decided')
   return ok(
     decision.kind === 'approve'
-      ? { state: 'approved', by, at: now }
-      : { state: 'rejected', by, at: now, reason: decision.reason },
+      ? { state: 'approved', by: actor.id, at: now }
+      : { state: 'rejected', by: actor.id, at: now, reason: decision.reason },
   )
 }

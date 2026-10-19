@@ -48,6 +48,7 @@ const createStaff = async (role: Staff['role']): Promise<StaffUser> => {
 const author = await createStaff('author')
 const editor = await createStaff('editor')
 const coachIds: number[] = []
+const raceIds: number[] = []
 
 const coachData = (slug: string, credentials: string): RequiredDataFromCollectionSlug<'coaches'> => ({
   name: slug,
@@ -139,6 +140,78 @@ async function editorialCases() {
   expect('unpublish keeps the content as a draft revision', await stateOf(coach.id), { live: 'none', revision: 'draft' })
 }
 
+const raceData = (slug: string): RequiredDataFromCollectionSlug<'races'> => ({
+  name: slug,
+  slug,
+  discipline: 'road',
+  dates: { start: '2099-01-01', dayCount: 1 },
+  timeZone: 'Asia/Kolkata',
+  location: { kind: 'virtual' },
+  distances: [{ metres: 10000 }],
+  officialUrl: 'https://example.org/race',
+  registration: { url: 'https://example.org/register' },
+  status: { kind: 'scheduled' },
+  source: { kind: 'runner-submission' },
+  lastVerifiedOn: '2026-10-19',
+  summary: 'Write rule check',
+  moderation: { state: 'submitted' },
+})
+
+const moderationOf = async (id: number) => {
+  const { moderation } = await payload.findByID({ collection: 'races', id, depth: 0, ...as(editor) })
+  return moderation
+}
+
+const secondsAgo = (instant: string | null | undefined) => (instant ? (Date.now() - Date.parse(instant)) / 1000 : Infinity)
+
+async function moderationCases() {
+  const forged = { decidedBy: author.id, decidedAt: '2001-01-01T00:00:00.000Z' }
+  const race = await payload.create({
+    collection: 'races',
+    data: {
+      ...raceData(`write-check-race-${run}`),
+      moderation: { state: 'approved', ...forged, submitter: { name: 'Asha Rao', email: 'asha@example.com' } },
+    },
+    ...as(editor),
+  })
+  raceIds.push(race.id)
+  const created = await moderationOf(race.id)
+  expect('a typed state on create is discarded', [created.state, created.decidedBy ?? null], ['submitted', null])
+  expect('a public submitter is stored', created.submitter, { name: 'Asha Rao', email: 'asha@example.com' })
+  expect('submittedAt comes from the clock', secondsAgo(created.submittedAt) < 60, true)
+
+  expect(
+    'an author cannot approve a race',
+    await outcome(payload.update({ collection: 'races', id: race.id, data: { moderationDecision: 'approve' }, ...as(author) })),
+    403,
+  )
+  await payload.update({ collection: 'races', id: race.id, data: { moderation: { state: 'approved', ...forged } }, ...as(author) })
+  const typed = await moderationOf(race.id)
+  expect('an author typing the moderation group changes nothing', [typed.state, typed.decidedBy ?? null], ['submitted', null])
+  expect(
+    'a rejection needs a reason',
+    await outcome(payload.update({ collection: 'races', id: race.id, data: { moderationDecision: 'reject' }, ...as(editor) })),
+    400,
+  )
+
+  await payload.update({
+    collection: 'races',
+    id: race.id,
+    data: { moderationDecision: 'approve', moderation: { state: 'submitted', ...forged } },
+    ...as(editor),
+  })
+  const decided = await moderationOf(race.id)
+  expect('an editor approves', decided.state, 'approved')
+  expect('decidedBy is the acting editor, not the forged id', decided.decidedBy, editor.id)
+  expect('decidedAt is the clock, not the forged time', secondsAgo(decided.decidedAt) < 60, true)
+  expect('the submitter survives the decision', decided.submitter, { name: 'Asha Rao', email: 'asha@example.com' })
+  expect(
+    'a decided race cannot be decided again',
+    await outcome(payload.update({ collection: 'races', id: race.id, data: { moderationDecision: 'reject', rejectionReason: 'x' }, ...as(editor) })),
+    409,
+  )
+}
+
 async function restEditorialCases(site: string) {
   const login = async (user: StaffUser) => {
     const response = await fetch(new URL('/api/staff/login', site), {
@@ -176,15 +249,29 @@ async function restEditorialCases(site: string) {
   expect('REST: the published revision is live', await anonymous(false), ['rest revision'])
   expect('REST: the Unpublish button shape unpublishes for an editor', await patch(editorHeaders, '', { _status: 'draft' }), 200)
   expect('REST: an unpublished doc is gone from anonymous reads', await anonymous(false), [])
+
+  const race = await payload.create({ collection: 'races', data: raceData(`write-check-rest-race-${run}`), ...as(editor) })
+  raceIds.push(race.id)
+  const decideRace = (headers: Record<string, string>) =>
+    fetch(new URL(`/api/races/${race.id}`, site), {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ moderationDecision: 'approve', moderation: { decidedBy: author.id } }),
+    }).then((r) => r.status)
+  expect('REST: an author cannot approve a race', await decideRace(authorHeaders), 403)
+  expect('REST: an editor approves a race', await decideRace(editorHeaders), 200)
+  expect('REST: decidedBy is the editor despite the forged id', (await moderationOf(race.id)).decidedBy, editor.id)
 }
 
 try {
   await editorialCases()
+  await moderationCases()
   const site = process.env.ERC_CHECK_URL
   if (site) await restEditorialCases(site)
   else console.log('SKIP REST cases: set ERC_CHECK_URL to a running site')
 } finally {
   for (const id of coachIds) await payload.delete({ collection: 'coaches', id, ...system() })
+  for (const id of raceIds) await payload.delete({ collection: 'races', id, ...system() })
   for (const user of [author, editor]) await payload.delete({ collection: 'staff', id: user.id, ...system() })
 }
 

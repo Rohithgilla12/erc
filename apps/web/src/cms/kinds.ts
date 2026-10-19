@@ -1,7 +1,7 @@
 import { buildConfig, type CollectionConfig, type Config, type Field } from 'payload'
 
 import { isStaff } from './access'
-import { approvedUnlessStaff, moderationField } from './moderation'
+import { applyModeration, approvedUnlessStaff, decisionFields, moderationField } from './moderation'
 import { revalidateOnChange, revalidateOnDelete } from './revalidate'
 import type { EditorialSlug, ErcSlug, RecordSlug } from './slugs'
 import {
@@ -85,8 +85,11 @@ export const defineRecord = ({ slug, fields, admin, access, visibility, hooks, .
       slug,
       admin: { ...admin, group: 'Records' },
       access: { ...staffWrites, ...access, read: readByVisibility[visibility] },
-      hooks: withRevalidation(slug, hooks),
-      fields: visibility === 'moderated' ? [...fields, moderationField] : fields,
+      hooks: withRevalidation(
+        slug,
+        visibility === 'moderated' ? { ...hooks, beforeChange: [...(hooks?.beforeChange ?? []), applyModeration] } : hooks,
+      ),
+      fields: visibility === 'moderated' ? [...fields, moderationField, ...decisionFields] : fields,
     },
   })
 

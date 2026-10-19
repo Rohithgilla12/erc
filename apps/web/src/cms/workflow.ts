@@ -6,13 +6,11 @@ import {
   type Instant,
   type LiveState,
   type StaffActor,
-  type StaffId,
   type WorkflowAction,
   type WorkflowRefusal,
 } from '@erc/domain'
 import {
   APIError,
-  Forbidden,
   ValidationError,
   type Access,
   type CollectionBeforeChangeHook,
@@ -22,7 +20,7 @@ import {
   type Where,
 } from 'payload'
 
-import { staffOf } from './access'
+import { actorOf, staffOf } from './access'
 import { optionsFrom, shownWhen } from './fields'
 
 /**
@@ -174,12 +172,6 @@ const storedState = (doc: { workflow?: unknown } | undefined): EditorialState =>
   const stored = doc?.workflow as EditorialState | undefined
   if (!stored?.live || !stored.revision) throw new APIError('Stored editorial workflow is missing or malformed', 500)
   return stored
-}
-
-function actorOf(req: PayloadRequest): StaffActor {
-  const staff = staffOf(req)
-  if (!staff) throw new Forbidden(req.t)
-  return { id: staff.id as StaffId, role: staff.role }
 }
 
 const REFUSAL_STATUS: Record<WorkflowRefusal['kind'], number> = { role_cannot: 403, invalid_from: 409, schedule_in_past: 409 }
