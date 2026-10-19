@@ -33,6 +33,8 @@ pnpm --filter @erc/web payload run src/scripts/check-race-hook.ts
 pnpm --filter @erc/web payload run src/scripts/seed-races.ts          # 3,000 synthetic races, replaced on re-run
 pnpm --filter @erc/web payload run src/scripts/check-race-calendar.ts # after seeding
 pnpm --filter @erc/web payload run src/scripts/check-revalidation.ts  # with the site running
+pnpm --filter @erc/web payload run src/scripts/seed-plans.ts          # placeholder 5K and 10K plans and one PDF, replaced on re-run
+pnpm --filter @erc/web payload run src/scripts/check-plans.ts         # after seeding; ERC_CHECK_URL=<site> adds the page and /downloads cases
 ```
 
 Scripts write through the Local API in their own process, so they cannot expire the running site's cache directly. Set `ERC_SITE_URL` and `REVALIDATE_SECRET` in `apps/web/.env` (the server needs the same secret) and they ask the site to do it. In production both are required: the server refuses to start without them. `next start` keeps cached reads in `.next/cache/fetch-cache` across rebuilds; delete that folder after changing the shape a content function returns.
