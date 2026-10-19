@@ -135,7 +135,7 @@ The site calls Payload in the same process. There is no CMS network hop and no A
 The separation lives in structure, not in a convention someone must remember:
 
 1. **Two constructors, one list.** `defineEditorial` and `defineRecord` are the only way to build a collection, and `buildErcConfig` accepts only their output. `EDITORIAL_SLUGS` and `RECORD_SLUGS` are the single classification; admin grouping, access rules, and cache invalidation derive from membership.
-2. **Different lifecycles.** Editorial content has one stored `workflow` field driven by the pure `transition()` state machine; Payload's `_status` is written from it, never edited separately. Records share one `Moderation` union, used by race submissions now and by profile claims and results in Phase 2.
+2. **Different lifecycles.** Editorial content has one stored `workflow` field, `live` plus `revision`, driven by the pure `transition()` state machine; Payload's `_status` on the main row is written from `live`, never edited separately. Records share one `Moderation` union, changed only by `decide()` in a hook, used by race submissions now and by profile claims and results in Phase 2.
 3. **One-way references.** Editorial may point at records. Records never point at editorial, so deleting a post can never orphan a result.
 4. **Typed units.** Metres, seconds, paise, and `LocalDate` (`YYYY-MM-DD`) are branded. A race date is a local fact; a timestamp would shift it across midnight for anything computing in UTC.
 5. **Derive, never store twice.** Distance `category` (PB slot) and `band` (calendar filter) are written only by a hook from `metres`. Personal bests come from `deriveAchievements(results)`. Plan length is `weeks.length`. Verification staleness is computed from `lastVerifiedOn`.
@@ -209,15 +209,18 @@ Newsletter is signup only, with double opt-in. The confirmation email goes out t
 
 ### Editor workflow
 
+A document keeps what readers see (`live`) apart from the working copy (`revision`), so an edit to a published post goes through the same review as a new post.
+
 ```
- author (coach)           editor                      system
- draft, autosave ──submit──> in_review
-                             ├ request_changes ──> changes_requested ──> back to author
-                             ├ publish ────────────────────────────────> published ─> revalidate
-                             └ schedule(at) ──> scheduled ──cron job───> published ─> revalidate
+ live       none ────────────── publish ──────────────> published ── unpublish ──> none
+                                   ^                                  (revision kept)
+ revision   draft ──submit──> in_review ───────────────┘ publish clears the revision
+              ^                 ├ request_changes ──> changes_requested ──submit──> in_review
+              │                 └ schedule(at) ──> scheduled ──(no job yet)
+            edit (opens a draft on a published document; drops a schedule)
 ```
 
-Authors can only submit. Live preview shows the draft on the real page through Next.js draft mode. Version history gives restore.
+Authors can edit and submit. Editors and admins also request changes, publish, schedule, and unpublish. In the admin, Save Draft is an edit, Publish is `publish`, and Unpublish is `unpublish`; authors see Save Draft only. Submit for review and Request changes are a Review choice in the sidebar that the next save applies. A draft save writes only a version stamped `draft`, so an anonymous `?draft=true` read never sees an unpublished revision. Live preview shows the draft on the real page through Next.js draft mode. Version history gives restore.
 
 ### Hosting and cost
 
@@ -365,12 +368,13 @@ In parallel, prove the deploy path once: an empty Payload app built as an `arm64
 
 ## Known gaps (2026-10-19)
 
-Correctness gaps, scheduled for workstream C:
+Closed by workstream C: the editorial workflow (review H1, H2, M1), race moderation (review M2) with submitter details stored, staff deletion that dropped races, and race slugs shadowed by landing routes.
 
-- Editorial workflow (independent review H1, H2, M1). Draft saves of published documents were stamped `published` in Payload's versions, so an anonymous `?draft=true` read could return unpublished content. Authors could push live edits without review, and the admin's Publish and Unpublish buttons did nothing. Operator decision: revisions to published posts go through submit, review, and publish too. Editorial state therefore splits into `live` (none or published) and `revision` (none, draft, in review, changes requested, or scheduled).
-- Moderation (review M2). Any staff role could approve a race and type any name as the approver, because `decide()` was never called. Submitter details are not stored yet.
-- Deleting a staff member sets `confirmedBy` to null, which silently drops their coach-knowledge races from the site.
-- A race slugged `in` or `discipline` would be shadowed by the landing routes.
+Remaining correctness gaps:
+
+- The domain can schedule a revision, but no job publishes it at `publishAt`, so the admin does not offer Schedule yet.
+- An anonymous `?draft=true` read by id of a published document with a pending revision returns 404 rather than the live copy, because Payload reads only the latest version. Public pages do not make draft reads.
+- Staff deletion is refused by a hook. The foreign keys from races to staff still set null, so a delete made in SQL bypasses the guard.
 
 Product and later work:
 
