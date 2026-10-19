@@ -9,6 +9,8 @@ import type {
   PayloadRequest,
 } from 'payload'
 
+import { siteConfig } from '../site-config'
+
 import { EDITORIAL_SLUGS, RECORD_SLUGS, type ErcSlug } from './slugs'
 
 declare module 'payload' {
@@ -54,14 +56,13 @@ const REVALIDATE_PATH = '/revalidate'
 
 /** Never throws: the write has already succeeded, and a stale page is better than a rolled-back edit. */
 export const refreshRunningSite = async (payload: Payload, tags: readonly string[]) => {
-  const site = process.env.ERC_SITE_URL
-  const secret = process.env.REVALIDATE_SECRET
-  if (!site || !secret) {
-    payload.logger.warn({ tags }, 'Not revalidating: set ERC_SITE_URL and REVALIDATE_SECRET so scripts refresh the running site')
+  const { siteUrl, revalidateSecret: secret } = siteConfig()
+  if (!secret) {
+    payload.logger.warn({ tags }, 'Not revalidating: set REVALIDATE_SECRET so scripts refresh the running site')
     return
   }
   try {
-    const response = await fetch(new URL(`/api${REVALIDATE_PATH}`, site), {
+    const response = await fetch(new URL(`/api${REVALIDATE_PATH}`, siteUrl), {
       method: 'POST',
       headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' },
       body: JSON.stringify({ tags }),
@@ -84,7 +85,7 @@ export const revalidateEndpoint: Endpoint = {
   path: REVALIDATE_PATH,
   method: 'post',
   handler: async (req) => {
-    const secret = process.env.REVALIDATE_SECRET
+    const secret = siteConfig().revalidateSecret
     if (!secret || !sameSecret(req.headers.get('authorization') ?? '', `Bearer ${secret}`)) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }

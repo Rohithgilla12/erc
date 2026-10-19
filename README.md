@@ -35,4 +35,4 @@ pnpm --filter @erc/web payload run src/scripts/check-race-calendar.ts # after se
 pnpm --filter @erc/web payload run src/scripts/check-revalidation.ts  # with the site running
 ```
 
-Scripts write through the Local API in their own process, so they cannot expire the running site's cache directly. Set `ERC_SITE_URL` and `REVALIDATE_SECRET` in `apps/web/.env` (the server needs the same secret) and they ask the site to do it. `next start` keeps cached reads in `.next/cache/fetch-cache` across rebuilds; delete that folder after changing the shape a content function returns.
+Scripts write through the Local API in their own process, so they cannot expire the running site's cache directly. Set `ERC_SITE_URL` and `REVALIDATE_SECRET` in `apps/web/.env` (the server needs the same secret) and they ask the site to do it. In production both are required: the server refuses to start without them. `next start` keeps cached reads in `.next/cache/fetch-cache` across rebuilds; delete that folder after changing the shape a content function returns.
