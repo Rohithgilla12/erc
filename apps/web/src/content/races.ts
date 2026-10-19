@@ -1,7 +1,12 @@
 import config from '@payload-config'
 import {
   canonicalPathOf,
+  DISCIPLINES,
+  DISTANCE_BANDS,
+  INDIAN_SUBDIVISIONS,
   parseLocalDate,
+  tapChip,
+  type FacetChip,
   todayIn,
   type Discipline,
   type DistanceBand,
@@ -20,7 +25,6 @@ import {
   type Seconds,
   type Slug,
   type StaffId,
-  type Subdivision,
 } from '@erc/domain'
 import { sql, type SQL } from '@payloadcms/db-postgres/drizzle'
 import { unstable_cache } from 'next/cache'
@@ -71,31 +75,40 @@ export async function queryRaces(payload: Payload, query: RaceQuery, today: Loca
   const db = payload.db.drizzle
   const rows = <T,>(statement: SQL) => db.execute(statement).then((result) => result.rows as T[])
 
-  type Count<K> = { key: K; count: string }
-  const [ids, [total], disciplines, bands, subdivisions] = await Promise.all([
+  /** One statement per chip family: each chip's count is a FILTER over the query its link leads to. */
+  const chipCounts = async <K extends string>(chips: readonly (readonly [K, SQL])[]) => {
+    const columns = chips.map(([key, where]) => sql`count(*) FILTER (WHERE ${where}) AS ${sql.identifier(key)}`)
+    const [row] = await rows<Record<K, string>>(sql`SELECT ${sql.join(columns, sql`, `)} FROM races r WHERE ${shared(query, today)}`)
+    return (key: K) => Number(row?.[key] ?? 0)
+  }
+  const tapped = (chip: FacetChip) => narrowing(tapChip(query, chip))
+
+  const [ids, [total], disciplineCount, bandCount, stateCount] = await Promise.all([
     rows<{ id: number }>(sql`
       SELECT r.id FROM races r WHERE ${filters(query, today)}
       ORDER BY r.dates_start, r.id
       LIMIT ${RACES_PER_PAGE} OFFSET ${(query.page - 1) * RACES_PER_PAGE}`),
     rows<{ count: string }>(sql`SELECT count(*) AS count FROM races r WHERE ${filters(query, today)}`),
-    rows<Count<Discipline>>(sql`
-      SELECT r.discipline AS key, count(*) AS count FROM races r WHERE ${filters(query, today, 'discipline')}
-      GROUP BY r.discipline`),
-    rows<Count<DistanceBand>>(sql`
-      SELECT d.band AS key, count(DISTINCT r.id) AS count
-      FROM races r JOIN races_distances d ON d._parent_id = r.id
-      WHERE ${filters(query, today, 'band')} AND d.band IS NOT NULL
-      GROUP BY d.band`),
-    rows<Count<Subdivision>>(sql`
-      SELECT r.location_subdivision AS key, count(*) AS count FROM races r
-      WHERE ${filters(query, today, 'subdivision')} AND r.location_kind = 'venue' AND r.location_subdivision IS NOT NULL
-      GROUP BY r.location_subdivision ORDER BY count(*) DESC, r.location_subdivision`),
+    chipCounts(DISCIPLINES.map((value) => [value, tapped({ family: 'discipline', value })] as const)),
+    chipCounts(BAND_KEYS.map((value) => [value, tapped({ family: 'band', value })] as const)),
+    chipCounts(
+      SUBDIVISION_CODES.flatMap((value) => {
+        const where = tapped({ family: 'subdivision', value })
+        return [
+          [value, where],
+          [`venue:${value}`, sql`${where} AND r.location_kind = 'venue'`],
+        ] as const
+      }),
+    ),
   ])
 
   const facets: RaceFacets = {
-    disciplines: Object.fromEntries(disciplines.map(({ key, count }) => [key, Number(count)])),
-    bands: Object.fromEntries(bands.map(({ key, count }) => [key, Number(count)])),
-    subdivisions: subdivisions.map(({ key, count }) => ({ subdivision: key, count: Number(count) })),
+    disciplines: Object.fromEntries(DISCIPLINES.map((key) => [key, disciplineCount(key)])) as Record<Discipline, number>,
+    bands: Object.fromEntries(BAND_KEYS.map((key) => [key, bandCount(key)])) as Record<DistanceBand, number>,
+    // With virtual races included every state's count includes them, so whether a state is listed depends on venues alone.
+    subdivisions: SUBDIVISION_CODES.filter((code) => code === query.subdivision || stateCount(`venue:${code}`) > 0)
+      .map((subdivision) => ({ subdivision, count: stateCount(subdivision) }))
+      .sort((a, b) => b.count - a.count || a.subdivision.localeCompare(b.subdivision)),
   }
   return {
     races: await racesInOrder(
@@ -110,7 +123,8 @@ export async function queryRaces(payload: Payload, query: RaceQuery, today: Loca
   }
 }
 
-type Family = 'discipline' | 'band' | 'subdivision'
+const BAND_KEYS = DISTANCE_BANDS.map((band) => band.key)
+const SUBDIVISION_CODES = INDIAN_SUBDIVISIONS.map((subdivision) => subdivision.code)
 
 const inList = (column: SQL, values: readonly string[]) =>
   sql`${column} IN (${sql.join(
@@ -121,29 +135,12 @@ const inList = (column: SQL, values: readonly string[]) =>
 const escapeLike = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`)
 
 /**
- * The calendar's WHERE clause; `omit` drops one facet family's own filter for that family's counts. Visibility is
- * enforced here as well as by Payload's read access, because raw SQL bypasses access control.
+ * Clauses no chip changes. Visibility is enforced here as well as by Payload's read access, because raw SQL bypasses
+ * access control.
  */
-function filters(query: RaceQuery, today: LocalDate, omit?: Family): SQL {
+function shared(query: RaceQuery, today: LocalDate): SQL {
   const clauses: SQL[] = [sql`r.moderation_state = 'approved'`, sql`r.dates_start >= ${query.from}`]
   if (query.to) clauses.push(sql`r.dates_start <= ${query.to}`)
-  if (omit !== 'discipline' && query.disciplines.length > 0) clauses.push(inList(sql`r.discipline`, query.disciplines))
-  if (omit !== 'band' && query.bands.length > 0) {
-    clauses.push(sql`EXISTS (SELECT 1 FROM races_distances d WHERE d._parent_id = r.id AND ${inList(sql`d.band`, query.bands)})`)
-  }
-
-  const venue =
-    omit !== 'subdivision' && query.subdivision
-      ? sql`(r.location_kind = 'venue' AND r.location_subdivision = ${query.subdivision})`
-      : sql`r.location_kind = 'venue'`
-  // Choosing the virtual discipline is asking for virtual races. For discipline counts, decide per row, so the
-  // virtual chip counts the races tapping it would show.
-  const virtualIncluded =
-    omit === 'discipline'
-      ? sql`(${query.includeVirtual} OR r.discipline = 'virtual')`
-      : sql`${query.includeVirtual || query.disciplines.includes('virtual')}`
-  clauses.push(sql`(${venue} OR (r.location_kind = 'virtual' AND ${virtualIncluded}))`)
-
   if (query.registrationOpen) {
     clauses.push(sql`r.status_kind <> 'cancelled' AND (r.registration_closes_on IS NULL OR r.registration_closes_on >= ${today})`)
   }
@@ -153,6 +150,23 @@ function filters(query: RaceQuery, today: LocalDate, omit?: Family): SQL {
   }
   return sql.join(clauses, sql` AND `)
 }
+
+/** Clauses a chip can change. Place belongs here because choosing the virtual discipline is asking for virtual races. */
+function narrowing(query: RaceQuery): SQL {
+  const clauses: SQL[] = []
+  if (query.disciplines.length > 0) clauses.push(inList(sql`r.discipline`, query.disciplines))
+  if (query.bands.length > 0) {
+    clauses.push(sql`EXISTS (SELECT 1 FROM races_distances d WHERE d._parent_id = r.id AND ${inList(sql`d.band`, query.bands)})`)
+  }
+  const venue = query.subdivision
+    ? sql`(r.location_kind = 'venue' AND r.location_subdivision = ${query.subdivision})`
+    : sql`r.location_kind = 'venue'`
+  const virtualIncluded = query.includeVirtual || query.disciplines.includes('virtual')
+  clauses.push(sql`(${venue} OR (r.location_kind = 'virtual' AND ${virtualIncluded}))`)
+  return sql.join(clauses, sql` AND `)
+}
+
+const filters = (query: RaceQuery, today: LocalDate): SQL => sql`${shared(query, today)} AND ${narrowing(query)}`
 
 async function racesInOrder(ids: readonly number[], payload: Payload): Promise<PublicRace[]> {
   if (ids.length === 0) return []

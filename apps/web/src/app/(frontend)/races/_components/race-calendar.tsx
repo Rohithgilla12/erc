@@ -5,6 +5,8 @@ import {
   isVerificationStale,
   racesHref,
   subdivisionOf,
+  tapChip,
+  type FacetChip,
   type LocalDate,
   type PublicRace,
   type RacePage,
@@ -23,8 +25,6 @@ declare module 'react' {
 
 type Props = { heading: string; page: RacePage; query: RaceQuery; today: LocalDate; arrival: boolean }
 
-const toggle = <T,>(list: readonly T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
-
 const activeFilters = (query: RaceQuery, today: LocalDate): string[] => [
   ...(query.text ? [`“${query.text}”`] : []),
   ...query.disciplines.map((discipline) => DISCIPLINE_LABELS[discipline]),
@@ -38,6 +38,7 @@ const activeFilters = (query: RaceQuery, today: LocalDate): string[] => [
 
 export function RaceCalendar({ heading, page, query, today, arrival }: Props) {
   const href = (change: Partial<RaceQuery>) => racesHref({ ...query, page: 1, ...change }, today)
+  const chipHref = (chip: FacetChip) => racesHref(tapChip(query, chip), today)
   const active = activeFilters(query, today)
 
   return (
@@ -70,9 +71,9 @@ export function RaceCalendar({ heading, page, query, today, arrival }: Props) {
               <Chip
                 key={discipline}
                 name={`chip-discipline-${discipline}`}
-                href={href({ disciplines: toggle(query.disciplines, discipline) })}
+                href={chipHref({ family: 'discipline', value: discipline })}
                 selected={query.disciplines.includes(discipline)}
-                count={page.facets.disciplines[discipline] ?? 0}
+                count={page.facets.disciplines[discipline]}
               >
                 {DISCIPLINE_LABELS[discipline]}
               </Chip>
@@ -83,9 +84,9 @@ export function RaceCalendar({ heading, page, query, today, arrival }: Props) {
               <Chip
                 key={key}
                 name={`chip-band-${key}`}
-                href={href({ bands: toggle(query.bands, key) })}
+                href={chipHref({ family: 'band', value: key })}
                 selected={query.bands.includes(key)}
-                count={page.facets.bands[key] ?? 0}
+                count={page.facets.bands[key]}
               >
                 {BAND_LABELS[key]}
               </Chip>
@@ -96,7 +97,7 @@ export function RaceCalendar({ heading, page, query, today, arrival }: Props) {
               <Chip
                 key={subdivision}
                 name={`chip-state-${subdivision}`}
-                href={href({ subdivision: query.subdivision === subdivision ? null : subdivision })}
+                href={chipHref({ family: 'subdivision', value: subdivision })}
                 selected={query.subdivision === subdivision}
                 count={count}
               >

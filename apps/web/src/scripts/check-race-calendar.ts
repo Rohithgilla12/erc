@@ -3,7 +3,18 @@
  * `pnpm payload run src/scripts/check-race-calendar.ts`. Run it after seeding.
  */
 import config from '@payload-config'
-import { parseRaceQuery, type LocalDate, type QueryParams, type RaceQuery } from '@erc/domain'
+import {
+  DISCIPLINES,
+  DISTANCE_BANDS,
+  INDIAN_SUBDIVISIONS,
+  parseRaceQuery,
+  type Discipline,
+  type DistanceBand,
+  type LocalDate,
+  type QueryParams,
+  type RaceQuery,
+  type Subdivision,
+} from '@erc/domain'
 import { sql } from '@payloadcms/db-postgres/drizzle'
 import { getPayload } from 'payload'
 
@@ -43,33 +54,28 @@ const { rows } = await db.execute(sql`
   GROUP BY r.id`)
 const races = rows as Row[]
 
-type Family = 'discipline' | 'band' | 'subdivision'
-
-const matches = (race: Row, q: RaceQuery, omit?: Family) => {
+const matches = (race: Row, q: RaceQuery) => {
   const text = q.text?.toLowerCase()
-  const virtualWanted = q.includeVirtual || (omit === 'discipline' ? race.discipline === 'virtual' : q.disciplines.includes('virtual'))
-  const placeOk =
-    race.kind === 'virtual' ? virtualWanted : omit === 'subdivision' || !q.subdivision || race.subdivision === q.subdivision
+  const virtualWanted = q.includeVirtual || q.disciplines.includes('virtual')
   return (
     race.approved &&
     race.start >= q.from &&
     (!q.to || race.start <= q.to) &&
-    (omit === 'discipline' || q.disciplines.length === 0 || q.disciplines.includes(race.discipline as never)) &&
-    (omit === 'band' || q.bands.length === 0 || race.bands.some((band) => q.bands.includes(band as never))) &&
-    placeOk &&
+    (q.disciplines.length === 0 || q.disciplines.includes(race.discipline as never)) &&
+    (q.bands.length === 0 || race.bands.some((band) => q.bands.includes(band as never))) &&
+    (race.kind === 'virtual' ? virtualWanted : !q.subdivision || race.subdivision === q.subdivision) &&
     (!q.registrationOpen || (race.status !== 'cancelled' && (race.closes_on === null || race.closes_on >= today))) &&
     (!text || race.name.toLowerCase().includes(text) || (race.city ?? '').toLowerCase().includes(text))
   )
 }
 
-const countBy = (items: Row[], keys: (race: Row) => readonly string[]) => {
-  const counts: Record<string, number> = {}
-  for (const race of items) for (const key of new Set(keys(race))) counts[key] = (counts[key] ?? 0) + 1
-  return counts
-}
+const resultCount = (q: RaceQuery) => races.filter((race) => matches(race, q)).length
 
-const sorted = (record: Readonly<Record<string, number | undefined>>) =>
-  Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b)))
+// Written apart from `tapChip` on purpose: this is what tapping a chip means, stated a second time.
+const withOrWithout = <T,>(list: readonly T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
+const tappingDiscipline = (q: RaceQuery, value: Discipline): RaceQuery => ({ ...q, page: 1, disciplines: withOrWithout(q.disciplines, value) })
+const tappingBand = (q: RaceQuery, value: DistanceBand): RaceQuery => ({ ...q, page: 1, bands: withOrWithout(q.bands, value) })
+const tappingState = (q: RaceQuery, value: Subdivision): RaceQuery => ({ ...q, page: 1, subdivision: q.subdivision === value ? null : value })
 
 const cases: [string, QueryParams][] = [
   ['default upcoming list', {}],
@@ -78,9 +84,12 @@ const cases: [string, QueryParams][] = [
   ['one discipline', { discipline: 'trail' }],
   ['two disciplines', { discipline: 'trail,road' }],
   ['virtual discipline', { discipline: 'virtual' }],
+  ['virtual discipline beside road', { discipline: 'road,virtual' }],
   ['virtual included', { virtual: '1' }],
+  ['state with virtual included', { state: 'IN-TS', virtual: '1' }],
   ['band plus state', { band: 'half-to-marathon', state: 'IN-AP' }],
   ['two bands', { band: 'under-10k,over-100k' }],
+  ['one of every family', { discipline: 'road', band: 'under-10k', state: 'IN-TS', virtual: '1' }],
   ['city text', { q: 'hyderabad' }],
   ['text with a LIKE wildcard', { q: '50%' }],
   ['registration open', { open: '1' }],
@@ -96,23 +105,26 @@ for (const [name, params] of cases) {
   const offset = (query.page - 1) * RACES_PER_PAGE
 
   expect(`${name}: page ids`, page.races.map((race) => race.id), expected.slice(offset, offset + RACES_PER_PAGE).map((race) => race.id))
+  expect(`${name}: total`, page.total, expected.length)
   expect(`${name}: total pages`, page.totalPages, Math.max(1, Math.ceil(expected.length / RACES_PER_PAGE)))
-  expect(
-    `${name}: discipline counts`,
-    sorted(page.facets.disciplines),
-    sorted(countBy(races.filter((race) => matches(race, query, 'discipline')), (race) => [race.discipline])),
+
+  const chips = [
+    ...DISCIPLINES.map((value) => [`discipline ${value}`, page.facets.disciplines[value], tappingDiscipline(query, value)] as const),
+    ...DISTANCE_BANDS.map(({ key }) => [`band ${key}`, page.facets.bands[key], tappingBand(query, key)] as const),
+    ...page.facets.subdivisions.map(({ subdivision, count }) => [`state ${subdivision}`, count, tappingState(query, subdivision)] as const),
+  ]
+  const wrong: string[] = []
+  for (const [chip, count, tapped] of chips) {
+    const shown = (await queryRaces(payload, tapped, today)).total
+    if (count !== resultCount(tapped) || count !== shown) wrong.push(`${chip} shows ${count}, tapping it gives ${resultCount(tapped)} (page total ${shown})`)
+  }
+  expect(`${name}: every chip's count is the result count after tapping it`, wrong, [])
+
+  const listedStates = page.facets.subdivisions.map((entry) => entry.subdivision).sort()
+  const statesWithVenues = INDIAN_SUBDIVISIONS.map(({ code }) => code).filter(
+    (code) => code === query.subdivision || races.some((race) => race.kind === 'venue' && race.subdivision === code && matches(race, tappingState(query, code))),
   )
-  expect(`${name}: band counts`, sorted(page.facets.bands), sorted(countBy(races.filter((race) => matches(race, query, 'band')), (race) => race.bands)))
-  expect(
-    `${name}: state counts`,
-    sorted(Object.fromEntries(page.facets.subdivisions.map(({ subdivision, count }) => [subdivision, count]))),
-    sorted(
-      countBy(
-        races.filter((race) => race.kind === 'venue' && matches(race, query, 'subdivision')),
-        (race) => (race.subdivision ? [race.subdivision] : []),
-      ),
-    ),
-  )
+  expect(`${name}: listed states are those with venue races, plus the selected one`, listedStates, statesWithVenues.sort())
 }
 
 const approved = await payload.find({ collection: 'races', where: { 'moderation.state': { equals: 'approved' } }, pagination: false, depth: 0 })
@@ -132,6 +144,7 @@ if (victim) {
     await db.execute(sql`UPDATE races SET last_verified_on = ${victim.lastVerifiedOn} WHERE id = ${victim.id}`)
   }
   expect('the restored race reads again', (await raceBySlug(payload, victim.slug))?.slug, victim.slug)
+
 }
 
 if (failures.length > 0) {

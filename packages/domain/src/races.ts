@@ -81,9 +81,17 @@ export type RaceQuery = {
   page: number
 }
 
+/** Discipline and band chips add or remove one value from a multi-select list; a state chip picks or clears the one state. */
+export type FacetChip =
+  | { family: 'discipline'; value: Discipline }
+  | { family: 'band'; value: DistanceBand }
+  | { family: 'subdivision'; value: Subdivision }
+
+/** Each count is the `total` of `tapChip(query, chip)`, so a chip shows the result count its link leads to. */
 export type RaceFacets = {
-  disciplines: Readonly<Partial<Record<Discipline, number>>>
-  bands: Readonly<Partial<Record<DistanceBand, number>>>
+  disciplines: Readonly<Record<Discipline, number>>
+  bands: Readonly<Record<DistanceBand, number>>
+  /** States with a venue race under the other filters, plus the selected state, most races first. */
   subdivisions: readonly { subdivision: Subdivision; count: number }[]
 }
 
@@ -93,7 +101,7 @@ export type RacePage = {
   total: number
   page: number
   totalPages: number
-  /** Counts for the current query minus each facet's own filter, so every chip shows what tapping it would yield. */
+  /** For every chip, how many races tapping it shows: a selected chip counts the view after removing it. */
   facets: RaceFacets
   /** Indexable landing route for this query, or null when the combination should be `noindex`. */
   canonicalPath: string | null
@@ -181,6 +189,21 @@ export const serialiseRaceQuery = (query: RaceQuery, today: LocalDate): string =
     .filter((pair): pair is [string, string] => pair[1] !== null)
     .map(([key, value]) => `${key}=${value}`)
     .join('&')
+}
+
+const toggled = <T extends string>(known: readonly T[], list: readonly T[], value: T): T[] =>
+  knownIn(known, list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
+
+/** The query a chip links to, from page 1. Facet counts are computed from this, so a count cannot disagree with its link. */
+export const tapChip = (query: RaceQuery, chip: FacetChip): RaceQuery => {
+  switch (chip.family) {
+    case 'discipline':
+      return { ...query, page: 1, disciplines: toggled(DISCIPLINES, query.disciplines, chip.value) }
+    case 'band':
+      return { ...query, page: 1, bands: toggled(BAND_KEYS, query.bands, chip.value) }
+    case 'subdivision':
+      return { ...query, page: 1, subdivision: query.subdivision === chip.value ? null : chip.value }
+  }
 }
 
 export const RACES_PATH = '/races'

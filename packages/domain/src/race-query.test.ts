@@ -3,6 +3,7 @@ import {
   isVerificationStale,
   parseRaceQuery,
   serialiseRaceQuery,
+  tapChip,
   type LocalDate,
   type QueryParams,
   type RaceQuery,
@@ -217,5 +218,32 @@ describe('parse and serialise round trip', () => {
     const once = serialiseRaceQuery(parseRaceQuery(params, today), today)
     const twice = serialiseRaceQuery(parseRaceQuery(splitQuery(once), today), today)
     expect(twice).toBe(once)
+  })
+})
+
+describe('tapChip', () => {
+  const on = (params: QueryParams) => ({ ...parseRaceQuery(params, today), page: 4 })
+
+  it('adds an unselected discipline to the selected ones, in table order', () => {
+    expect(tapChip(on({ discipline: 'trail' }), { family: 'discipline', value: 'road' })).toEqual({ ...defaults, disciplines: ['road', 'trail'] })
+  })
+
+  it('removes a selected discipline, which clears the filter when it was the only one', () => {
+    expect(tapChip(on({ discipline: 'road' }), { family: 'discipline', value: 'road' })).toEqual(defaults)
+  })
+
+  it('toggles bands the same way', () => {
+    expect(tapChip(on({ band: 'over-100k' }), { family: 'band', value: 'under-10k' }).bands).toEqual(['under-10k', 'over-100k'])
+    expect(tapChip(on({ band: 'over-100k,under-10k' }), { family: 'band', value: 'over-100k' }).bands).toEqual(['under-10k'])
+  })
+
+  it('replaces the selected state with another, and clears it when tapped again', () => {
+    expect(tapChip(on({ state: 'IN-TS' }), { family: 'subdivision', value: 'IN-AP' as Subdivision }).subdivision).toBe('IN-AP')
+    expect(tapChip(on({ state: 'IN-TS' }), { family: 'subdivision', value: 'IN-TS' as Subdivision }).subdivision).toBeNull()
+  })
+
+  it('keeps every other filter and goes back to page 1', () => {
+    const query = on({ q: 'ultra', open: '1', virtual: '1', state: 'IN-TS', from: '2026-11-01' })
+    expect(tapChip(query, { family: 'discipline', value: 'trail' })).toEqual({ ...query, page: 1, disciplines: ['trail'] })
   })
 })
