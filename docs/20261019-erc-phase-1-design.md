@@ -172,7 +172,7 @@ Dominant read: approved races starting on or after today, filtered by discipline
 | date window | `dates_start` as `YYYY-MM-DD` text | btree |
 | discipline | select | btree |
 | distance band | `races_distances.band` | btree on `(band, parent_id)` |
-| state | `location_subdivision` (`IN-TG`, `IN-AP`) | btree |
+| state | `location_subdivision` (`IN-TS`, `IN-AP`) | btree |
 | text | `name`, `location_city` | `pg_trgm` GIN |
 | visibility | `moderation_state = 'approved'` | partial index |
 

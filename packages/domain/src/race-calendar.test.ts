@@ -20,7 +20,7 @@ const race = (overrides: Partial<PublicRace> = {}): PublicRace => ({
   discipline: 'trail',
   dates: { start: '2026-12-06' as LocalDate, dayCount: 1 },
   timeZone: 'Asia/Kolkata',
-  location: { kind: 'venue', venue: 'Gandipet Lake', city: 'Hyderabad', subdivision: 'IN-TG' as Subdivision, country: 'IN' },
+  location: { kind: 'venue', venue: 'Gandipet Lake', city: 'Hyderabad', subdivision: 'IN-TS' as Subdivision, country: 'IN' },
   distances: [{ metres: 21_097 as Metres, category: 'half', band: 'half-to-marathon' }],
   officialUrl: 'https://hyderabadtrail.example.in/2026' as HttpsUrl,
   registration: { url: 'https://tickets.example.com/hyd' as HttpsUrl, closesOn: null },

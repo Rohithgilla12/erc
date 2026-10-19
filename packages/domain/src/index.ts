@@ -17,9 +17,9 @@ export {
   type Result,
   type Seconds,
   type Slug,
-  type Subdivision,
   type YouTubeId,
 } from './primitives'
 export * from './races'
 export * from './running'
+export * from './subdivisions'
 export * from './workflow'

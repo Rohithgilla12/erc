@@ -63,7 +63,7 @@ describe('parseRaceQuery', () => {
           to: '2026-12-31',
           discipline: 'trail',
           band: ['under-10k', 'over-100k'],
-          state: 'IN-TG',
+          state: 'IN-TS',
           virtual: '1',
           open: '1',
           q: 'Hyderabad half',
@@ -76,7 +76,7 @@ describe('parseRaceQuery', () => {
       to: '2026-12-31',
       disciplines: ['trail'],
       bands: ['under-10k', 'over-100k'],
-      subdivision: 'IN-TG',
+      subdivision: 'IN-TS',
       includeVirtual: true,
       registrationOpen: true,
       text: 'Hyderabad half',
@@ -101,12 +101,13 @@ describe('parseRaceQuery', () => {
   })
 
   it.each([
-    ['in-tg', 'IN-TG'],
+    ['in-ts', 'IN-TS'],
     [' IN-AP ', 'IN-AP'],
-    ['US-CA', 'US-CA'],
+    ['US-CA', null],
+    ['IN-TG', null],
     ['Telangana', null],
     ['IN', null],
-    ['IN-TGXX', null],
+    ['IN-TSXX', null],
   ] as const)('normalises state %j to %j', (state, subdivision) => {
     expect(parseRaceQuery({ state }, today).subdivision).toBe(subdivision)
   })
@@ -162,14 +163,14 @@ describe('serialiseRaceQuery', () => {
       text: 'mud, rain & 50% off',
       registrationOpen: true,
       includeVirtual: true,
-      subdivision: 'IN-TG' as Subdivision,
+      subdivision: 'IN-TS' as Subdivision,
       bands: ['over-100k', 'under-10k'],
       disciplines: ['trail', 'road'],
       to: d('2026-12-31'),
       from: d('2026-11-01'),
     }
     expect(serialiseRaceQuery(query, today)).toBe(
-      'from=2026-11-01&to=2026-12-31&discipline=road,trail&band=under-10k,over-100k&state=IN-TG&virtual=1&open=1&q=mud%2C%20rain%20%26%2050%25%20off&page=3',
+      'from=2026-11-01&to=2026-12-31&discipline=road,trail&band=under-10k,over-100k&state=IN-TS&virtual=1&open=1&q=mud%2C%20rain%20%26%2050%25%20off&page=3',
     )
   })
 
@@ -190,7 +191,7 @@ describe('parse and serialise round trip', () => {
     ['invalid dates', { from: '2026-02-30', to: 'tomorrow' }],
     ['duplicated lists', { discipline: ['trail', 'road', 'trail'], band: 'over-100k,under-10k,over-100k' }],
     ['mixed case and unknown values', { discipline: 'TRAIL, Road ,running', band: ['bogus', ''] }],
-    ['lower-case state and flags', { state: 'in-tg', virtual: '1', open: '1' }],
+    ['lower-case state and flags', { state: 'in-ts', virtual: '1', open: '1' }],
     ['invalid state and flags', { state: 'Telangana', virtual: 'yes', open: 'true' }],
     ['spaced text', { q: '   Hyderabad   Half  ' }],
     ['long text', { q: 'a '.repeat(80) }],

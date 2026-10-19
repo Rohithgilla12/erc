@@ -14,9 +14,9 @@ import {
   type Result,
   type Seconds,
   type Slug,
-  type Subdivision,
 } from './primitives'
 import { DISCIPLINES, DISTANCE_BANDS, type Discipline, type DistanceBand, type DistanceCategory } from './running'
+import { parseSubdivision, type Subdivision } from './subdivisions'
 
 export type RaceLocation =
   | { kind: 'venue'; venue: string; city: string; subdivision: Subdivision; country: 'IN' | (string & {}) }
@@ -115,12 +115,6 @@ const knownIn = <T extends string>(known: readonly T[], wanted: readonly string[
   return known.filter((k) => set.has(k))
 }
 
-const SUBDIVISION = /^[A-Z]{2}-[A-Z0-9]{1,3}$/
-const parseSubdivision = (raw: string): Subdivision | null => {
-  const upper = raw.toUpperCase()
-  return SUBDIVISION.test(upper) ? (upper as Subdivision) : null
-}
-
 const BAND_KEYS = DISTANCE_BANDS.map((b) => b.key)
 const MAX_TEXT_CHARS = 100
 const MAX_PAGE = 1000
@@ -147,7 +141,7 @@ const dateOrNull = (raw: string): LocalDate | null => {
  * Boundary parser for URL query params. Unknown values are dropped, never thrown on.
  *
  * Params: `from`, `to` (`YYYY-MM-DD`); `discipline`, `band` (repeated or comma-separated);
- * `state` (ISO 3166-2, any case); `virtual=1`; `open=1`; `q` (whitespace collapsed, clipped to 100 characters);
+ * `state` (a known ISO 3166-2 code, any case); `virtual=1`; `open=1`; `q` (whitespace collapsed, clipped to 100 characters);
  * `page` (1 to 1000). `from` defaults to `today`, `page` to 1, everything else to empty.
  */
 export const parseRaceQuery = (params: QueryParams, today: LocalDate): RaceQuery => ({
@@ -255,7 +249,7 @@ const timeZone = (raw: string): FieldResult<string> => {
 
 const subdivision = (raw: string): FieldResult<Subdivision> => {
   const parsed = parseSubdivision(raw)
-  return parsed ? ok(parsed) : err('Enter a state code such as IN-TG.')
+  return parsed ? ok(parsed) : err('Enter a state code such as IN-TS.')
 }
 
 const location = (field: (key: string) => string): Result<RaceLocation, FieldErrors> => {
@@ -267,7 +261,7 @@ const location = (field: (key: string) => string): Result<RaceLocation, FieldErr
   })
   if (!place.ok) return place
   const { venue, city, state } = place.value
-  return ok({ kind: 'venue', venue, city, subdivision: state, country: state.slice(0, 2) })
+  return ok({ kind: 'venue', venue, city, subdivision: state, country: 'IN' })
 }
 
 const mergeErrors = (...results: Result<unknown, FieldErrors>[]): FieldErrors =>
@@ -281,7 +275,7 @@ const mergeErrors = (...results: Result<unknown, FieldErrors>[]): FieldErrors =>
  * Required: `name` (3 to 120 characters), `discipline`, `start` (`YYYY-MM-DD`), `distances` (whole metres,
  * repeated or comma-separated), `officialUrl` (https), `submitterName` (1 to 120), `submitterEmail`.
  * Location: `virtual` (`1` or `on`) for a virtual race; otherwise `venue`, `city`, and `state` (ISO 3166-2 such as
- * `IN-TG`, which also gives the country).
+ * `IN-TS`).
  * Optional: `dayCount` (1 to 30, default 1), `timeZone` (IANA, default `Asia/Kolkata`), `registrationUrl` (https,
  * default `officialUrl`), `registrationClosesOn` (`YYYY-MM-DD`), `summary` (up to 1000 characters).
  */

@@ -23,7 +23,7 @@ export type HttpsUrl = Brand<string, 'HttpsUrl'>
 export type Email = Brand<string, 'Email'>
 /** The 11-character id, never a full URL. Thumbnails and embeds are derived from it. */
 export type YouTubeId = Brand<string, 'YouTubeId'>
-/** ISO 3166-2 code such as `IN-TG` or `IN-AP`. Drives the `/races/in/<state>` landing pages. */
+/** ISO 3166-2 code such as `IN-TS` or `IN-AP`. Drives the `/races/in/<state>` landing pages. */
 export type Subdivision = Brand<string, 'Subdivision'>
 export type NonEmpty<T> = readonly [T, ...T[]]
 

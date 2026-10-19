@@ -18,7 +18,7 @@ import type { Race as RaceDoc } from '@/payload-types'
 
 import { httpsUrlField, localDateField, optionsFrom, shownWhen } from '../fields'
 import { defineRecord } from '../kinds'
-import { INDIAN_SUBDIVISIONS } from '../subdivisions'
+import { subdivisionOptions } from '../subdivisions'
 
 type Distances = NonNullable<RaceDoc['distances']>
 
@@ -78,7 +78,7 @@ export const Races = defineRecord({
           type: 'select',
           required: true,
           index: true,
-          options: optionsFrom(INDIAN_SUBDIVISIONS),
+          options: subdivisionOptions,
           admin: { condition: shownWhen('kind', 'venue') },
         },
         {
