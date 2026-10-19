@@ -9,7 +9,6 @@ export const ENQUIRY_TOPICS = [
 
 export type EnquiryTopic = (typeof ENQUIRY_TOPICS)[number]['key']
 
-/** `consent` is the literal `true`: an enquiry the sender did not agree to be contacted about cannot exist. */
 export type Enquiry = {
   name: string
   email: Email
@@ -40,7 +39,9 @@ const lengthBetween = (raw: string, min: number, max: number, label: string): Fi
 // A name goes into an email subject line, so it is kept to one line.
 const name = (raw: string) => lengthBetween(raw.replace(/\s+/g, ' '), 1, 120, 'your name')
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Payload's email field validator, copied so that an address this accepts is one the CMS will store.
+const EMAIL =
+  /^(?!.*\.\.)[\w!#$%&'*+/=?^`{|}~-](?:[\w!#$%&'*+/=?^`{|}~.-]*[\w!#$%&'*+/=?^`{|}~-])?@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/i
 const email = (raw: string): FieldResult<Email> =>
   EMAIL.test(raw) && raw.length <= 254 ? ok(raw as Email) : err('Enter an email address such as name@example.com.')
 

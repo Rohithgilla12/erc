@@ -74,8 +74,11 @@ describe('parseEnquiry', () => {
     expect(Object.keys(errorsOf({ ...valid, phone: '+1 234 567 890 123 456' }))).toEqual(['phone'])
   })
 
-  it('rejects an address without a domain', () => {
-    expect(Object.keys(errorsOf({ ...valid, email: 'asha@example' }))).toEqual(['email'])
+  it('accepts only addresses the CMS email field will store', () => {
+    expect(parseEnquiry({ ...valid, email: 'asha.rao+erc@mail.example.co.in' }).ok).toBe(true)
+    for (const email of ['asha@example', 'runner@example.c', 'a..b@example.com', 'me@exämple.com', 'me@ex_ample.com', '"me"@example.com']) {
+      expect(Object.keys(errorsOf({ ...valid, email }))).toEqual(['email'])
+    }
   })
 })
 
