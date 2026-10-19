@@ -34,10 +34,10 @@ type StaffUser = Staff & { collection: 'staff' }
 const system = () => ({ context: { skipRevalidation: true } })
 const as = (user: StaffUser) => ({ user, overrideAccess: false, ...system() })
 
-const createStaff = async (role: Staff['role']): Promise<StaffUser> => {
+const createStaff = async (role: Staff['role'], name: string = role): Promise<StaffUser> => {
   const doc = await payload.create({
     collection: 'staff',
-    data: { email: `write-check-${role}-${run}@erc.invalid`, password, role },
+    data: { email: `write-check-${name}-${run}@erc.invalid`, password, role },
     ...system(),
   })
   // Payload's auth strategy tags the user with its collection; a Local API caller must do the same.
@@ -212,6 +212,31 @@ async function moderationCases() {
   )
 }
 
+async function staffDeletionCases() {
+  const coach = await createStaff('author', 'coach')
+  const race = await payload.create({
+    collection: 'races',
+    data: { ...raceData(`write-check-confirmed-${run}`), source: { kind: 'coach-knowledge', confirmedBy: coach.id } },
+    ...system(),
+  })
+  raceIds.push(race.id)
+  expect(
+    'deleting a staff member who confirmed a race is refused',
+    await outcome(payload.delete({ collection: 'staff', id: coach.id, ...system() })),
+    409,
+  )
+  const kept = await payload.findByID({ collection: 'races', id: race.id, depth: 0, ...system() })
+  expect('the race keeps its confirming staff member', kept.source.confirmedBy, coach.id)
+  expect(
+    'deleting the editor who approved a race is refused',
+    await outcome(payload.delete({ collection: 'staff', id: editor.id, ...system() })),
+    409,
+  )
+  await payload.delete({ collection: 'races', id: race.id, ...system() })
+  raceIds.splice(raceIds.indexOf(race.id), 1)
+  expect('with no races left, the staff member can be deleted', await outcome(payload.delete({ collection: 'staff', id: coach.id, ...system() })), 'allowed')
+}
+
 async function restEditorialCases(site: string) {
   const login = async (user: StaffUser) => {
     const response = await fetch(new URL('/api/staff/login', site), {
@@ -266,6 +291,7 @@ async function restEditorialCases(site: string) {
 try {
   await editorialCases()
   await moderationCases()
+  await staffDeletionCases()
   const site = process.env.ERC_CHECK_URL
   if (site) await restEditorialCases(site)
   else console.log('SKIP REST cases: set ERC_CHECK_URL to a running site')
