@@ -1,4 +1,4 @@
-import { notImplemented, type Email, type Id, type Instant, type Result } from './primitives'
+import { err, ok, type Email, type Id, type Instant, type Result } from './primitives'
 
 export type StaffRole = 'admin' | 'editor' | 'author'
 export type StaffId = Id<'staff'>
@@ -17,4 +17,11 @@ export const decide = (
   decision: ModerationDecision,
   by: StaffId,
   now: Instant,
-): Result<Moderation, 'already_decided'> => notImplemented()
+): Result<Moderation, 'already_decided'> => {
+  if (current.state !== 'submitted') return err('already_decided')
+  return ok(
+    decision.kind === 'approve'
+      ? { state: 'approved', by, at: now }
+      : { state: 'rejected', by, at: now, reason: decision.reason },
+  )
+}
