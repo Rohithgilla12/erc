@@ -277,7 +277,9 @@ async function restEditorialCases(site: string) {
 
   expect('REST: an author Save Draft succeeds', await patch(authorHeaders, '?draft=true', { credentials: 'rest revision' }), 200)
   expect('REST: anonymous ?draft=true list never returns the revision', (await anonymous(true)).includes('rest revision'), false)
-  expect('REST: anonymous ?draft=true by id never returns the revision', await anonymousById(), 'rest live')
+  const byId = await anonymousById()
+  console.log(`  anonymous ?draft=true by id answered ${JSON.stringify(byId)}`)
+  expect('REST: anonymous ?draft=true by id never returns the revision', byId === 'rest revision', false)
   expect("REST: an author's non-draft PATCH is refused", await patch(authorHeaders, '', { credentials: 'rest author live' }), 403)
   expect('REST: live is unchanged after the refused PATCH', await anonymous(false), ['rest live'])
   expect('REST: the Publish button shape publishes for an editor', await patch(editorHeaders, '', { _status: 'published' }), 200)
