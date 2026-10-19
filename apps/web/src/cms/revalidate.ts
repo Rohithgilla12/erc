@@ -28,15 +28,24 @@ const KNOWN_TAGS = new Set([...EDITORIAL_SLUGS, ...RECORD_SLUGS].map(collectionT
 // Expire now rather than serve stale-while-revalidate: an editor who saves expects the next page view to show it.
 const expireNow = (tags: readonly string[]) => tags.forEach((tag) => revalidateTag(tag, { expire: 0 }))
 
+// Next's code for "static generation store missing": `revalidateTag` was called outside a request Next is serving.
+const NO_REQUEST_STORE = 'E263'
+const outsideNextRequest = (error: unknown) =>
+  typeof error === 'object' && error !== null && (error as { __NEXT_ERROR_CODE?: unknown }).__NEXT_ERROR_CODE === NO_REQUEST_STORE
+
 /**
- * Only the Next.js server process can expire its tags. REST, GraphQL, and admin writes run inside it and expire them
- * directly. Local API writes usually come from `payload run` scripts in another process, so they ask the running
- * server over HTTP; a Local API write made inside the server takes the same HTTP route back to itself.
+ * Any write made while Next serves a request (REST, GraphQL, the admin, or the Local API inside a page or route)
+ * expires its tags in-process. Anything else, such as a `payload run` script or in-process work outside a request,
+ * asks the running server over HTTP. Whether we are inside a request is learned from Next, not guessed.
  */
 const revalidate = async (req: PayloadRequest, tags: readonly string[]) => {
   if (req.context.skipRevalidation) return
-  if (req.payloadAPI === 'local') await refreshRunningSite(req.payload, tags)
-  else expireNow(tags)
+  try {
+    expireNow(tags)
+  } catch (error) {
+    if (!outsideNextRequest(error)) throw error
+    await refreshRunningSite(req.payload, tags)
+  }
 }
 
 export const revalidateOnChange =

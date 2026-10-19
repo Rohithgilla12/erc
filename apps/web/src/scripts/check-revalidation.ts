@@ -79,8 +79,9 @@ try {
   await payload.update({ collection: 'races', id: race.id, data: { name: race.name } })
 }
 
-const restored = await showsName(race.name)
-expect(`both pages show "${race.name}" again after the restore`, restored.detail && restored.list)
+// Every temporary name starts with the original one, so the restore is proven by the temporary name being gone.
+const leftover = await showsName(renamed)
+expect(`both pages show "${race.name}" again after the restore`, !leftover.detail && !leftover.list)
 
 if (failures.length > 0) {
   console.error(`${failures.length} check(s) failed`)
