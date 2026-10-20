@@ -17,8 +17,9 @@ import { getPayload, type Payload } from 'payload'
 import { cache } from 'react'
 
 import { collectionTag } from '@/cms/revalidate'
-import type { Coach as CoachDoc, Media as MediaDoc, Page as PageDoc } from '@/payload-types'
+import type { Coach as CoachDoc, Page as PageDoc } from '@/payload-types'
 
+import { mediaUrl, type Logger } from './published'
 import { findRaces } from './races'
 
 export type PageBlock =
@@ -67,14 +68,9 @@ export const upcomingRaces = async (count: number): Promise<readonly PublicRace[
   return races.slice(0, count)
 }
 
-type Logger = { error: (details: object, message: string) => void }
 type Block = PageDoc['layout'][number]
 
 const textOrNull = (value: string | null | undefined) => (value?.trim() ? value.trim() : null)
-
-const httpsUrlOrNull = (url: string | null | undefined) => (url?.startsWith('https://') ? (url as HttpsUrl) : null)
-
-const mediaUrl = (media: number | MediaDoc | null | undefined) => (typeof media === 'object' ? httpsUrlOrNull(media?.url) : null)
 
 const linkOf = (link: { label?: string | null; href?: string | null } | null | undefined): CtaLink | null => {
   const label = textOrNull(link?.label)

@@ -24,7 +24,8 @@ import { cache } from 'react'
 
 import { collectionTag } from '@/cms/revalidate'
 import type { Athlete as AthleteDoc, Result as ResultDoc } from '@/payload-types'
-import { siteConfig } from '@/site-config'
+
+import { fail, mediaUrl, parsing, slugOf } from './published'
 
 /** A public athlete with the bests a directory card shows; empty while the athlete keeps results hidden. */
 export type DirectoryEntry = { athlete: Athlete; headline: readonly HeadlineBest[] }
@@ -133,47 +134,19 @@ const parsedOrLogged = <D extends { id: number }, T>(
     return []
   })
 
-class InvalidField extends Error {}
-
-const fail = (field: string): never => {
-  throw new InvalidField(field)
-}
-
-const parsing = <T,>(read: () => T): Result<T, string> => {
-  try {
-    return { ok: true, value: read() }
-  } catch (error) {
-    if (error instanceof InvalidField) return { ok: false, error: error.message }
-    throw error
-  }
-}
-
 const idOf = (value: number | { id: number } | null | undefined, field: string): number =>
   typeof value === 'number' ? value : (value ?? fail(field)).id
-
-/**
- * Same-origin media is accepted as well as https, because local uploads are served by the site itself; in every
- * deployed environment the site URL is https and R2 media is https.
- */
-const photoUrlOf = (photo: AthleteDoc['photo']): HttpsUrl | null => {
-  const raw = typeof photo === 'object' && photo !== null ? photo.url : null
-  if (!raw) return null
-  const { siteUrl } = siteConfig()
-  const url = new URL(raw, siteUrl)
-  return url.protocol === 'https:' || url.origin === siteUrl.origin ? (url.href as HttpsUrl) : null
-}
 
 /** Only an approved athlete with a public profile parses, whatever the query that found it asked for. */
 export const parseAthleteDoc = (doc: AthleteDoc): Result<Athlete, string> =>
   parsing(() => {
     if (doc.moderation.state !== 'approved') fail('moderation.state')
     if (doc.visibility.profile !== 'public') fail('visibility.profile')
-    const slug = parseSlug(doc.slug)
     return {
       id: doc.id as Id<'athletes'>,
-      slug: slug.ok ? slug.value : fail('slug'),
+      slug: slugOf(doc.slug),
       name: doc.name.trim() || fail('name'),
-      photoUrl: photoUrlOf(doc.photo),
+      photoUrl: mediaUrl(doc.photo),
       bio: doc.bio?.trim() ?? '',
       home: { city: doc.home.city?.trim() || null, subdivision: doc.home.subdivision },
       runningSince: doc.runningSince ?? null,

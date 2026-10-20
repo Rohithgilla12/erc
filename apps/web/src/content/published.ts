@@ -11,6 +11,7 @@ import {
 } from '@erc/domain'
 
 import type { Coach as CoachDoc, Media as MediaDoc } from '@/payload-types'
+import { absoluteUrl, siteConfig } from '@/site-config'
 
 export type Logger = { error: (details: object, message: string) => void }
 
@@ -40,16 +41,20 @@ export const parsing = <T,>(parse: () => T): { ok: true; value: T } | { ok: fals
   }
 }
 
-const httpsUrlOrNull = (value: string | null | undefined): HttpsUrl | null => {
+/**
+ * The one rule for an uploaded image's address. R2 gives an absolute https URL; local storage gives a path on this
+ * site, which resolves against the site URL and is accepted as the site's own origin, plain http in development
+ * included. Anything else, or a relation the reader may not see, is no image.
+ */
+export const mediaUrl = (media: number | MediaDoc | null | undefined): HttpsUrl | null => {
+  if (typeof media !== 'object' || !media?.url) return null
   try {
-    return value && new URL(value).protocol === 'https:' ? (value as HttpsUrl) : null
+    const url = new URL(absoluteUrl(media.url))
+    return url.protocol === 'https:' || url.origin === siteConfig().siteUrl.origin ? (url.href as HttpsUrl) : null
   } catch {
     return null
   }
 }
-
-/** An image only counts once it is on an https URL; local-disk media in development has a relative one. */
-const imageUrlOf = (image: number | MediaDoc | null | undefined) => (typeof image === 'object' && image ? httpsUrlOrNull(image.url) : null)
 
 type EditorialDoc = {
   slug: string
@@ -68,7 +73,7 @@ export const publishedFields = (doc: EditorialDoc, fallback: { title: string; de
     seo: {
       title: doc.seo?.title?.trim() || fallback.title,
       description: doc.seo?.description?.trim() || fallback.description,
-      imageUrl: imageUrlOf(doc.seo?.image),
+      imageUrl: mediaUrl(doc.seo?.image),
       noindex: doc.seo?.noindex ?? false,
     } satisfies Seo,
   }
@@ -87,7 +92,7 @@ export const publishedCoaches = (coaches: readonly (number | CoachDoc)[]): Coach
             slug: slugOf(coach.slug),
             name: coach.name,
             credentials: coach.credentials,
-            photoUrl: imageUrlOf(coach.photo),
+            photoUrl: mediaUrl(coach.photo),
           },
         ]
       : [],

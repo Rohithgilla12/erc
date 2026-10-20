@@ -6,6 +6,12 @@
  */
 import config from '@payload-config'
 import { getPayload } from 'payload'
+import sharp from 'sharp'
+
+import { pageBySlug } from '@/content/pages'
+import { publishedPlans } from '@/content/plans'
+import { parseResourceDoc } from '@/content/resources'
+import { siteConfig } from '@/site-config'
 
 import { minimalPdf } from './fixtures/pdf'
 
@@ -52,7 +58,9 @@ const pdf = minimalPdf(['Check fixture'])
 const pdfFile = { data: pdf, mimetype: 'application/pdf', name: `check-${run}.pdf`, size: pdf.length }
 const resourceData = { title: 'Check', description: 'Placeholder: check fixture.', category: 'guide', access: { kind: 'free' } } as const
 const createdResources: number[] = []
-let planId: number | null = null
+const createdPlans: number[] = []
+const created = { media: null as number | null, coach: null as number | null, page: null as number | null }
+const restore: (() => Promise<unknown>)[] = []
 
 try {
   const draftPdf = await payload.create({ collection: 'resources', data: { ...resourceData, slug: slugs.draftPdf }, file: pdfFile, user, draft: true })
@@ -112,7 +120,7 @@ try {
     user,
     draft: false,
   })
-  planId = plan.id
+  createdPlans.push(plan.id)
   expect('anonymous readers see a published plan', await anonymousSlugs('trainingPlans', slugs.plan), [slugs.plan])
   if (site) expect('a published plan has a page', (await get(`/plans/${slugs.plan}`)).status, 200)
 
@@ -157,10 +165,113 @@ try {
   } else {
     console.log('SKIP HTTP checks: set ERC_CHECK_URL to the running site')
   }
+
+  await localMediaCases(seededPlan)
 } finally {
-  if (planId !== null) await payload.delete({ collection: 'trainingPlans', id: planId })
+  for (const undo of restore) await undo()
+  for (const id of createdPlans) await payload.delete({ collection: 'trainingPlans', id })
+  if (created.page !== null) await payload.delete({ collection: 'pages', id: created.page })
+  if (created.coach !== null) await payload.delete({ collection: 'coaches', id: created.coach })
+  if (created.media !== null) await payload.delete({ collection: 'media', id: created.media })
   for (const id of createdResources) await payload.delete({ collection: 'resources', id })
   await payload.delete({ collection: 'staff', id: staff.id })
+}
+
+/**
+ * Without R2, Payload gives uploads a path on this site rather than an https URL. Every image a page shows must still
+ * resolve to the site's own address: coach photos on plans and page coach grids, and plan, resource, and page SEO images.
+ */
+async function localMediaCases(template: NonNullable<typeof seededPlan>) {
+  const image = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#0a6' } }).png().toBuffer()
+  const media = await payload.create({
+    collection: 'media',
+    data: { alt: 'Plans check' },
+    file: { data: image, mimetype: 'image/png', name: `plans-check-${run}.png`, size: image.length },
+  })
+  created.media = media.id
+  const imageUrl = `${siteConfig().siteUrl.origin}/api/media/file/${media.filename}`
+  expect('without R2 an upload has a path on this site', media.url, `/api/media/file/${media.filename}`)
+
+  const coach = await payload.create({
+    collection: 'coaches',
+    data: { name: `Plans Check Coach ${run}`, slug: `plans-check-coach-${run}`, credentials: 'Check', photo: media.id, _status: 'published' },
+    user,
+    draft: false,
+  })
+  created.coach = coach.id
+  const weeks: typeof template.weeks = JSON.parse(JSON.stringify(template.weeks, (key, value) => (key === 'id' ? undefined : value)))
+  const plan = await payload.create({
+    collection: 'trainingPlans',
+    data: {
+      title: `Check media plan ${run}`,
+      slug: `check-media-plan-${run}`,
+      goal: template.goal,
+      level: template.level,
+      prerequisites: template.prerequisites,
+      audience: template.audience,
+      overview: template.overview,
+      weeks,
+      access: template.access,
+      coaches: [coach.id],
+      pdf: null,
+      seo: { image: media.id },
+      _status: 'published',
+    },
+    user,
+    draft: false,
+  })
+  createdPlans.push(plan.id)
+  const parsedPlan = (await publishedPlans(payload)).find((published) => published.slug === plan.slug)
+  expect("a plan's coach photo and SEO image resolve to this site", [parsedPlan?.coaches.map((c) => c.photoUrl), parsedPlan?.seo.imageUrl], [[imageUrl], imageUrl])
+
+  const pdf = minimalPdf(['Media check'])
+  const resource = await payload.create({
+    collection: 'resources',
+    data: { ...resourceData, slug: `check-media-pdf-${run}`, seo: { image: media.id }, _status: 'published' },
+    file: { ...pdfFile, data: pdf, size: pdf.length, name: `check-media-${run}.pdf` },
+    user,
+    draft: false,
+  })
+  createdResources.push(resource.id)
+  const resourceDoc = (await payload.find({ collection: 'resources', overrideAccess: false, depth: 1, where: { id: { equals: resource.id } } })).docs[0]
+  const parsedResource = resourceDoc ? parseResourceDoc(resourceDoc) : null
+  expect("a resource's SEO image resolves to this site", parsedResource?.ok ? parsedResource.value.seo.imageUrl : parsedResource, imageUrl)
+
+  const page = await payload.create({
+    collection: 'pages',
+    data: {
+      title: `Check page ${run}`,
+      slug: `check-page-${run}`,
+      seo: { image: media.id },
+      layout: [{ blockType: 'coachGrid', coaches: [coach.id] }],
+      _status: 'published',
+    },
+    user,
+    draft: false,
+  })
+  created.page = page.id
+  const parsedPage = await pageBySlug(payload, page.slug)
+  const grid = parsedPage?.blocks.find((block) => block.kind === 'coachGrid')
+  expect(
+    "a page's coach grid photo and SEO image resolve to this site",
+    [grid?.kind === 'coachGrid' ? grid.coaches.map((c) => c.photoUrl) : null, parsedPage?.seo.imageUrl],
+    [[imageUrl], imageUrl],
+  )
+
+  if (!site) return
+  const planPage = await (await get(`/plans/${plan.slug}`)).text()
+  expect('the plan page shares its SEO image', planPage.includes(`<meta property="og:image" content="${imageUrl}"/>`), true)
+
+  // Only routed slugs have a page, so the seeded Coaching page's first coach borrows the photo until the check ends.
+  const coaching = await pageBySlug(payload, 'coaching')
+  const seededGrid = coaching?.blocks.find((block) => block.kind === 'coachGrid')
+  const shown = seededGrid?.kind === 'coachGrid' ? seededGrid.coaches[0] : undefined
+  if (!shown) throw new Error('Run seed-learn.ts and seed-pages.ts first: the Coaching page needs a coach grid')
+  const before = await payload.findByID({ collection: 'coaches', id: shown.id, depth: 0 })
+  restore.push(() => payload.update({ collection: 'coaches', id: shown.id, data: { photo: before.photo ?? null, _status: 'published' }, user, draft: false }))
+  await payload.update({ collection: 'coaches', id: shown.id, data: { photo: media.id, _status: 'published' }, user, draft: false })
+  const coachingPage = await (await get('/coaching')).text()
+  expect('the Coaching page shows the coach photo from local storage', coachingPage.includes(`src="${imageUrl}"`), true)
 }
 
 console.log(failures.length === 0 ? 'All plan checks passed' : `${failures.length} failed: ${failures.join('; ')}`)

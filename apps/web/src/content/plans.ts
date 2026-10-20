@@ -14,7 +14,7 @@ import {
   type WeekDay,
 } from '@erc/domain'
 import { unstable_cache } from 'next/cache'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import { cache } from 'react'
 
 import { collectionTag } from '@/cms/revalidate'
@@ -81,24 +81,26 @@ export function parsePlanDoc(doc: PlanDoc, logger: Logger): Result<TrainingPlan,
   })
 }
 
-const cachedPlans = unstable_cache(
-  async (): Promise<TrainingPlan[]> => {
-    const payload = await getPayload({ config })
-    // Depth 1 brings the coaches, the PDF's download entry, and the SEO image, each only if anonymous readers may see it.
-    const { docs } = await payload.find({ collection: 'trainingPlans', overrideAccess: false, depth: 1, pagination: false })
-    return docs
-      .flatMap((doc) => {
-        const parsed = parsePlanDoc(doc, payload.logger)
-        if (parsed.ok) return [parsed.value]
-        payload.logger.error({ plan: doc.id, slug: doc.slug, field: parsed.error }, 'Skipping a training plan that does not parse')
-        return []
-      })
-      .sort(comparePlans)
-  },
-  ['plans:all'],
+/** Uncached; routes call `getPlans`. Exported for scripts that run outside Next.js. */
+export async function publishedPlans(payload: Payload): Promise<TrainingPlan[]> {
+  // Depth 2 reaches the coaches' photos as well as the coaches, the PDF's download entry, and the SEO image, each only
+  // if anonymous readers may see it.
+  const { docs } = await payload.find({ collection: 'trainingPlans', overrideAccess: false, depth: 2, pagination: false })
+  return docs
+    .flatMap((doc) => {
+      const parsed = parsePlanDoc(doc, payload.logger)
+      if (parsed.ok) return [parsed.value]
+      payload.logger.error({ plan: doc.id, slug: doc.slug, field: parsed.error }, 'Skipping a training plan that does not parse')
+      return []
+    })
+    .sort(comparePlans)
+}
+
+const cachedPlans = unstable_cache(async () => publishedPlans(await getPayload({ config })), ['plans:all'], {
   // A plan page shows its coaches, its PDF, and its SEO image, so a change to any of them must expire it too.
-  { tags: (['trainingPlans', 'coaches', 'resources', 'media'] as const).map(collectionTag), revalidate: 3600 },
-)
+  tags: (['trainingPlans', 'coaches', 'resources', 'media'] as const).map(collectionTag),
+  revalidate: 3600,
+})
 
 /**
  * Every published plan, in `comparePlans` order. A club has a handful of plans, so one cached read serves the list,

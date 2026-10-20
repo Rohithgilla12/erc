@@ -19,9 +19,7 @@ import {
   type PostSummary,
   type Reference,
   type Result,
-  type RichText,
   type Seo,
-  type Slug,
   type Topic,
   type Video,
   type VideoCategory,
@@ -35,9 +33,9 @@ import { cache } from 'react'
 import { collectionTag } from '@/cms/revalidate'
 import type { ErcSlug } from '@/cms/slugs'
 import type { Coach as CoachDoc, Media, Post as PostDoc, Topic as TopicDoc, Video as VideoDoc } from '@/payload-types'
-import { siteConfig } from '@/site-config'
 
 import { plainTextOf, wordCount } from './plain-text'
+import { fail, mediaUrl, nonEmpty, parsing, richTextOf, slugOf, type Logger } from './published'
 
 export const POSTS_PER_PAGE = 12
 export const VIDEOS_PER_PAGE = 12
@@ -230,36 +228,16 @@ export const youtubeThumbnail = async (youtubeId: YouTubeId): Promise<Response |
   return upstream?.ok ? upstream : null
 }
 
-type Logger = { error: (details: object, message: string) => void }
-
 function parseAll<D extends { id: number }, T>(docs: readonly D[], parse: (doc: D) => T, kind: string, payload: { logger: Logger }): T[] {
   return docs.flatMap((doc) => {
-    try {
-      return [parse(doc)]
-    } catch (error) {
-      if (!(error instanceof InvalidField)) throw error
-      payload.logger.error({ [kind]: doc.id, field: error.message }, `Skipping a ${kind} that does not parse`)
-      return []
-    }
+    const parsed = parsing(() => parse(doc))
+    if (parsed.ok) return [parsed.value]
+    payload.logger.error({ [kind]: doc.id, field: parsed.error }, `Skipping a ${kind} that does not parse`)
+    return []
   })
 }
 
-class InvalidField extends Error {}
-
-const fail = (field: string): never => {
-  throw new InvalidField(field)
-}
-
-const nonEmpty = (value: string | null | undefined, field: string): string => (value?.trim() ? value : fail(field))
-
-// Lexical JSON passes through unread; only the renderer looks inside it.
-const richText = (value: unknown) => value as RichText
-const richTextOrNull = (value: unknown) => (value == null ? null : richText(value))
-
-const slugOf = (value: string): Slug => {
-  const parsed = parseSlug(value)
-  return parsed.ok ? parsed.value : fail('slug')
-}
+const richTextOrNull = (value: object | null | undefined) => (value == null ? null : richTextOf(value))
 
 const required = <T,>(result: Result<T, string>, field: string): T => (result.ok ? result.value : fail(field))
 
@@ -272,24 +250,13 @@ const httpsUrl = (value: string | null | undefined): HttpsUrl | null => {
   return null
 }
 
-/**
- * Media URLs are absolute on R2 and site-relative on local disk. Both resolve against the site, whose own origin is
- * accepted even when it is plain http in development.
- */
-const mediaUrl = (value: string | null | undefined): HttpsUrl | null => {
-  if (!value) return null
-  const { siteUrl } = siteConfig()
-  const absolute = new URL(value, siteUrl)
-  return absolute.protocol === 'https:' || absolute.origin === siteUrl.origin ? (absolute.href as HttpsUrl) : null
-}
-
 /** Populated relations come back as documents; anything the reader may not see comes back as a bare id. */
 const visible = <T,>(values: readonly (number | T)[] | null | undefined): T[] =>
   (values ?? []).filter((value): value is T => typeof value === 'object' && value !== null)
 
 const coverOf = (media: number | Media | null | undefined): CoverImage | null => {
   if (typeof media !== 'object' || media === null) return null
-  const url = mediaUrl(media.url)
+  const url = mediaUrl(media)
   return url && media.width && media.height ? { url, alt: media.alt, width: media.width, height: media.height } : null
 }
 
@@ -317,7 +284,7 @@ const parseCoachProfile = (doc: CoachDoc): CoachProfile => ({
   slug: slugOf(doc.slug),
   name: nonEmpty(doc.name, 'name'),
   credentials: doc.credentials,
-  photoUrl: typeof doc.photo === 'object' && doc.photo ? mediaUrl(doc.photo.url) : null,
+  photoUrl: mediaUrl(doc.photo),
 })
 
 const parseCoach = (doc: CoachDoc): Coach => ({ ...parseCoachProfile(doc), bio: richTextOrNull(doc.bio) })
@@ -325,7 +292,7 @@ const parseCoach = (doc: CoachDoc): Coach => ({ ...parseCoachProfile(doc), bio: 
 const seoOf = (doc: Pick<PostDoc, 'seo' | 'title'>, fallbackDescription: string, fallbackImage: HttpsUrl | null): Seo => ({
   title: doc.seo?.title?.trim() || doc.title,
   description: doc.seo?.description?.trim() || fallbackDescription,
-  imageUrl: (typeof doc.seo?.image === 'object' && doc.seo.image ? mediaUrl(doc.seo.image.url) : null) ?? fallbackImage,
+  imageUrl: mediaUrl(doc.seo?.image) ?? fallbackImage,
   noindex: doc.seo?.noindex ?? false,
 })
 
@@ -352,7 +319,7 @@ const parsePostSummary = (doc: PostDoc): PostSummary => ({
   topics: visible(doc.topics).map(parseTopic),
   authors: visible(doc.authors).map(parseCoachProfile),
   publishedAt: datesOf(doc).publishedAt,
-  readingMinutes: readingMinutes(wordCount(plainTextOf(richText(doc.body)))),
+  readingMinutes: readingMinutes(wordCount(plainTextOf(richTextOf(doc.body)))),
 })
 
 const parsePost = (doc: PostDoc): Post => {
@@ -360,7 +327,7 @@ const parsePost = (doc: PostDoc): Post => {
   return {
     ...summary,
     ...datesOf(doc),
-    body: richText(doc.body),
+    body: richTextOf(doc.body),
     references: (doc.references ?? []).map(referenceOf),
     related: relatedOf(doc.related),
     seo: seoOf(doc, doc.excerpt, summary.cover?.url ?? null),
@@ -378,7 +345,7 @@ const parseVideoSummary = (doc: VideoDoc): VideoSummary => ({
 })
 
 const parseVideo = (doc: VideoDoc): Video => {
-  const description = richText(doc.description)
+  const description = richTextOf(doc.description)
   return {
     ...parseVideoSummary(doc),
     ...datesOf(doc),
