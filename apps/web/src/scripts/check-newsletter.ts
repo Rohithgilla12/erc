@@ -1,12 +1,16 @@
 /**
- * Proves the newsletter flow end to end, posting the forms the way a browser with JavaScript off does:
+ * Proves the newsletter flow end to end, and the hourly email caps on it and on the contact form, posting the forms the
+ * way a browser with JavaScript off does:
  * `ERC_CHECK_URL=<site> MAILPIT_URL=<mailpit> pnpm payload run src/scripts/check-newsletter.ts`. The site must share
- * this database and `PAYLOAD_SECRET`, and send mail through the Mailpit instance at `MAILPIT_URL`, whose API this reads
- * the confirmation emails from. Everything it writes is removed.
+ * this database, `PAYLOAD_SECRET` and `ENQUIRY_NOTIFY_TO`, and send mail through the Mailpit instance at `MAILPIT_URL`,
+ * whose API this reads the emails from. Everything it writes is removed.
  */
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
 import { getPayload } from 'payload'
+
+import { STAFF_EMAILS_PER_HOUR } from '@/content/enquiries'
+import { NEWSLETTER_CONFIRMATIONS_PER_HOUR } from '@/content/newsletter'
 
 import { FORGED_SESSION } from './fixtures/forged-session'
 
@@ -123,6 +127,72 @@ const pressButton = async (link: URL, sender: string) => {
 }
 
 const heading = (html: string) => decode(/<h1[^>]*>([^<]*)<\/h1>/.exec(html)?.[1] ?? '')
+
+const enquiryCount = async (where: string) => {
+  const { rows } = await payload.db.drizzle.execute(sql.raw(`SELECT count(*)::int AS n FROM enquiries WHERE ${where}`))
+  return (rows[0] as { n: number }).n
+}
+
+/** Fills the hour with stored enquiries until `left` more emails remain under the cap, then sends three through the form. */
+async function enquiryCapCases() {
+  const notifyTo = process.env.ENQUIRY_NOTIFY_TO
+  if (!notifyTo) throw new Error('Set ENQUIRY_NOTIFY_TO, shared with the site, so its enquiry emails reach Mailpit')
+  const left = 2
+  const filler = STAFF_EMAILS_PER_HOUR - left - (await enquiryCount(`created_at > now() - interval '1 hour'`))
+  if (filler < 0) throw new Error('More enquiries arrived in the last hour than the cap check can work with; run it again later')
+  for (let n = 0; n < filler; n += 1) {
+    await payload.create({
+      collection: 'enquiries',
+      data: { name: `Cap filler ${run}`, email: 'filler@example.com', topic: 'general', message: 'Filler for the cap check.', consent: true, status: 'new' },
+      context: { skipRevalidation: true },
+    })
+  }
+
+  const sender = `198.51.100.${150 + (run % 40)}`
+  const page = await (await get('/contact', sender)).text()
+  const form = formWith(page, 'message')
+  if (!form) throw new Error('The contact page has no enquiry form')
+  await sleep(3_100)
+  const names = [0, 1, 2].map((n) => `Cap check ${run} ${n}`)
+  const replies = []
+  for (const name of names) {
+    const fields = { name, email: address(`enquiry-${name.at(-1)}`), topic: 'general', message: 'Checking the hourly email cap.', consent: 'on', website: '' }
+    const html = await (await post(form, '/contact', fields, sender)).text()
+    replies.push(html.includes('Thank you, your message is with us') ? 'sent' : html)
+  }
+  expect('every enquiry past the email cap is still accepted', replies, ['sent', 'sent', 'sent'])
+  expect('and stored', await enquiryCount(`name LIKE 'Cap check ${run} %'`), 3)
+
+  const subjects = async () => {
+    const response = await fetch(new URL(`/api/v1/search?query=${encodeURIComponent(`to:"${notifyTo}" subject:"Cap check ${run}"`)}`, mailpit))
+    return ((await response.json()) as { messages: (MailSummary & { Subject: string })[] }).messages.map((mail) => mail.Subject).sort()
+  }
+  for (let attempt = 0; attempt < 40 && (await subjects()).length < left; attempt += 1) await sleep(250)
+  await sleep(1_000)
+  expect('staff are emailed only up to the hourly cap', await subjects(), names.slice(0, left).map((name) => `General question enquiry from ${name}`))
+  const last = (await mailsTo(notifyTo)).find((mail) => (mail as MailSummary & { Subject?: string }).Subject?.endsWith(names[left - 1]!))
+  const lastText = last ? ((await (await fetch(new URL(`/api/v1/message/${last.ID}`, mailpit))).json()) as { Text: string }).Text : ''
+  expect('the email that reaches the cap says the rest wait in the admin', lastText.includes('This is the last enquiry email this hour'), true)
+}
+
+/** Fills the hour with planned confirmations up to the cap; then nobody, listed or not, is mailed or told it worked. */
+async function newsletterCapCases(listed: string) {
+  const { rows } = await payload.db.drizzle.execute(sql`SELECT count(*)::int AS n FROM subscribers WHERE consented_at > now() - interval '1 hour'`)
+  const filler = NEWSLETTER_CONFIRMATIONS_PER_HOUR - (rows[0] as { n: number }).n
+  for (let n = 0; n < filler; n += 1) {
+    await payload.db.drizzle.execute(
+      sql`INSERT INTO subscribers (email, status, source, consented_at) VALUES (${address(`cap-filler-${n}`)}, 'pending', 'site-footer', now())`,
+    )
+  }
+  const sender = `198.51.100.${100 + (run % 40)}`
+  const form = await footerForm(sender)
+  const fresh = address('past-cap')
+  const unavailable = 'We could not sign you up just now. Please try again in a few minutes.'
+  expect('past the hourly confirmation cap a new address is refused for now', await signUp(form, fresh, sender), unavailable)
+  expect('and a listed address gets the same reply, so the cap cannot probe the list', await signUp(form, listed, sender), unavailable)
+  await sleep(1_000)
+  expect('and no confirmation email goes out', [(await mailsTo(fresh)).length, await subscriberRow(fresh)], [0, null])
+}
 
 const staff = await payload.create({
   collection: 'staff',
@@ -244,6 +314,9 @@ try {
     'confirmed',
   ])
 
+  await newsletterCapCases(ben)
+  await enquiryCapCases()
+
   // Past the API gate as an anonymous reader, so the collection's own access rules answer.
   const anonymous = await Promise.all(
     [
@@ -272,6 +345,7 @@ try {
   expect('staff cannot add a subscriber who never confirmed', staffCreate.status, 403)
 } finally {
   await payload.db.drizzle.execute(sql`DELETE FROM subscribers WHERE email LIKE ${`newsletter-check-${run}-%`}`)
+  await payload.db.drizzle.execute(sql`DELETE FROM enquiries WHERE name IN (${`Cap filler ${run}`}) OR name LIKE ${`Cap check ${run} %`}`)
   await payload.delete({ collection: 'staff', id: staff.id })
 }
 

@@ -25,6 +25,14 @@ export type EnquiryFormState =
 const RATE_WINDOW_MS = 60 * 60 * 1000
 export const ENQUIRIES_PER_SENDER_PER_HOUR = 5
 
+/**
+ * Staff emails about new enquiries, site-wide, in any hour. Every accepted enquiry is still stored and listed in the
+ * admin; past the cap only the email is skipped, until the hour's count falls below it. A club gets a few enquiries a
+ * day, so five in an hour is already unusual, and it leaves the shared relay (about 500 messages a day) room for
+ * `NEWSLETTER_CONFIRMATIONS_PER_HOUR`: together they stay under it even if both forms are flooded all day.
+ */
+export const STAFF_EMAILS_PER_HOUR = 5
+
 export const blankValues = (topic: string | undefined): EnquiryValues => ({
   name: '',
   email: '',
@@ -71,20 +79,26 @@ export async function receiveEnquiry(fields: Readonly<Record<string, string>>, h
   if (timing === 'expired' || timing === 'invalid') return { kind: 'refused', token: issueFormToken('enquiry'), values, reason: 'expired' }
 
   const senderKey = senderKeyOf('enquiry', headers)
+  const windowStart = { greater_than: new Date(Date.now() - RATE_WINDOW_MS).toISOString() }
   const { totalDocs } = await payload.count({
     collection: 'enquiries',
-    where: { and: [{ senderKey: { equals: senderKey } }, { createdAt: { greater_than: new Date(Date.now() - RATE_WINDOW_MS).toISOString() } }] },
+    where: { and: [{ senderKey: { equals: senderKey } }, { createdAt: windowStart }] },
   })
   if (totalDocs >= ENQUIRIES_PER_SENDER_PER_HOUR) return { kind: 'refused', token, values, reason: 'rate_limited' }
 
   try {
+    const earlier = (await payload.count({ collection: 'enquiries', where: { createdAt: windowStart } })).totalDocs
     const enquiry = await payload.create({
       collection: 'enquiries',
       data: { ...parsed.value, senderKey, status: 'new' },
       // Nothing public reads enquiries, so there is no cached page to expire.
       context: { skipRevalidation: true },
     })
-    after(() => notifyStaffOfEnquiry(payload, enquiry))
+    if (earlier < STAFF_EMAILS_PER_HOUR) {
+      after(() => notifyStaffOfEnquiry(payload, enquiry, { lastThisHour: earlier + 1 === STAFF_EMAILS_PER_HOUR }))
+    } else {
+      payload.logger.warn({ enquiry: enquiry.id, cap: STAFF_EMAILS_PER_HOUR }, 'Stored an enquiry without emailing staff: the hourly email cap is reached')
+    }
   } catch (error) {
     payload.logger.error({ err: error }, 'Could not store an enquiry')
     return { kind: 'refused', token, values, reason: 'unavailable' }

@@ -31,6 +31,15 @@ export type SignupFormState =
 
 const RATE_WINDOW_MS = 60 * 60 * 1000
 export const SIGNUPS_PER_SENDER_PER_HOUR = 5
+
+/**
+ * Confirmation emails, site-wide, in any hour. Past it every signup is refused as "try again later", whatever the
+ * address, so the refusal says nothing about who is listed and nobody is left waiting for an email that is not coming.
+ * Many senders each under their own limit could otherwise mail any number of strangers through the club's relay
+ * (about 500 messages a day). Fifteen an hour covers a burst after an announcement, and with
+ * `STAFF_EMAILS_PER_HOUR` stays under the relay's day even if both forms are flooded all day.
+ */
+export const NEWSLETTER_CONFIRMATIONS_PER_HOUR = 15
 // Long past the 48-hour link, so an address someone else typed in does not stay on file.
 const UNCONFIRMED_KEPT_MS = 30 * 24 * 60 * 60 * 1000
 
@@ -109,11 +118,19 @@ export async function receiveSignup(fields: Readonly<Record<string, string>>, he
       context,
     })
 
+    const windowStart = new Date(now.getTime() - RATE_WINDOW_MS).toISOString()
     const { totalDocs } = await payload.count({
       collection: 'subscribers',
-      where: { and: [{ senderKey: { equals: senderKey } }, { requestedAt: { greater_than: new Date(now.getTime() - RATE_WINDOW_MS).toISOString() } }] },
+      where: { and: [{ senderKey: { equals: senderKey } }, { requestedAt: { greater_than: windowStart } }] },
     })
     if (totalDocs >= SIGNUPS_PER_SENDER_PER_HOUR) return { kind: 'refused', token, email, reason: 'rate_limited' }
+
+    // `consentedAt` is set exactly when a confirmation email is planned, so it counts the hour's emails.
+    const confirmations = await payload.count({ collection: 'subscribers', where: { consentedAt: { greater_than: windowStart } } })
+    if (confirmations.totalDocs >= NEWSLETTER_CONFIRMATIONS_PER_HOUR) {
+      payload.logger.warn({ cap: NEWSLETTER_CONFIRMATIONS_PER_HOUR }, 'Refused a newsletter signup: the hourly confirmation email cap is reached')
+      return { kind: 'refused', token, email, reason: 'unavailable' }
+    }
 
     const stored = await findByEmail(payload, parsed.value)
     const step = planSignup(stored && { status: stored.status, consentedAt: stored.consentedAt as Instant }, now)

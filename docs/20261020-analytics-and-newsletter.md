@@ -56,7 +56,7 @@ Signup only, with double opt-in. Sending issues comes later with listmonk.
  /newsletter/unsubscribe?token=…  GET shows a button; POST unsubscribes (signed link, never expires)
 ```
 
-- The form is in the footer of every page and works without JavaScript. It reuses the contact form's honeypot, signed time token, and per-sender limit (five signups an hour), from `src/content/form-guard.ts`.
+- The form is in the footer of every page and works without JavaScript. It reuses the contact form's honeypot, signed time token, and per-sender limit (five signups an hour), from `src/content/form-guard.ts`. Confirmation emails are also capped at 15 an hour site-wide; past that every signup is asked to try again later (see the Phase 1 design).
 - The form appears only when SMTP is configured, decided per request. A signup that can never be confirmed collects addresses we may not use and leaves the visitor waiting for an email that never comes.
 - Every accepted signup gets the same reply, and the email goes out after the response. The form never reveals whether an address is listed. `planSignup` in `@erc/domain` decides what a signup does: a confirmed address is left alone, a pending one gets at most one email per 15 minutes, and an unsubscribed one must confirm again. The per-sender limit counts every address asked for, listed or not, so it cannot be used to probe the list.
 - An address left unconfirmed for 30 days is deleted at the next signup, so an address someone else typed in does not stay on file.
@@ -64,7 +64,7 @@ Signup only, with double opt-in. Sending issues comes later with listmonk.
 - Nobody can create or edit a subscriber through the admin or REST API, so every subscriber went through double opt-in. Staff can delete a subscriber to erase them.
 - Staff download confirmed subscribers as CSV from the Subscribers list in the admin, or from `GET /api/subscribers/export.csv` while signed in. Anonymous requests get 403.
 
-Check the whole flow against a running site whose SMTP points at a local Mailpit:
+Check the whole flow, and both forms' hourly email caps, against a running site whose SMTP points at a local Mailpit and which shares `ENQUIRY_NOTIFY_TO` with the check:
 
 ```sh
 ERC_CHECK_URL=http://localhost:3986 MAILPIT_URL=http://localhost:18025 pnpm --filter @erc/web payload run src/scripts/check-newsletter.ts

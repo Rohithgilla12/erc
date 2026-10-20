@@ -13,9 +13,10 @@ const TOPIC_LABELS = labelsOf(ENQUIRY_TOPICS)
 
 /**
  * Never throws: the enquiry is already stored and staff see it in the admin whether or not the email goes out. Callers
- * run it after the create has committed, so a slow relay never holds a transaction open.
+ * run it after the create has committed, so a slow relay never holds a transaction open. `lastThisHour` marks the email
+ * that uses up the hourly cap, so staff know to look in the admin for the rest.
  */
-export async function notifyStaffOfEnquiry(payload: Payload, enquiry: Enquiry) {
+export async function notifyStaffOfEnquiry(payload: Payload, enquiry: Enquiry, { lastThisHour }: { lastThisHour: boolean }) {
   const to = enquiryRecipient()
   if (!to) return
   const topic = TOPIC_LABELS[enquiry.topic]
@@ -31,6 +32,9 @@ export async function notifyStaffOfEnquiry(payload: Payload, enquiry: Enquiry) {
         enquiry.message,
         '',
         `Reply to this email to answer them, then mark it handled: ${absoluteUrl(`/admin/collections/enquiries/${enquiry.id}`)}`,
+        ...(lastThisHour
+          ? ['', `This is the last enquiry email this hour. Any more are stored without an email; see them all at ${absoluteUrl('/admin/collections/enquiries')}`]
+          : []),
       ].join('\n'),
     })
   } catch (error) {

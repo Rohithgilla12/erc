@@ -261,6 +261,13 @@ Built on 2026-10-19. A file has exactly one public door.
 
 Newsletter is signup only, with double opt-in. The confirmation email goes out through Payload's Nodemailer adapter (MIT) to a free SMTP relay; the default is a club Gmail account with an app password, which allows about 500 messages a day **[G]**, far above Phase 1 volume. The list lives in our database and exports as CSV. When the club starts sending issues, listmonk (AGPL, self-hosted) is the open-source sender, and moving to it is a sync, not a migration.
 
+The contact form and the newsletter form share `src/content/form-guard.ts`: a honeypot, a signed time token, and a per-sender limit keyed on a hash of the sender's network. Many senders each under their own limit could still flood the staff inbox or mail strangers through the club's relay, so email is also capped site-wide in any hour:
+
+- `STAFF_EMAILS_PER_HOUR` (5). Past it, enquiries are still stored and listed in the admin, but staff get no email until the hour's count falls below the cap. The email that reaches the cap says so. A later digest of the held-back enquiries is not built.
+- `NEWSLETTER_CONFIRMATIONS_PER_HOUR` (15). Past it, every signup is told to try again in a few minutes, listed address or not, so the refusal reveals nothing and nobody waits for an email that is not coming.
+
+A club gets a few enquiries a day, and 15 confirmations an hour covers a burst after an announcement. Together the caps send at most 480 messages a day, under the relay's roughly 500 **[G]**, even if both forms are flooded all day.
+
 ### Editor workflow
 
 A document keeps what readers see (`live`) apart from the working copy (`revision`), so an edit to a published post goes through the same review as a new post.
