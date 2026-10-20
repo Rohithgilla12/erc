@@ -2,6 +2,7 @@ import { parseLinkHref, parseSlug } from '@erc/domain'
 import type { Block, Field, GroupField, TextFieldSingleValidation } from 'payload'
 import { text } from 'payload/shared'
 
+import { seoField } from '../editorial-fields'
 import { defineEditorial } from '../kinds'
 
 const linkGroup = (name: string, label: string, required: boolean): GroupField => {
@@ -136,17 +137,7 @@ export const Pages = defineEditorial({
       validate: validSlug,
       admin: { position: 'sidebar', description: 'home is the front page; about, coaching and contact have their own addresses.' },
     },
-    {
-      name: 'seo',
-      label: 'SEO',
-      type: 'group',
-      fields: [
-        { name: 'title', type: 'text', admin: { description: 'Defaults to the page title.' } },
-        { name: 'description', type: 'textarea', maxLength: 300, admin: { description: 'Shown under the title in search results.' } },
-        { name: 'image', type: 'upload', relationTo: 'media', admin: { description: 'Shown when the page is shared.' } },
-        { name: 'noindex', label: 'Hide from search engines', type: 'checkbox', defaultValue: false },
-      ],
-    },
+    seoField,
     {
       name: 'layout',
       type: 'blocks',

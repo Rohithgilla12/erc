@@ -746,15 +746,15 @@ export interface Page {
   slug: string;
   seo?: {
     /**
-     * Defaults to the page title.
+     * Leave empty to use the title.
      */
     title?: string | null;
     /**
-     * Shown under the title in search results.
+     * Shown under the link in search results. Leave empty to use the excerpt or description.
      */
     description?: string | null;
     /**
-     * Shown when the page is shared.
+     * Shown when the page is shared. Defaults to the cover image, or a video’s thumbnail.
      */
     image?: (number | null) | Media;
     noindex?: boolean | null;
