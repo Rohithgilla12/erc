@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 
 import config from '@payload-config'
+import { sql } from '@payloadcms/db-postgres/drizzle'
 import {
   confirmExpiryFrom,
   confirmLinkState,
@@ -30,6 +31,8 @@ export type SignupFormState =
 
 const RATE_WINDOW_MS = 60 * 60 * 1000
 export const SIGNUPS_PER_SENDER_PER_HOUR = 5
+// Long past the 48-hour link, so an address someone else typed in does not stay on file.
+const UNCONFIRMED_KEPT_MS = 30 * 24 * 60 * 60 * 1000
 
 /**
  * The form is offered only when a confirmation email can go out. A signup that can never be confirmed would collect
@@ -74,7 +77,8 @@ const findByEmail = async (payload: Payload, email: string) =>
 /**
  * The public signup. Every accepted request gets the same reply, `sent`, whatever was stored before, so the form never
  * reveals whether an address is listed; the email goes out after the response, so timing does not reveal it either.
- * The rate limit counts this sender's recent signups that sent an email, as the enquiry form counts stored enquiries.
+ * The rate limit counts the addresses this sender asked for in the last hour, as the enquiry form counts stored
+ * enquiries.
  */
 export async function receiveSignup(fields: Readonly<Record<string, string>>, headers: Headers): Promise<SignupFormState> {
   const token = fields[TOKEN_FIELD] ?? ''
@@ -96,27 +100,39 @@ export async function receiveSignup(fields: Readonly<Record<string, string>>, he
 
   const now = new Date()
   const senderKey = senderKeyOf('newsletter', headers)
+  // Nothing public reads subscribers, so there is no cached page to expire.
+  const context = { skipRevalidation: true }
   try {
+    await payload.delete({
+      collection: 'subscribers',
+      where: { and: [{ status: { equals: 'pending' } }, { consentedAt: { less_than: new Date(now.getTime() - UNCONFIRMED_KEPT_MS).toISOString() } }] },
+      context,
+    })
+
     const { totalDocs } = await payload.count({
       collection: 'subscribers',
-      where: { and: [{ senderKey: { equals: senderKey } }, { consentedAt: { greater_than: new Date(now.getTime() - RATE_WINDOW_MS).toISOString() } }] },
+      where: { and: [{ senderKey: { equals: senderKey } }, { requestedAt: { greater_than: new Date(now.getTime() - RATE_WINDOW_MS).toISOString() } }] },
     })
     if (totalDocs >= SIGNUPS_PER_SENDER_PER_HOUR) return { kind: 'refused', token, email, reason: 'rate_limited' }
 
     const stored = await findByEmail(payload, parsed.value)
     const step = planSignup(stored && { status: stored.status, consentedAt: stored.consentedAt as Instant }, now)
-    if (step === 'none') return { kind: 'sent' }
+    // Every accepted request marks its address, whatever the step, so the limit costs the same for a listed address
+    // as for a new one and cannot be used to probe the list.
+    const request = { senderKey, requestedAt: now.toISOString() }
+    if (step === 'none' && stored) {
+      await payload.update({ collection: 'subscribers', id: stored.id, data: request, context })
+      return { kind: 'sent' }
+    }
 
     const confirmToken = randomBytes(32).toString('base64url')
     const data = {
+      ...request,
       status: 'pending' as const,
       consentedAt: now.toISOString(),
       confirmTokenHash: hashOf(confirmToken),
       confirmExpiresAt: confirmExpiryFrom(now),
-      senderKey,
     }
-    // Nothing public reads subscribers, so there is no cached page to expire.
-    const context = { skipRevalidation: true }
     const subscriber = stored
       ? await payload.update({ collection: 'subscribers', id: stored.id, data, context })
       : await payload.create({ collection: 'subscribers', data: { ...data, email: parsed.value, source: 'site-footer' }, context }).catch(async (error: unknown) => {
@@ -154,16 +170,16 @@ export async function checkConfirmLink(token: string): Promise<ConfirmLinkState>
 export async function confirmSubscription(token: string): Promise<ConfirmLinkState> {
   const payload = await getPayload({ config })
   const found = await findByConfirmToken(payload, token)
-  const now = new Date()
-  const state = confirmLinkState(found, now)
-  if (state !== 'valid' || !found) return state
-  await payload.update({
-    collection: 'subscribers',
-    id: found.id,
-    data: { status: 'confirmed', confirmedAt: now.toISOString(), confirmTokenHash: null, confirmExpiresAt: null },
-    context: { skipRevalidation: true },
-  })
-  return 'valid'
+  const state = confirmLinkState(found, new Date())
+  if (state !== 'valid') return state
+  // One conditional statement, so an unsubscribe or a fresh link that lands after the read above wins instead of
+  // being overwritten.
+  const { rows } = await payload.db.drizzle.execute(sql`
+    UPDATE subscribers
+    SET status = 'confirmed', confirmed_at = now(), confirm_token_hash = NULL, confirm_expires_at = NULL, updated_at = now()
+    WHERE confirm_token_hash = ${hashOf(token)} AND confirm_expires_at > now()
+    RETURNING id`)
+  return rows.length > 0 ? 'valid' : 'unknown'
 }
 
 /** Unsubscribe links are signed rather than stored, so every one we have sent keeps working. */

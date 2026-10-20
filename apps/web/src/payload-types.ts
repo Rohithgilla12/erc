@@ -936,6 +936,7 @@ export interface Subscriber {
   confirmedAt?: string | null;
   confirmTokenHash?: string | null;
   confirmExpiresAt?: string | null;
+  requestedAt?: string | null;
   senderKey?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -1689,6 +1690,7 @@ export interface SubscribersSelect<T extends boolean = true> {
   confirmedAt?: T;
   confirmTokenHash?: T;
   confirmExpiresAt?: T;
+  requestedAt?: T;
   senderKey?: T;
   updatedAt?: T;
   createdAt?: T;

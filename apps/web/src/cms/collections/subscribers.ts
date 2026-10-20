@@ -96,7 +96,9 @@ const fields: Field[] = [
   // A SHA-256 of the emailed link's token. Confirming clears it, so a link works once.
   { name: 'confirmTokenHash', type: 'text', index: true, admin: hidden },
   { name: 'confirmExpiresAt', type: 'date', admin: hidden },
-  // A keyed hash of the sender's network, for the per-sender rate limit. The address itself is never stored.
+  // The last signup request for this address, from anyone, and a keyed hash of that sender's network. Together they
+  // drive the per-sender rate limit; the network address itself is never stored.
+  { name: 'requestedAt', type: 'date', admin: hidden },
   { name: 'senderKey', type: 'text', admin: hidden },
 ]
 
@@ -113,7 +115,7 @@ export const Subscribers = defineRecord({
     description: 'Newsletter signups. Email only confirmed subscribers. Delete a subscriber to erase them on request.',
     components: { beforeListTable: ['/cms/components/export-subscribers-link#ExportSubscribersLink'] },
   },
-  indexes: [{ fields: ['senderKey', 'consentedAt'] }],
+  indexes: [{ fields: ['senderKey', 'requestedAt'] }],
   endpoints: [exportConfirmed],
   fields,
 })

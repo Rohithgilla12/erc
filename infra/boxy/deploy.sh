@@ -9,9 +9,11 @@ keep_images=3
 
 docker image inspect "erc-web:$tag" >/dev/null
 
-# It goes unescaped into erc-umami's connection URL and into the SQL below, so only URL-safe characters are allowed.
+# Checked before anything changes: compose refuses every command while either is missing, rollback included.
+# The password goes unescaped into erc-umami's connection URL and into the SQL below, so only URL-safe characters.
 umami_password=$(grep -E '^UMAMI_DB_PASSWORD=' .env | cut -d= -f2- || true)
 [[ "$umami_password" =~ ^[A-Za-z0-9_-]{24,}$ ]] || { echo "Set UMAMI_DB_PASSWORD in .env: 24 or more letters, digits, - or _ (openssl rand -hex 24)" >&2; exit 1; }
+grep -qE '^UMAMI_APP_SECRET=.+' .env || { echo "Set UMAMI_APP_SECRET in .env (openssl rand -hex 32)" >&2; exit 1; }
 
 mkdir -p backups
 trap 'rm -f backups/.predeploy-*.partial' EXIT

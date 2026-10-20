@@ -218,6 +218,30 @@ try {
     'We have had several signups from your connection in the last hour. Please try again later.',
   ])
 
+  await payload.db.drizzle.execute(sql`UPDATE subscribers SET status = 'confirmed', confirmed_at = now() WHERE email = ${ben}`)
+  const probeSender = `198.51.100.${250 + (run % 5)}`
+  const probe = await footerForm(probeSender)
+  const probed = []
+  for (const email of [address('probe-0'), address('probe-1'), address('probe-2'), address('probe-3'), ben, address('probe-4')]) {
+    probed.push(await signUp(probe, email, probeSender))
+  }
+  expect('a listed address uses up the limit like a new one, so the limit cannot probe the list', probed.slice(4), [
+    'sent',
+    'We have had several signups from your connection in the last hour. Please try again later.',
+  ])
+
+  const stale = address('stale')
+  const kept = address('kept')
+  await payload.db.drizzle.execute(sql`
+    INSERT INTO subscribers (email, status, source, consented_at, confirmed_at)
+    VALUES (${stale}, 'pending', 'site-footer', now() - interval '31 days', NULL),
+           (${kept}, 'confirmed', 'site-footer', now() - interval '31 days', now() - interval '31 days')`)
+  expect('another signup goes through', await signUp(again, address('trigger'), sender), 'sent')
+  expect('an address left unconfirmed for 30 days is deleted, a confirmed one is kept', [await subscriberRow(stale), (await subscriberRow(kept))?.status], [
+    null,
+    'confirmed',
+  ])
+
   const anonymous = await Promise.all(
     [get('/api/subscribers'), get('/api/subscribers/export.csv'), fetch(new URL('/api/subscribers', site), { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } })].map(
       async (response) => (await response).status,
@@ -231,11 +255,10 @@ try {
     body: JSON.stringify({ email: staff.email, password: `pw-${run}-check` }),
   })
   const { token } = (await login.json()) as { token: string }
-  await payload.db.drizzle.execute(sql`UPDATE subscribers SET status = 'confirmed', confirmed_at = now() WHERE email = ${ben}`)
   const csv = await fetch(new URL('/api/subscribers/export.csv', site), { headers: { authorization: `JWT ${token}` } })
   const lines = (await csv.text()).trim().split('\r\n')
   expect('staff download a CSV', [csv.status, csv.headers.get('content-type'), lines[0]], [200, 'text/csv; charset=utf-8', 'email,confirmed_at,consented_at,source'])
-  expect('it lists confirmed subscribers only', lines.filter((line) => line.includes(`newsletter-check-${run}`)).map((line) => line.split(',')[0]), [ben])
+  expect('it lists confirmed subscribers only', lines.filter((line) => line.includes(`newsletter-check-${run}`)).map((line) => line.split(',')[0]).sort(), [ben, kept].sort())
   const staffCreate = await fetch(new URL('/api/subscribers', site), {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `JWT ${token}` },
