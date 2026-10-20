@@ -4,6 +4,7 @@ import React from 'react'
 
 import { siteConfig } from '@/site-config'
 
+import { Analytics } from './analytics'
 import { NewsletterSignup } from './newsletter/_components/newsletter-signup'
 import { CLUB, SITE_SECTIONS } from './site-nav'
 import { SiteNavLinks } from './site-nav-links'
@@ -65,6 +66,7 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
             <p>{CLUB.name}</p>
           </div>
         </footer>
+        <Analytics />
       </body>
     </html>
   )
