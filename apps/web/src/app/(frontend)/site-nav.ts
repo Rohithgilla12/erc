@@ -14,7 +14,9 @@ export const CLUB = {
   name: 'Endurance Run Club',
   shortName: 'ERC',
   tagline: 'Run far. Run strong. Run smart.',
-  description: 'Performance-first endurance running: training, recovery and racing.',
+  description:
+    'A focused community of runners committed to discipline, consistency, and structured training. We train smart, support each other, and work towards endurance goals — together.',
+  motto: 'Show up. Do the work. Become stronger.',
   instagramUrl: 'https://www.instagram.com/endurancerunclubindia/',
 } as const
 

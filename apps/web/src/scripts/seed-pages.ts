@@ -40,7 +40,7 @@ const pages = (coaches: number[]): PageData[] => {
         {
           blockType: 'hero',
           heading: CLUB.tagline,
-          body: `Placeholder: ${CLUB.description} This text stands in for the club's own welcome.`,
+          body: CLUB.description,
           primary: { label: 'See upcoming races', href: '/races' },
           secondary: { label: 'Coaching', href: '/coaching' },
         },
@@ -64,7 +64,7 @@ const pages = (coaches: number[]): PageData[] => {
         {
           blockType: 'hero',
           heading: `About ${CLUB.name}`,
-          body: `Placeholder: ${CLUB.description}`,
+          body: CLUB.description,
           primary: { label: 'See upcoming races', href: '/races' },
           secondary: { label: 'Contact us', href: '/contact' },
         },

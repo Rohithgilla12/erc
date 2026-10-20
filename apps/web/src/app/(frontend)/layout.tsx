@@ -11,7 +11,7 @@ import './styles.css'
 export const metadata: Metadata = {
   metadataBase: siteConfig().siteUrl,
   title: { default: CLUB.name, template: `%s | ${CLUB.name}` },
-  description: `${CLUB.description} Race calendar, training plans and coaching for runners in Telangana and Andhra Pradesh.`,
+  description: CLUB.description,
   applicationName: CLUB.name,
 }
 
