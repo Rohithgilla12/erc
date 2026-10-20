@@ -19,9 +19,24 @@ export const parseVideoCategory = (raw: string): VideoCategory | null =>
 export const videoCategoryLabel = (key: VideoCategory): string =>
   VIDEO_CATEGORIES.find((category) => category.key === key)?.label ?? key
 
-const SECTION_OF: Record<ContentRef['kind'], string> = { post: '/learn', video: '/videos', trainingPlan: '/plans', race: '/races' }
+/**
+ * Every kind of content a link can point at, with the CMS collection that stores it and the section of the site that
+ * serves it. `ContentRef`, `contentPath`, and `contentKindOf` all derive from this table, so a new kind is one entry.
+ */
+export const CONTENT_KINDS = {
+  post: { collection: 'posts', section: '/learn' },
+  video: { collection: 'videos', section: '/videos' },
+  trainingPlan: { collection: 'trainingPlans', section: '/plans' },
+  race: { collection: 'races', section: '/races' },
+} as const
 
-export const contentPath = (ref: ContentRef): string => `${SECTION_OF[ref.kind]}/${ref.slug}`
+export type ContentKind = keyof typeof CONTENT_KINDS
+
+export const contentPath = (ref: ContentRef): string => `${CONTENT_KINDS[ref.kind].section}/${ref.slug}`
+
+/** The kind of content a CMS collection stores, or null when nothing links to its documents by address. */
+export const contentKindOf = (collection: string): ContentKind | null =>
+  (Object.keys(CONTENT_KINDS) as ContentKind[]).find((kind) => CONTENT_KINDS[kind].collection === collection) ?? null
 
 /** A post at `/learn/<slug>` with one of these slugs would be shadowed by a learning-centre route. */
 export const isReservedPostSlug = (slug: string): boolean => slug === 'topic'

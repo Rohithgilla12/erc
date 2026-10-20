@@ -1,4 +1,4 @@
-import type { VideoCategory } from './learn'
+import type { ContentKind, VideoCategory } from './learn'
 import type {
   Brand,
   HttpsUrl,
@@ -25,11 +25,7 @@ export type RichText = Brand<unknown, 'RichText'>
 
 type Published = { slug: Slug; publishedAt: Instant; updatedAt: Instant; seo: Seo }
 
-export type ContentRef =
-  | { kind: 'post'; slug: Slug }
-  | { kind: 'video'; slug: Slug }
-  | { kind: 'trainingPlan'; slug: Slug }
-  | { kind: 'race'; slug: Slug }
+export type ContentRef = { [K in ContentKind]: { kind: K; slug: Slug } }[ContentKind]
 
 /** A reference resolved far enough to render as a link. */
 export type ContentLink = ContentRef & { title: string }

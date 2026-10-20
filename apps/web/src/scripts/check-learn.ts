@@ -5,8 +5,12 @@
  * removed.
  */
 import config from '@payload-config'
+import type { RichText as RichTextValue } from '@erc/domain'
 import { getPayload, type RequiredDataFromCollectionSlug } from 'payload'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 
+import { RichText } from '@/content/rich-text'
 import type { Staff } from '@/payload-types'
 
 import { FORGED_SESSION } from './fixtures/forged-session'
@@ -72,19 +76,56 @@ const postData = (slug: string, title: string): RequiredDataFromCollectionSlug<'
 
 const LINKED_SLUG = 'placeholder-reading-an-easy-pace'
 
-const withInternalLink = (postId: number) => {
+const linkNode = (fields: object, text: string, type = 'link') => ({
+  type,
+  version: 3,
+  direction: 'ltr',
+  format: '',
+  indent: 0,
+  fields,
+  children: [{ type: 'text', version: 1, text }],
+})
+
+const internalLink = (relationTo: string, value: number, text: string) => linkNode({ linkType: 'internal', newTab: false, doc: { relationTo, value } }, text)
+const customLink = (url: string, text: string, type?: string) => linkNode({ linkType: 'custom', newTab: false, url }, text, type)
+
+const withLinks = (...links: object[]) => {
   const body = paragraph('Check link: ')
-  const link = {
-    type: 'link',
-    version: 3,
-    direction: 'ltr',
-    format: '',
-    indent: 0,
-    fields: { linkType: 'internal', newTab: false, doc: { relationTo: 'posts', value: postId } },
-    children: [{ type: 'text', version: 1, text: 'internal link' }],
-  }
-  ;(body.root.children[0]!.children as object[]).push(link)
+  ;(body.root.children[0]!.children as object[]).push(...links)
   return body
+}
+
+const withInternalLink = (postId: number) => withLinks(internalLink('posts', postId, 'internal link'))
+
+/** Payload stores any URL that parses, so the renderer is what keeps `javascript:` and `data:` off the page. */
+function richTextLinkCases() {
+  const html = renderToStaticMarkup(
+    createElement(RichText, {
+      value: withLinks(
+        customLink('javascript:alert(1)', 'script link'),
+        customLink('data:text/html,<b>x</b>', 'data link'),
+        customLink('javascript:alert(2)', 'script autolink', 'autolink'),
+        customLink('https://example.org/a', 'https link'),
+        customLink('http://example.org/b', 'http link'),
+        customLink('mailto:coach@example.org', 'mail link'),
+        customLink('tel:+919876543210', 'phone link'),
+        internalLink('posts', 2_147_483_647, 'unresolved link'),
+      ) as unknown as RichTextValue,
+    }),
+  )
+  const anchors = [...html.matchAll(/<a href="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map((match) => [match[2], match[1]])
+  expect('rich text links only to site paths, web, mail and phone addresses', anchors, [
+    ['https link', 'https://example.org/a'],
+    ['http link', 'http://example.org/b'],
+    ['mail link', 'mailto:coach@example.org'],
+    ['phone link', 'tel:+919876543210'],
+  ])
+  expect(
+    'script, data and unresolved links keep their text, unlinked',
+    ['script link', 'data link', 'script autolink', 'unresolved link'].map((text) => html.includes(text)),
+    [true, true, true, true],
+  )
+  expect('no javascript: or data: address reaches the page', /javascript:|data:/i.test(html), false)
 }
 
 const anonymousTitles = async (slug: string, draft: boolean) => {
@@ -319,6 +360,7 @@ async function siteCases(site: string) {
 }
 
 try {
+  richTextLinkCases()
   await writeCases()
   const site = process.env.ERC_CHECK_URL
   if (site) await siteCases(site)

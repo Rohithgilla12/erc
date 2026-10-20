@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  contentKindOf,
   contentPath,
   formatClockDuration,
   isoDuration,
@@ -112,5 +113,11 @@ describe('isReservedPostSlug', () => {
   it('reserves the topic route segment only', () => {
     expect(isReservedPostSlug('topic')).toBe(true)
     expect(isReservedPostSlug('topics')).toBe(false)
+  })
+})
+
+describe('contentKindOf', () => {
+  it('names the kind stored in each linkable collection, and nothing for the rest', () => {
+    expect(['posts', 'videos', 'trainingPlans', 'races', 'coaches', 'media'].map(contentKindOf)).toEqual(['post', 'video', 'trainingPlan', 'race', null, null])
   })
 })
