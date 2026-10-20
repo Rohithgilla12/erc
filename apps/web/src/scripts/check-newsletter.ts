@@ -60,7 +60,9 @@ const formWith = (html: string, field: string): HtmlForm | null => {
   return null
 }
 
-const fromSender = (sender: string) => ({ 'cf-connecting-ip': sender })
+let hop = 0
+// Every request also claims a fresh x-forwarded-for, so the per-sender limits only hold if the Cloudflare header wins.
+const fromSender = (sender: string) => ({ 'cf-connecting-ip': sender, 'x-forwarded-for': `203.0.113.${(hop += 1) % 250}` })
 
 const get = (path: string | URL, sender = '198.51.100.1') => fetch(new URL(path, site), { redirect: 'manual', headers: fromSender(sender) })
 

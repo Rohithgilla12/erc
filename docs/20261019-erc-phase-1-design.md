@@ -268,6 +268,8 @@ The contact form and the newsletter form share `src/content/form-guard.ts`: a ho
 
 A club gets a few enquiries a day, and 15 confirmations an hour covers a burst after an announcement. Together the caps send at most 480 messages a day, under the relay's roughly 500 **[G]**, even if both forms are flooded all day.
 
+The sender is read from `cf-connecting-ip`, which Cloudflare sets on every request through the tunnel. Without it the guard falls back to the first `x-forwarded-for` hop, then `x-real-ip`. Those headers are client-controlled, but only traffic that bypasses the tunnel lacks the Cloudflare header, and in production there is none: `erc-web` publishes no host port, so the tunnel is the only way in. Locally the fallback lets checks and development runs work, where the limits protect nothing.
+
 ### Editor workflow
 
 A document keeps what readers see (`live`) apart from the working copy (`revision`), so an edit to a published post goes through the same review as a new post.
