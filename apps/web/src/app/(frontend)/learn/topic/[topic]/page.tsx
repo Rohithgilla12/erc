@@ -6,7 +6,7 @@ import React from 'react'
 import { findPosts, getTopic } from '@/content/learn'
 
 import { Breadcrumbs, Pagination, PostList } from '../../_components/lists'
-import { breadcrumbList, JsonLd } from '../../_components/structured-data'
+import { collectionPage, JsonLd } from '../../../structured-data'
 
 import '../../_components/learn.css'
 
@@ -43,9 +43,7 @@ export default async function TopicPage({ params, searchParams }: Props) {
 
   return (
     <div className="page learn">
-      <JsonLd
-        data={{ '@graph': [{ '@type': 'CollectionPage', name: topic.title, description: topic.description }, breadcrumbList(crumbs)] }}
-      />
+      <JsonLd data={collectionPage({ name: topic.title, description: topic.description, path: withPageParam(pathOf(topic.slug), page), crumbs })} />
       <header className="learn-head">
         <Breadcrumbs crumbs={crumbs} />
         <h1>{topic.title}</h1>

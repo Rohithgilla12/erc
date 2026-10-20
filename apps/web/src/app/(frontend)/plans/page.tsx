@@ -17,10 +17,9 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 
 import { getPlans } from '@/content/plans'
-import { siteConfig } from '@/site-config'
 
 import { CheckIcon } from '../races/_components/badges'
-import { jsonLd } from './_components/format'
+import { absoluteUrl, breadcrumbList, JsonLd } from '../structured-data'
 import { PlanCard } from './_components/plan-card'
 
 import '../races/_components/races.css'
@@ -43,13 +42,12 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 }
 
 const itemList = (plans: readonly TrainingPlan[]) => ({
-  '@context': 'https://schema.org',
   '@type': 'ItemList',
   name: 'Training plans',
   itemListElement: plans.map((plan, index) => ({
     '@type': 'ListItem',
     position: index + 1,
-    url: new URL(`/plans/${plan.slug}`, siteConfig().siteUrl).href,
+    url: absoluteUrl(`/plans/${plan.slug}`),
     name: plan.title,
   })),
 })
@@ -69,7 +67,19 @@ export default async function PlansPage({ searchParams }: Props) {
 
   return (
     <div className="page plans">
-      {isFiltered(query) ? null : <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(itemList(plans))} />}
+      {isFiltered(query) ? null : (
+        <JsonLd
+          data={{
+            '@graph': [
+              itemList(plans),
+              breadcrumbList([
+                { name: 'Home', path: '/' },
+                { name: 'Training plans', path: '/plans' },
+              ]),
+            ],
+          }}
+        />
+      )}
       <header className="plans-head">
         <h1>Training plans</h1>
         <p className="lede">

@@ -266,9 +266,19 @@ async function overHttp(f: Record<'shown' | 'quiet' | 'hidden' | 'pending', Doc>
   expect('a profile with hidden results renders without them', [quietPage.status, quietPage.body.includes(f.quietResult.eventName ?? '')], [200, false])
   const shownPage = await get(`/athletes/${f.shown.slug}`)
   expect('a public profile renders without its unapproved result', [shownPage.status, shownPage.body.includes(f.unapproved10k.eventName ?? '')], [200, false])
-  const jsonLd = [...shownPage.body.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]!) as { '@type': string })
-  const person = jsonLd.find((value) => value['@type'] === 'Person')
-  expect('Person JSON-LD carries only type, name, and URL', person ? Object.keys(person).sort() : null, ['@context', '@type', 'name', 'url'])
+  type Node = { '@type': string; mainEntity?: object }
+  const jsonLd = [...shownPage.body.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].flatMap(
+    (m) => (JSON.parse(m[1]!) as { '@graph': Node[] })['@graph'],
+  )
+  const profile = jsonLd.find((value) => value['@type'] === 'ProfilePage')
+  expect(
+    'ProfilePage and Person JSON-LD carry only type, name, and URL',
+    [profile ? Object.keys(profile).sort() : null, profile?.mainEntity ? Object.keys(profile.mainEntity).sort() : null],
+    [
+      ['@type', 'mainEntity', 'url'],
+      ['@type', 'name', 'url'],
+    ],
+  )
   expect('the profile has breadcrumbs', jsonLd.some((value) => value['@type'] === 'BreadcrumbList'), true)
 
   // The pages above are now cached; hiding must expire them, not wait out the cache.

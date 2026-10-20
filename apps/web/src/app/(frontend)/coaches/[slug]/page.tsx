@@ -9,7 +9,8 @@ import { clip, plainTextOf } from '@/content/plain-text'
 import { RichText } from '@/content/rich-text'
 
 import { Breadcrumbs, Pagination, PostList } from '../../learn/_components/lists'
-import { breadcrumbList, coachPath, JsonLd, person } from '../../learn/_components/structured-data'
+import { coachPath, person } from '../../learn/_components/structured-data'
+import { absoluteUrl, breadcrumbList, JsonLd } from '../../structured-data'
 
 import '../../learn/_components/learn.css'
 
@@ -46,7 +47,7 @@ export default async function CoachPage({ params, searchParams }: Props) {
 
   return (
     <div className="page learn coach">
-      <JsonLd data={{ '@graph': [person(coach), breadcrumbList(crumbs)] }} />
+      <JsonLd data={{ '@graph': [{ '@type': 'ProfilePage', url: absoluteUrl(coachPath(coach)), mainEntity: person(coach) }, breadcrumbList(crumbs)] }} />
       <header className="coach-head">
         <Breadcrumbs crumbs={crumbs} />
         <div className="coach-identity">

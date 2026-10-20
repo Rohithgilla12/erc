@@ -9,7 +9,8 @@ import { RichText } from '@/content/rich-text'
 
 import { formatDay, formatReadingTime, sameDay } from '../_components/format'
 import { Breadcrumbs, RelatedList } from '../_components/lists'
-import { absoluteUrl, article, breadcrumbList, coachPath, JsonLd } from '../_components/structured-data'
+import { absoluteUrl, breadcrumbList, JsonLd } from '../../structured-data'
+import { article, coachPath } from '../_components/structured-data'
 
 import '../_components/learn.css'
 

@@ -6,7 +6,7 @@ import React from 'react'
 import { findVideos, listVideoShelves } from '@/content/learn'
 
 import { Breadcrumbs, Pagination, VideoGrid } from '../learn/_components/lists'
-import { breadcrumbList, JsonLd } from '../learn/_components/structured-data'
+import { collectionPage, JsonLd } from '../structured-data'
 
 import '../learn/_components/learn.css'
 
@@ -50,7 +50,7 @@ async function ShelfView() {
   ]
   return (
     <div className="page learn">
-      <JsonLd data={{ '@graph': [{ '@type': 'CollectionPage', name: 'Video library', description }, breadcrumbList(crumbs)] }} />
+      <JsonLd data={collectionPage({ name: 'Video library', description, path: '/videos', crumbs })} />
       <header className="learn-head">
         <h1>Video library</h1>
         <p className="lede">{description}</p>
@@ -93,7 +93,7 @@ async function CategoryView({ category, page }: { category: VideoCategory; page:
   ]
   return (
     <div className="page learn">
-      <JsonLd data={{ '@graph': [{ '@type': 'CollectionPage', name: `${label} videos` }, breadcrumbList(crumbs)] }} />
+      <JsonLd data={collectionPage({ name: label, path: withPageParam(categoryPath(category), videos.page), crumbs })} />
       <header className="learn-head">
         <Breadcrumbs crumbs={crumbs} />
         <h1>{label}</h1>

@@ -3,7 +3,9 @@ import Image from 'next/image'
 import React from 'react'
 
 import { formatDay, formatReadingTime, namesOf } from './format'
-import { thumbnailPath, type Crumb } from './structured-data'
+import { type Crumb } from '../../structured-data'
+
+import { thumbnailPath } from './structured-data'
 
 /** The trail above a page's title. Home is left out on screen; it is the logo's job, and it is in the JSON-LD. */
 export function Breadcrumbs({ crumbs }: { crumbs: readonly Crumb[] }) {

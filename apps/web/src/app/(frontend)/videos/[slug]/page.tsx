@@ -10,7 +10,8 @@ import { RichText } from '@/content/rich-text'
 
 import { formatDay } from '../../learn/_components/format'
 import { Breadcrumbs, RelatedList } from '../../learn/_components/lists'
-import { absoluteUrl, breadcrumbList, JsonLd, thumbnailPath, videoObject } from '../../learn/_components/structured-data'
+import { thumbnailPath, videoObject } from '../../learn/_components/structured-data'
+import { absoluteUrl, breadcrumbList, JsonLd } from '../../structured-data'
 
 import '../../learn/_components/learn.css'
 

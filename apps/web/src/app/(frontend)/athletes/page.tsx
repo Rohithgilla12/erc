@@ -3,7 +3,9 @@ import type { Metadata } from 'next'
 
 import { listAthletes, type DirectoryEntry } from '@/content/athletes'
 
-import { Avatar, breadcrumbs, homeOf, JsonLd, Proof } from './_components/athlete-parts'
+import { collectionPage, JsonLd } from '../structured-data'
+
+import { Avatar, homeOf, Proof } from './_components/athlete-parts'
 
 import './_components/athletes.css'
 
@@ -43,7 +45,17 @@ export default async function AthletesPage({ searchParams }: Props) {
 
   return (
     <div className="page athletes-page">
-      <JsonLd value={breadcrumbs([{ name: 'Home', path: '/' }, { name: 'Athletes', path: '/athletes' }])} />
+      <JsonLd
+        data={collectionPage({
+          name: 'Athletes',
+          description: 'Club runners who chose to share their racing.',
+          path: '/athletes',
+          crumbs: [
+            { name: 'Home', path: '/' },
+            { name: 'Athletes', path: '/athletes' },
+          ],
+        })}
+      />
       <header className="athletes-head">
         <h1>Athletes</h1>
         <p className="athletes-lede">Club runners who chose to share their racing.</p>

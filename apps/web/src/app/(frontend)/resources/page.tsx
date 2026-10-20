@@ -3,9 +3,8 @@ import type { Metadata } from 'next'
 import { connection } from 'next/server'
 
 import { downloadPath, getResources } from '@/content/resources'
-import { siteConfig } from '@/site-config'
-
-import { accessLabel, describeFile, jsonLd } from '../plans/_components/format'
+import { accessLabel, describeFile } from '../plans/_components/format'
+import { absoluteUrl, breadcrumbList, JsonLd } from '../structured-data'
 
 import '../plans/_components/plans.css'
 
@@ -24,27 +23,23 @@ const HEADINGS: Record<ResourceCategory, string> = {
   spreadsheet: 'Spreadsheets',
 }
 
-const collectionPage = (resources: readonly DownloadableResource[]) => {
-  const site = siteConfig().siteUrl
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
-    name: 'Downloads',
-    description: DESCRIPTION,
-    url: new URL('/resources', site).href,
-    hasPart: resources.map((resource) => ({
-      '@type': 'DigitalDocument',
-      name: resource.title,
-      description: resource.description,
-      url: new URL(downloadPath(resource), site).href,
-      encodingFormat: resource.file.mimeType,
-      contentSize: `${resource.file.bytes} B`,
-      isAccessibleForFree: resource.access.kind === 'free',
-      datePublished: resource.publishedAt,
-      dateModified: resource.updatedAt,
-    })),
-  }
-}
+const downloadsPage = (resources: readonly DownloadableResource[]) => ({
+  '@type': 'CollectionPage',
+  name: 'Downloads',
+  description: DESCRIPTION,
+  url: absoluteUrl('/resources'),
+  hasPart: resources.map((resource) => ({
+    '@type': 'DigitalDocument',
+    name: resource.title,
+    description: resource.description,
+    url: absoluteUrl(downloadPath(resource)),
+    encodingFormat: resource.file.mimeType,
+    contentSize: `${resource.file.bytes} B`,
+    isAccessibleForFree: resource.access.kind === 'free',
+    datePublished: resource.publishedAt,
+    dateModified: resource.updatedAt,
+  })),
+})
 
 export default async function ResourcesPage() {
   // Read per request, never at build time: the image is built without a database.
@@ -57,7 +52,17 @@ export default async function ResourcesPage() {
 
   return (
     <div className="page resources">
-      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(collectionPage(resources))} />
+      <JsonLd
+        data={{
+          '@graph': [
+            downloadsPage(resources),
+            breadcrumbList([
+              { name: 'Home', path: '/' },
+              { name: 'Downloads', path: '/resources' },
+            ]),
+          ],
+        }}
+      />
       <header className="plans-head">
         <h1>Downloads</h1>
         <p className="lede">Free files to print or keep on your phone. Looking for a schedule? Every plan is also readable on its <a href="/plans">plan page</a>.</p>

@@ -3,6 +3,7 @@ import {
   nearestLandingPath,
   parseRaceQuery,
   racesHref,
+  RACES_PATH,
   todayIn,
   type LocalDate,
   type QueryParams,
@@ -13,6 +14,8 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { findRaces } from '@/content/races'
+
+import { collectionPage, JsonLd } from '../../structured-data'
 
 import { RaceCalendar } from './race-calendar'
 
@@ -31,10 +34,14 @@ export const calendarMetadata = (query: RaceQuery, today: LocalDate, title: stri
   const canonical = canonicalPathOf(query, today)
   return {
     title,
+    description: describe(title),
     alternates: { canonical: canonical ?? nearestLandingPath(query) },
     ...(canonical ? {} : { robots: { index: false, follow: true } }),
   }
 }
+
+const describe = (heading: string) =>
+  `${heading}: upcoming running races with dates, distances, registration deadlines and official links.`
 
 const CALENDAR_PATH = /^\/races(\/|$)/
 
@@ -60,5 +67,19 @@ export async function CalendarPage({ heading, query, today }: { heading: string;
   // Temporary, because the page can exist again once more races are listed. One URL per page of results keeps a
   // stale link from rendering an empty, indexable duplicate.
   if (page.page !== query.page) redirect(racesHref({ ...query, page: page.page }, today))
-  return <RaceCalendar heading={heading} page={page} query={query} today={today} arrival={arrival} />
+  // Narrower views are noindex and their heading does not name the page their canonical link points at, so only
+  // indexable views describe themselves.
+  const canonical = canonicalPathOf(query, today)
+  const landing = nearestLandingPath(query)
+  const crumbs = [
+    { name: 'Home', path: '/' },
+    { name: 'Races', path: RACES_PATH },
+    ...(landing === RACES_PATH ? [] : [{ name: heading, path: landing }]),
+  ]
+  return (
+    <>
+      {canonical ? <JsonLd data={collectionPage({ name: heading, description: describe(heading), path: canonical, crumbs })} /> : null}
+      <RaceCalendar heading={heading} page={page} query={query} today={today} arrival={arrival} />
+    </>
+  )
 }

@@ -276,7 +276,7 @@ async function siteCases(site: string) {
         ['Person', 'Placeholder Coach A'],
         ['Person', 'Placeholder Coach B'],
       ],
-      ['Organization', 'Endurance Run Club', 'string'],
+      ['SportsOrganization', 'Endurance Run Club', 'string'],
     ],
   )
   expect('the post page shows its references', post.body.includes('Placeholder reference one'), true)
@@ -296,7 +296,7 @@ async function siteCases(site: string) {
   )
 
   const coach = await html(site, SEEDED_COACH)
-  const personLd = ofType<{ name?: string; url?: string }>(coach.body, 'Person')
+  const personLd = ofType<{ mainEntity?: { name?: string; url?: string } }>(coach.body, 'ProfilePage')?.mainEntity
   expect('Person JSON-LD has name and profile URL', [personLd?.name, personLd?.url], ['Placeholder Coach A', new URL(SEEDED_COACH, site).href])
   expect('the coach page lists their posts', coach.body.includes('Placeholder: planning a first ultra'), true)
 

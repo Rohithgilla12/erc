@@ -5,17 +5,15 @@ import { notFound } from 'next/navigation'
 import { getAthleteProfile, type AthleteProfile, type RaceSlugs } from '@/content/athletes'
 
 import {
-  absoluteUrl,
   Avatar,
   BackLink,
-  breadcrumbs,
   categoryLabel,
   distanceLabel,
   formatResultDate,
   homeOf,
-  JsonLd,
   Proof,
 } from '../_components/athlete-parts'
+import { absoluteUrl, breadcrumbList, JsonLd } from '../../structured-data'
 
 import '../_components/athletes.css'
 
@@ -37,11 +35,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /** Only the name and the profile's own address: nothing here may reveal what the athlete has not made public. */
-const person = ({ athlete }: AthleteProfile) => ({
-  '@context': 'https://schema.org',
-  '@type': 'Person',
-  name: athlete.name,
+const profilePage = ({ athlete }: AthleteProfile) => ({
+  '@type': 'ProfilePage',
   url: absoluteUrl(`/athletes/${athlete.slug}`),
+  mainEntity: { '@type': 'Person', name: athlete.name, url: absoluteUrl(`/athletes/${athlete.slug}`) },
 })
 
 export default async function AthletePage({ params }: Props) {
@@ -51,13 +48,17 @@ export default async function AthletePage({ params }: Props) {
 
   return (
     <article className="page athlete-page">
-      <JsonLd value={person(profile)} />
       <JsonLd
-        value={breadcrumbs([
-          { name: 'Home', path: '/' },
-          { name: 'Athletes', path: '/athletes' },
-          { name: athlete.name, path: `/athletes/${athlete.slug}` },
-        ])}
+        data={{
+          '@graph': [
+            profilePage(profile),
+            breadcrumbList([
+              { name: 'Home', path: '/' },
+              { name: 'Athletes', path: '/athletes' },
+              { name: athlete.name, path: `/athletes/${athlete.slug}` },
+            ]),
+          ],
+        }}
       />
       <header className="athlete-head">
         <BackLink href="/athletes">All athletes</BackLink>
