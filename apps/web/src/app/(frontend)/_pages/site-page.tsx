@@ -3,9 +3,9 @@ import { connection } from 'next/server'
 import React, { type ReactNode } from 'react'
 
 import { getPage, type RoutedPageSlug, type SitePage } from '@/content/pages'
-import { siteConfig } from '@/site-config'
 
 import { CLUB } from '../site-nav'
+import { absoluteUrl, breadcrumbList, JsonLd, organisation, website } from '../structured-data'
 
 import { DEFAULT_PAGES } from './default-pages'
 import { PageBlocks } from './page-blocks'
@@ -18,15 +18,16 @@ export const loadSitePage = async (slug: RoutedPageSlug): Promise<SitePage> => {
 
 const pathOf = (slug: RoutedPageSlug) => (slug === 'home' ? '/' : `/${slug}`)
 
-const leadText = (page: SitePage) => {
-  const first = page.blocks[0]
-  return first?.kind === 'hero' ? first.body : null
-}
+const hero = (page: SitePage) => (page.blocks[0]?.kind === 'hero' ? page.blocks[0] : null)
+
+const leadText = (page: SitePage) => hero(page)?.body ?? null
+
+const descriptionOf = (page: SitePage) => page.seo.description ?? leadText(page) ?? CLUB.description
 
 export async function sitePageMetadata(slug: RoutedPageSlug): Promise<Metadata> {
   const page = await loadSitePage(slug)
   const title = page.seo.title ?? page.title
-  const description = page.seo.description ?? leadText(page) ?? CLUB.description
+  const description = descriptionOf(page)
   return {
     // The layout's template appends the club name, which would repeat it on the home page.
     title: slug === 'home' ? { absolute: page.seo.title ?? `${CLUB.name} | ${CLUB.tagline}` } : title,
@@ -44,22 +45,20 @@ export async function sitePageMetadata(slug: RoutedPageSlug): Promise<Metadata> 
   }
 }
 
-// JSON.stringify leaves `<` alone, so a value containing `</script>` could otherwise end the tag early.
-const jsonLd = (value: unknown) => JSON.stringify(value).replace(/</g, '\\u003c')
+const PAGE_TYPE: Record<RoutedPageSlug, string> = { home: 'WebPage', about: 'AboutPage', coaching: 'WebPage', contact: 'ContactPage' }
 
-const organisation = () => {
-  const { siteUrl } = siteConfig()
+/** The home page carries the club and the site in full; the others describe themselves and their place under it. */
+const structuredData = (slug: RoutedPageSlug, page: SitePage) => {
+  if (slug === 'home') return { '@graph': [organisation(), website()] }
+  const path = pathOf(slug)
   return {
-    '@context': 'https://schema.org',
-    '@type': 'SportsOrganization',
-    name: CLUB.name,
-    alternateName: CLUB.shortName,
-    description: CLUB.description,
-    slogan: CLUB.tagline,
-    sport: 'Running',
-    url: new URL('/', siteUrl).href,
-    logo: new URL('/brand/erc-logo-512.png', siteUrl).href,
-    sameAs: [CLUB.instagramUrl],
+    '@graph': [
+      { '@type': PAGE_TYPE[slug], name: hero(page)?.heading ?? page.title, description: descriptionOf(page), url: absoluteUrl(path) },
+      breadcrumbList([
+        { name: 'Home', path: '/' },
+        { name: page.title, path },
+      ]),
+    ],
   }
 }
 
@@ -67,8 +66,8 @@ export async function SitePageView({ slug, children }: { slug: RoutedPageSlug; c
   const page = await loadSitePage(slug)
   return (
     <div className="page site-page">
-      {slug === 'home' ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(organisation()) }} /> : null}
-      {page.blocks[0]?.kind === 'hero' ? null : <h1>{page.title}</h1>}
+      <JsonLd data={structuredData(slug, page)} />
+      {hero(page) ? null : <h1>{page.title}</h1>}
       <PageBlocks blocks={page.blocks} />
       {children}
     </div>

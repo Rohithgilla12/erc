@@ -12,6 +12,8 @@ import { notFound } from 'next/navigation'
 
 import { getRace } from '@/content/races'
 
+import { absoluteUrl, breadcrumbList, JsonLd } from '../../structured-data'
+
 import { StaleBadge, StatusBadge } from '../_components/badges'
 import {
   DISCIPLINE_LABELS,
@@ -53,14 +55,14 @@ const sportsEvent = (race: PublicRace) => {
   const rescheduledTo = race.status.kind === 'postponed' ? race.status.newStart : null
   const start = rescheduledTo ?? race.dates.start
   return {
-    '@context': 'https://schema.org',
     '@type': 'SportsEvent',
     name: race.name,
-    description: race.summary,
+    ...(race.summary ? { description: race.summary } : {}),
     sport: 'Running',
     startDate: start,
     endDate: addDays(start, race.dates.dayCount - 1),
-    url: race.officialUrl,
+    url: absoluteUrl(`/races/${race.slug}`),
+    sameAs: race.officialUrl,
     eventStatus: rescheduledTo ? 'https://schema.org/EventRescheduled' : EVENT_STATUS[race.status.kind],
     ...(rescheduledTo ? { previousStartDate: race.dates.start } : {}),
     ...(race.location.kind === 'virtual'
@@ -84,9 +86,6 @@ const sportsEvent = (race: PublicRace) => {
   }
 }
 
-// JSON.stringify leaves `<` alone, so a race name containing `</script>` could otherwise end the tag early.
-const jsonLd = (value: unknown) => JSON.stringify(value).replace(/</g, '\\u003c')
-
 /** A postponed race leads with its new date, as its badge does; the original date stays visible but secondary. */
 function RaceDates({ race }: { race: PublicRace }) {
   if (race.status.kind !== 'postponed') return formatDates(race.dates)
@@ -109,7 +108,18 @@ export default async function RacePage({ params }: Props) {
 
   return (
     <article className="page race-detail">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(sportsEvent(race)) }} />
+      <JsonLd
+        data={{
+          '@graph': [
+            sportsEvent(race),
+            breadcrumbList([
+              { name: 'Home', path: '/' },
+              { name: 'Races', path: '/races' },
+              { name: race.name, path: `/races/${race.slug}` },
+            ]),
+          ],
+        }}
+      />
       <header className="race-detail-head">
         <a className="back-link" href="/races">
           <svg

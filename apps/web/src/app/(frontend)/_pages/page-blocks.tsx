@@ -2,12 +2,19 @@ import { isVerificationStale, todayIn, type CtaLink, type LocalDate, type Public
 import Image from 'next/image'
 import React from 'react'
 
+import { findPosts } from '@/content/learn'
 import { upcomingRaces, type PageBlock } from '@/content/pages'
+import { getPlans } from '@/content/plans'
 import { RichText } from '@/content/rich-text'
+
+import { PostList } from '../learn/_components/lists'
+import { PlanCard } from '../plans/_components/plan-card'
 
 import { StaleBadge, StatusBadge } from '../races/_components/badges'
 import { dateParts, formatDates, formatDistance, placeOf } from '../races/_components/format'
 
+import '../learn/_components/learn.css'
+import '../plans/_components/plans.css'
 import '../races/_components/races.css'
 import './pages.css'
 
@@ -82,7 +89,7 @@ async function FeaturedRaces({ block }: { block: Extract<PageBlock, { kind: 'fea
     <section className="block">
       <h2>{block.heading}</h2>
       {races.length > 0 ? (
-        <ul className="race-list">
+        <ul className="race-list featured-race-list">
           {races.map((race) => (
             <FeaturedRace key={race.id} race={race} today={today} />
           ))}
@@ -93,6 +100,44 @@ async function FeaturedRaces({ block }: { block: Extract<PageBlock, { kind: 'fea
       <p>
         <a className="block-more" href="/races">
           See all upcoming races
+        </a>
+      </p>
+    </section>
+  )
+}
+
+async function LatestPosts({ block }: { block: Extract<PageBlock, { kind: 'latestPosts' }> }) {
+  const posts = (await findPosts(null, 1)).items.slice(0, block.count)
+  return (
+    <section className="block">
+      <h2>{block.heading}</h2>
+      {posts.length > 0 ? <PostList posts={posts} headingLevel="h3" /> : <p className="block-empty">No articles are published yet.</p>}
+      <p>
+        <a className="block-more" href="/learn">
+          See all articles
+        </a>
+      </p>
+    </section>
+  )
+}
+
+async function FeaturedPlans({ block }: { block: Extract<PageBlock, { kind: 'featuredPlans' }> }) {
+  const plans = (await getPlans()).slice(0, block.count)
+  return (
+    <section className="block">
+      <h2>{block.heading}</h2>
+      {plans.length > 0 ? (
+        <ol className="plan-list">
+          {plans.map((plan) => (
+            <PlanCard key={plan.slug} plan={plan} headingLevel="h3" />
+          ))}
+        </ol>
+      ) : (
+        <p className="block-empty">No training plans are published yet.</p>
+      )}
+      <p>
+        <a className="block-more" href="/plans">
+          See all training plans
         </a>
       </p>
     </section>
@@ -148,6 +193,10 @@ function Block({ block, heroLevel }: { block: PageBlock; heroLevel: 'h1' | 'h2' 
       return <RichText value={block.body} className="prose block" />
     case 'featuredRaces':
       return <FeaturedRaces block={block} />
+    case 'latestPosts':
+      return <LatestPosts block={block} />
+    case 'featuredPlans':
+      return <FeaturedPlans block={block} />
     case 'callToAction':
       return (
         <section className="block block-cta">

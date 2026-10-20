@@ -17,6 +17,18 @@
   color: var(--color-text-muted);
 }
 
+.learn-links {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-5);
+}
+
+.learn-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+}
+
 .section-label {
   margin: 0 0 var(--space-3);
   font-size: var(--text-sm);

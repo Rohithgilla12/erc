@@ -2,6 +2,7 @@ import { parseLinkHref, parseSlug } from '@erc/domain'
 import type { Block, Field, GroupField, TextFieldSingleValidation } from 'payload'
 import { text } from 'payload/shared'
 
+import { seoField } from '../editorial-fields'
 import { defineEditorial } from '../kinds'
 
 const linkGroup = (name: string, label: string, required: boolean): GroupField => {
@@ -61,11 +62,12 @@ const richText: Block = {
   fields: [{ name: 'body', type: 'richText', required: true }],
 }
 
-const featuredRaces: Block = {
-  slug: 'featuredRaces',
-  labels: { singular: 'Upcoming races', plural: 'Upcoming races' },
+/** A section listing the first few of something the site already orders; the editor picks the heading and how many. */
+const listingBlock = ({ slug, label, countHint }: { slug: string; label: string; countHint: string }): Block => ({
+  slug,
+  labels: { singular: label, plural: label },
   fields: [
-    { name: 'heading', type: 'text', required: true, defaultValue: 'Upcoming races' },
+    { name: 'heading', type: 'text', required: true, defaultValue: label },
     {
       name: 'count',
       type: 'number',
@@ -73,11 +75,20 @@ const featuredRaces: Block = {
       defaultValue: 3,
       min: 1,
       max: 12,
-      admin: { step: 1, description: 'How many approved races to show, soonest first.' },
+      admin: { step: 1, description: countHint },
     },
   ],
-}
+})
 
+const featuredRaces = listingBlock({ slug: 'featuredRaces', label: 'Upcoming races', countHint: 'How many approved races to show, soonest first.' })
+
+const latestPosts = listingBlock({ slug: 'latestPosts', label: 'Latest articles', countHint: 'How many published articles to show, newest first.' })
+
+const featuredPlans = listingBlock({
+  slug: 'featuredPlans',
+  label: 'Training plans',
+  countHint: 'How many published plans to show, in the order of the plans page.',
+})
 const callToAction: Block = {
   slug: 'callToAction',
   labels: { singular: 'Call to action', plural: 'Calls to action' },
@@ -136,23 +147,13 @@ export const Pages = defineEditorial({
       validate: validSlug,
       admin: { position: 'sidebar', description: 'home is the front page; about, coaching and contact have their own addresses.' },
     },
-    {
-      name: 'seo',
-      label: 'SEO',
-      type: 'group',
-      fields: [
-        { name: 'title', type: 'text', admin: { description: 'Defaults to the page title.' } },
-        { name: 'description', type: 'textarea', maxLength: 300, admin: { description: 'Shown under the title in search results.' } },
-        { name: 'image', type: 'upload', relationTo: 'media', admin: { description: 'Shown when the page is shared.' } },
-        { name: 'noindex', label: 'Hide from search engines', type: 'checkbox', defaultValue: false },
-      ],
-    },
+    seoField,
     {
       name: 'layout',
       type: 'blocks',
       required: true,
       minRows: 1,
-      blocks: [hero, richText, featuredRaces, callToAction, coachGrid, faq],
+      blocks: [hero, richText, featuredRaces, latestPosts, featuredPlans, callToAction, coachGrid, faq],
     },
   ],
 })

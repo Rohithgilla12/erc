@@ -6,6 +6,7 @@ import { siteConfig } from '@/site-config'
 
 import { Analytics } from './analytics'
 import { NewsletterSignup } from './newsletter/_components/newsletter-signup'
+import { FEED_PATH, FEED_TITLE } from './learn/_components/feed'
 import { CLUB, SITE_SECTIONS } from './site-nav'
 import { SiteNavLinks } from './site-nav-links'
 import './styles.css'
@@ -13,7 +14,7 @@ import './styles.css'
 export const metadata: Metadata = {
   metadataBase: siteConfig().siteUrl,
   title: { default: CLUB.name, template: `%s | ${CLUB.name}` },
-  description: `${CLUB.description} Race calendar, training plans and coaching for runners in Telangana and Andhra Pradesh.`,
+  description: CLUB.description,
   applicationName: CLUB.name,
 }
 
@@ -32,6 +33,10 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
 
   return (
     <html lang="en">
+      <head>
+        {/* Not metadata `alternates.types`: a page that sets `alternates` for its canonical link replaces the layout's whole object. */}
+        <link rel="alternate" type="application/rss+xml" href={FEED_PATH} title={FEED_TITLE} />
+      </head>
       <body>
         <a className="skip-link" href="#content">
           Skip to content

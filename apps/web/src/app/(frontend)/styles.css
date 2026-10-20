@@ -237,6 +237,10 @@ svg {
 
 .site-nav a[aria-current='page'] {
   box-shadow: inset 0 -2px 0 var(--color-accent);
+  /* Starts the nav scrolled to the current section, centred clear of the fade, before first paint and without
+     JavaScript. Browsers without scroll-initial-target get the same from SiteNavLinks once it hydrates. */
+  scroll-initial-target: nearest;
+  scroll-snap-align: center;
 }
 
 @media (max-width: 22rem) {
@@ -364,6 +368,29 @@ svg {
   .site-header a:hover {
     color: var(--color-accent-text);
   }
+}
+
+/*
+ * A captured element cannot be clicked until its transition ends, and the default capture is the whole page, which
+ * blocked every tap for about 250 ms after each navigation. So pages swap without a cross-fade, and only named
+ * elements that are on both pages, such as the race calendar's list and chips, animate between them. The snapshot
+ * layer lets taps through to the live page underneath.
+ */
+:root {
+  view-transition-name: none;
+}
+
+::view-transition {
+  pointer-events: none;
+}
+
+/*
+ * A named element on only one side would otherwise fade as a ghost over a page that does not have it. A zero duration
+ * jumps straight to the end of the fade, and a named rule such as the filter sheet's exit still wins.
+ */
+::view-transition-old(*):only-child,
+::view-transition-new(*):only-child {
+  animation-duration: 0s;
 }
 
 ::view-transition-group(*) {

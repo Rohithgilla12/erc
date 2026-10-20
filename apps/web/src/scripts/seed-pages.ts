@@ -40,11 +40,13 @@ const pages = (coaches: number[]): PageData[] => {
         {
           blockType: 'hero',
           heading: CLUB.tagline,
-          body: `Placeholder: ${CLUB.description} This text stands in for the club's own welcome.`,
+          body: CLUB.description,
           primary: { label: 'See upcoming races', href: '/races' },
           secondary: { label: 'Coaching', href: '/coaching' },
         },
         { blockType: 'featuredRaces', heading: 'Upcoming races', count: 3 },
+        { blockType: 'latestPosts', heading: 'Latest articles', count: 3 },
+        { blockType: 'featuredPlans', heading: 'Training plans', count: 3 },
         {
           blockType: 'richText',
           body: richText('Placeholder: a short introduction to the club, its runs and its runners goes here.'),
@@ -64,7 +66,7 @@ const pages = (coaches: number[]): PageData[] => {
         {
           blockType: 'hero',
           heading: `About ${CLUB.name}`,
-          body: `Placeholder: ${CLUB.description}`,
+          body: CLUB.description,
           primary: { label: 'See upcoming races', href: '/races' },
           secondary: { label: 'Contact us', href: '/contact' },
         },

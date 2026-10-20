@@ -748,15 +748,15 @@ export interface Page {
   slug: string;
   seo?: {
     /**
-     * Defaults to the page title.
+     * Leave empty to use the title.
      */
     title?: string | null;
     /**
-     * Shown under the title in search results.
+     * Shown under the link in search results. Leave empty to use the excerpt or description.
      */
     description?: string | null;
     /**
-     * Shown when the page is shared.
+     * Shown when the page is shared. Defaults to the cover image, or a video’s thumbnail.
      */
     image?: (number | null) | Media;
     noindex?: boolean | null;
@@ -815,6 +815,26 @@ export interface Page {
         id?: string | null;
         blockName?: string | null;
         blockType: 'featuredRaces';
+      }
+    | {
+        heading: string;
+        /**
+         * How many published articles to show, newest first.
+         */
+        count: number;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'latestPosts';
+      }
+    | {
+        heading: string;
+        /**
+         * How many published plans to show, in the order of the plans page.
+         */
+        count: number;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'featuredPlans';
       }
     | {
         heading: string;
@@ -1611,6 +1631,22 @@ export interface PagesSelect<T extends boolean = true> {
               blockName?: T;
             };
         featuredRaces?:
+          | T
+          | {
+              heading?: T;
+              count?: T;
+              id?: T;
+              blockName?: T;
+            };
+        latestPosts?:
+          | T
+          | {
+              heading?: T;
+              count?: T;
+              id?: T;
+              blockName?: T;
+            };
+        featuredPlans?:
           | T
           | {
               heading?: T;

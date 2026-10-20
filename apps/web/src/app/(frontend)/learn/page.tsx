@@ -5,8 +5,9 @@ import React from 'react'
 
 import { findPosts, listTopics } from '@/content/learn'
 
+import { FEED_PATH } from './_components/feed'
 import { Pagination, PostList } from './_components/lists'
-import { breadcrumbList, JsonLd } from './_components/structured-data'
+import { collectionPage, JsonLd } from '../structured-data'
 
 import './_components/learn.css'
 
@@ -35,12 +36,13 @@ export default async function LearnPage({ searchParams }: Props) {
 
   return (
     <div className="page learn">
-      <JsonLd data={{ '@graph': [{ '@type': 'CollectionPage', name: 'Learning centre', description }, breadcrumbList(crumbs)] }} />
+      <JsonLd data={collectionPage({ name: 'Learning centre', description, path: withPageParam('/learn', page), crumbs })} />
       <header className="learn-head">
         <h1>Learning centre</h1>
         <p className="lede">{description}</p>
-        <p>
+        <p className="learn-links">
           <a href="/videos">Browse the video library</a>
+          <a href={FEED_PATH}>Follow new articles by RSS</a>
         </p>
       </header>
 

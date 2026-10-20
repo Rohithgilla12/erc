@@ -1,4 +1,5 @@
-import { err, ok, parseEmail, type Email, type Result } from './primitives'
+import { collect, email, firstOf, textBetween, type FieldResult } from './form-fields'
+import { err, ok, type Email, type Result } from './primitives'
 
 export const ENQUIRY_TOPICS = [
   { key: 'coaching', label: 'Coaching' },
@@ -23,26 +24,8 @@ export type EnquiryErrors = Readonly<Partial<Record<EnquiryField, string>>>
 
 export const parseEnquiryTopic = (raw: string): EnquiryTopic | null => ENQUIRY_TOPICS.find((topic) => topic.key === raw)?.key ?? null
 
-type FieldResult<T> = Result<T, string>
-
-const firstOf = (raw: unknown): string => {
-  const value = Array.isArray(raw) ? raw[0] : raw
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-const lengthBetween = (raw: string, min: number, max: number, label: string): FieldResult<string> => {
-  const length = Array.from(raw).length
-  if (length === 0) return err(`Enter ${label}.`)
-  return length >= min && length <= max ? ok(raw) : err(`Use ${min} to ${max} characters for ${label}.`)
-}
-
 // A name goes into an email subject line, so it is kept to one line.
-const name = (raw: string) => lengthBetween(raw.replace(/\s+/g, ' '), 1, 120, 'your name')
-
-const email = (raw: string): FieldResult<Email> => {
-  const parsed = parseEmail(raw)
-  return parsed.ok ? parsed : err('Enter an email address such as name@example.com.')
-}
+const name = (raw: string) => textBetween(raw.replace(/\s+/g, ' '), 1, 120, 'your name')
 
 const PHONE = /^\+?[\d\s().-]+$/
 const phone = (raw: string): FieldResult<string | null> => {
@@ -56,7 +39,7 @@ const topic = (raw: string): FieldResult<EnquiryTopic> => {
   return known ? ok(known) : err('Choose what your message is about.')
 }
 
-const message = (raw: string) => lengthBetween(raw, 10, 4000, 'your message')
+const message = (raw: string) => textBetween(raw, 10, 4000, 'your message')
 
 const consent = (raw: string): FieldResult<true> =>
   ['on', 'true', '1'].includes(raw) ? ok(true) : err('Tick the box so we may reply to you.')
@@ -71,19 +54,13 @@ const consent = (raw: string): FieldResult<true> =>
  */
 export const parseEnquiry = (input: Readonly<Record<string, unknown>>): Result<Enquiry, EnquiryErrors> => {
   const field = (key: EnquiryField) => firstOf(input[key])
-  const fields = {
+  const fields = collect({
     name: name(field('name')),
     email: email(field('email')),
     phone: phone(field('phone')),
     topic: topic(field('topic')),
     message: message(field('message')),
     consent: consent(field('consent')),
-  }
-  const errors: Partial<Record<EnquiryField, string>> = {}
-  for (const [key, result] of Object.entries(fields) as [EnquiryField, FieldResult<unknown>][]) {
-    if (!result.ok) errors[key] = result.error
-  }
-  const { name: n, email: e, phone: p, topic: t, message: m, consent: c } = fields
-  if (!n.ok || !e.ok || !p.ok || !t.ok || !m.ok || !c.ok) return err(errors)
-  return ok({ name: n.value, email: e.value, phone: p.value, topic: t.value, message: m.value, consent: c.value })
+  })
+  return fields.ok ? ok(fields.value) : err(fields.error as EnquiryErrors)
 }

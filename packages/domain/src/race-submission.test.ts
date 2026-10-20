@@ -112,6 +112,9 @@ describe('parseRaceSubmission', () => {
     ['submitterEmail', 'asha@'],
     ['submitterEmail', 'asha example.com'],
     ['submitterEmail', 'asha@localhost'],
+    // The CMS email field refuses these, so a submission carrying one would fail on save.
+    ['submitterEmail', 'a..b@example.com'],
+    ['submitterEmail', 'me@exämple.com'],
   ] as const)('rejects %s = %j with an error on that field only', (field, value) => {
     expect(errorKeys({ ...valid, [field]: value })).toEqual([field])
   })

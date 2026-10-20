@@ -8,7 +8,6 @@ import {
 } from '@erc/domain'
 import Image from 'next/image'
 
-import { siteConfig } from '@/site-config'
 
 const CATEGORY_LABELS = new Map<DistanceCategory, string>(DISTANCE_CATEGORIES.map(({ key, label }) => [key, label]))
 
@@ -87,17 +86,4 @@ export function BackLink({ href, children }: { href: string; children: string })
       {children}
     </a>
   )
-}
-
-export const absoluteUrl = (path: string) => new URL(path, siteConfig().siteUrl).href
-
-export const breadcrumbs = (trail: readonly { name: string; path: string }[]) => ({
-  '@context': 'https://schema.org',
-  '@type': 'BreadcrumbList',
-  itemListElement: trail.map(({ name, path }, index) => ({ '@type': 'ListItem', position: index + 1, name, item: absoluteUrl(path) })),
-})
-
-// JSON.stringify leaves `<` alone, so a name containing `</script>` could otherwise end the tag early.
-export function JsonLd({ value }: { value: unknown }) {
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(value).replace(/</g, '\\u003c') }} />
 }

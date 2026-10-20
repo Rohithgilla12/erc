@@ -23,11 +23,19 @@ export const DEFAULT_PAGES: Readonly<Record<RoutedPageSlug, SitePage>> = {
       {
         kind: 'hero',
         heading: CLUB.tagline,
-        body: `${CLUB.description} Race calendar, training plans and coaching for runners in Telangana and Andhra Pradesh.`,
+        body: CLUB.description,
         primary: link('See upcoming races', '/races'),
         secondary: link('Coaching', '/coaching'),
       },
       { kind: 'featuredRaces', heading: 'Upcoming races', count: 3 },
+      { kind: 'latestPosts', heading: 'Latest articles', count: 3 },
+      { kind: 'featuredPlans', heading: 'Training plans', count: 3 },
+      {
+        kind: 'callToAction',
+        heading: CLUB.motto,
+        body: 'Tell us what you are training for, and a coach will reply by email.',
+        link: link('Ask about coaching', COACHING_ENQUIRY_HREF),
+      },
     ],
   },
   about: {

@@ -15,10 +15,8 @@ import { notFound } from 'next/navigation'
 import { getPlan } from '@/content/plans'
 import { downloadPath } from '@/content/resources'
 import { RichText } from '@/content/rich-text'
-import { siteConfig } from '@/site-config'
-
-import { CLUB } from '../../site-nav'
-import { accessLabel, describeFile, formatTarget, formatWeeks, jsonLd, planLabels } from '../_components/format'
+import { absoluteUrl, breadcrumbList, JsonLd, organisationRef } from '../../structured-data'
+import { accessLabel, describeFile, formatTarget, formatWeeks, planLabels } from '../_components/format'
 
 import '../_components/plans.css'
 
@@ -54,10 +52,8 @@ const offerOf = (access: AccessTier): Record<string, unknown> => {
  * a Phase 3 price belongs.
  */
 const course = (plan: TrainingPlan) => {
-  const site = siteConfig().siteUrl
-  const url = new URL(`/plans/${plan.slug}`, site).href
+  const url = absoluteUrl(`/plans/${plan.slug}`)
   return {
-    '@context': 'https://schema.org',
     '@type': 'Course',
     '@id': url,
     url,
@@ -73,7 +69,7 @@ const course = (plan: TrainingPlan) => {
     inLanguage: 'en-IN',
     isAccessibleForFree: plan.access.kind === 'free',
     offers: offerOf(plan.access),
-    provider: { '@type': 'SportsOrganization', name: CLUB.name, url: site.href },
+    provider: organisationRef(),
     hasCourseInstance: {
       '@type': 'CourseInstance',
       courseMode: 'Online',
@@ -84,7 +80,7 @@ const course = (plan: TrainingPlan) => {
           hasPart: {
             '@type': 'DigitalDocument',
             name: plan.pdf.title,
-            url: new URL(downloadPath(plan.pdf), site).href,
+            url: absoluteUrl(downloadPath(plan.pdf)),
             encodingFormat: plan.pdf.file.mimeType,
           },
         }
@@ -103,7 +99,18 @@ export default async function PlanPage({ params }: Props) {
 
   return (
     <article className="page plan-detail">
-      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(course(plan))} />
+      <JsonLd
+        data={{
+          '@graph': [
+            course(plan),
+            breadcrumbList([
+              { name: 'Home', path: '/' },
+              { name: 'Training plans', path: '/plans' },
+              { name: plan.title, path: `/plans/${plan.slug}` },
+            ]),
+          ],
+        }}
+      />
       <header className="plan-head">
         <a className="back-link" href="/plans">
           <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

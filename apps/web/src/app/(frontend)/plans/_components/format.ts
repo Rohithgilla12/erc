@@ -48,6 +48,3 @@ export const describeFile = ({ mimeType, bytes }: { mimeType: string; bytes: num
   const size = bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${sizeFormat.format(bytes / 1024 / 1024)} MB`
   return `${FILE_TYPES[mimeType] ?? 'File'}, ${size}`
 }
-
-// JSON.stringify leaves `<` alone, so a title containing `</script>` could otherwise end the tag early.
-export const jsonLd = (value: unknown) => ({ __html: JSON.stringify(value).replace(/</g, '\\u003c') })

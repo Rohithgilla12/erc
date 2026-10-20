@@ -5,7 +5,6 @@ import {
   err,
   ok,
   parseLocalDate,
-  type Email,
   type HttpsUrl,
   type Id,
   type LocalDate,
@@ -15,6 +14,7 @@ import {
   type Seconds,
   type Slug,
 } from './primitives'
+import { collect, email, firstOf, optional, textBetween, valuesOf, type FieldErrors, type FieldResult } from './form-fields'
 import { DISCIPLINES, DISTANCE_BANDS, type Discipline, type DistanceBand, type DistanceCategory } from './running'
 import { parseSubdivision, subdivisionOf, type Subdivision } from './subdivisions'
 
@@ -108,11 +108,6 @@ export type RacePage = {
 }
 
 export type QueryParams = Readonly<Record<string, string | readonly string[] | undefined>>
-
-const valuesOf = (raw: unknown): string[] =>
-  typeof raw === 'string' ? [raw] : Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : []
-
-const firstOf = (raw: unknown): string => valuesOf(raw)[0]?.trim() ?? ''
 
 const listOf = (raw: unknown): string[] =>
   valuesOf(raw)
@@ -250,41 +245,14 @@ export type RaceSubmission = Omit<Race, 'id' | 'slug' | 'moderation' | 'lastVeri
   distances: NonEmpty<Omit<RaceDistanceOption, 'category' | 'band'>>
   submitter: Submitter
 }
-type FieldErrors = Readonly<Record<string, string>>
-type FieldResult<T> = Result<T, string>
-type Collected<R> = { [K in keyof R]: R[K] extends FieldResult<infer T> ? T : never }
-
-const collect = <R extends Record<string, FieldResult<unknown>>>(fields: R): Result<Collected<R>, FieldErrors> => {
-  const values: Record<string, unknown> = {}
-  const errors: Record<string, string> = {}
-  for (const [key, result] of Object.entries(fields)) {
-    if (result.ok) values[key] = result.value
-    else errors[key] = result.error
-  }
-  return Object.keys(errors).length > 0 ? err(errors) : ok(values as Collected<R>)
-}
-
-const textBetween = (raw: string, min: number, max: number, label: string): FieldResult<string> => {
-  const length = Array.from(raw).length
-  if (length === 0 && min > 0) return err(`Enter ${label}.`)
-  return length >= min && length <= max ? ok(raw) : err(`Use ${min} to ${max} characters for ${label}.`)
-}
-
 const HTTPS_URL = /^https:\/\/[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?::\d{1,5})?(?:[/?#]\S*)?$/
 const httpsUrl = (raw: string): FieldResult<HttpsUrl> =>
   HTTPS_URL.test(raw) && raw.length <= 2048 ? ok(raw as HttpsUrl) : err('Enter a full link starting with https://.')
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const email = (raw: string): FieldResult<Email> =>
-  EMAIL.test(raw) && raw.length <= 254 ? ok(raw as Email) : err('Enter an email address such as name@example.com.')
 
 const localDate = (raw: string): FieldResult<LocalDate> => {
   const parsed = parseLocalDate(raw)
   return parsed.ok ? parsed : err('Enter a real date as YYYY-MM-DD.')
 }
-
-const optional = <T>(raw: string, parse: (raw: string) => FieldResult<T>): FieldResult<T | null> =>
-  raw === '' ? ok(null) : parse(raw)
 
 const dayCount = (raw: string): FieldResult<number> => {
   const days = /^\d{1,2}$/.test(raw) ? Number(raw) : 0
