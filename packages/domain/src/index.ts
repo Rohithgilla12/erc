@@ -4,6 +4,7 @@ export * from './moderation'
 export {
   addDays,
   daysBetween,
+  parseEmail,
   parseLocalDate,
   parseSlug,
   parseYouTubeId,

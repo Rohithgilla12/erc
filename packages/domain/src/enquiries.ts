@@ -1,4 +1,4 @@
-import { err, ok, type Email, type Result } from './primitives'
+import { err, ok, parseEmail, type Email, type Result } from './primitives'
 
 export const ENQUIRY_TOPICS = [
   { key: 'coaching', label: 'Coaching' },
@@ -39,11 +39,10 @@ const lengthBetween = (raw: string, min: number, max: number, label: string): Fi
 // A name goes into an email subject line, so it is kept to one line.
 const name = (raw: string) => lengthBetween(raw.replace(/\s+/g, ' '), 1, 120, 'your name')
 
-// Payload's email field validator, copied so that an address this accepts is one the CMS will store.
-const EMAIL =
-  /^(?!.*\.\.)[\w!#$%&'*+/=?^`{|}~-](?:[\w!#$%&'*+/=?^`{|}~.-]*[\w!#$%&'*+/=?^`{|}~-])?@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/i
-const email = (raw: string): FieldResult<Email> =>
-  EMAIL.test(raw) && raw.length <= 254 ? ok(raw as Email) : err('Enter an email address such as name@example.com.')
+const email = (raw: string): FieldResult<Email> => {
+  const parsed = parseEmail(raw)
+  return parsed.ok ? parsed : err('Enter an email address such as name@example.com.')
+}
 
 const PHONE = /^\+?[\d\s().-]+$/
 const phone = (raw: string): FieldResult<string | null> => {

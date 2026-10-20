@@ -65,6 +65,12 @@ export const parseLocalDate = (raw: string): Result<LocalDate, 'not_a_date'> => 
 export const parseSlug = (raw: string): Result<Slug, 'not_a_slug'> =>
   /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw) ? ok(raw as Slug) : err('not_a_slug')
 
+// Payload's email field validator, copied so that an address this accepts is one the CMS will store.
+const EMAIL =
+  /^(?!.*\.\.)[\w!#$%&'*+/=?^`{|}~-](?:[\w!#$%&'*+/=?^`{|}~.-]*[\w!#$%&'*+/=?^`{|}~-])?@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/i
+
+export const parseEmail = (raw: string): Result<Email, 'not_an_email'> => (EMAIL.test(raw) && raw.length <= 254 ? ok(raw as Email) : err('not_an_email'))
+
 const YOUTUBE_ID = '[A-Za-z0-9_-]{11}'
 const YOUTUBE_PATTERNS = [
   new RegExp(`^(${YOUTUBE_ID})$`),

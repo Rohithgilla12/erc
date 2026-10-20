@@ -4,7 +4,7 @@ import { ENQUIRY_TOPICS, type EnquiryErrors, type EnquiryField } from '@erc/doma
 import React, { useActionState, type ReactNode } from 'react'
 
 import { submitEnquiry } from '@/content/enquiry-action'
-import { HONEYPOT_FIELD, TOKEN_FIELD } from '@/content/enquiry-fields'
+import { HONEYPOT_FIELD, TOKEN_FIELD } from '@/content/form-fields'
 import type { EnquiryFormState, EnquiryRefusal } from '@/content/enquiries'
 
 import { CLUB } from '../site-nav'

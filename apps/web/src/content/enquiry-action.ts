@@ -3,11 +3,8 @@
 import { headers } from 'next/headers'
 
 import { receiveEnquiry, type EnquiryFormState } from './enquiries'
+import { fieldsOf } from './form-fields'
 
 export async function submitEnquiry(_previous: EnquiryFormState, form: FormData): Promise<EnquiryFormState> {
-  const fields: Record<string, string> = {}
-  for (const [key, value] of form) {
-    if (typeof value === 'string' && !(key in fields)) fields[key] = value
-  }
-  return receiveEnquiry(fields, await headers())
+  return receiveEnquiry(fieldsOf(form), await headers())
 }
