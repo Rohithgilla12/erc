@@ -16,6 +16,7 @@ import { Subscribers } from './cms/collections/subscribers'
 import { Posts } from './cms/collections/posts'
 import { Topics } from './cms/collections/topics'
 import { Videos } from './cms/collections/videos'
+import { HANDBOOK_PATH } from './cms/components/handbook/handbook-path'
 import { emailAdapter } from './cms/email'
 import { Resources } from './cms/collections/resources'
 import { TrainingPlans } from './cms/collections/training-plans'
@@ -30,6 +31,11 @@ const dirname = path.dirname(filename)
 export default buildErcConfig({
   admin: {
     user: 'staff',
+    components: {
+      afterNavLinks: ['/cms/components/handbook/handbook-link#HandbookNavLink'],
+      beforeDashboard: ['/cms/components/handbook/handbook-link#HandbookDashboardNote'],
+      views: { handbook: { Component: '/cms/components/handbook/handbook-view#HandbookView', path: HANDBOOK_PATH, meta: { title: 'Admin handbook' } } },
+    },
     importMap: {
       baseDir: path.resolve(dirname),
     },

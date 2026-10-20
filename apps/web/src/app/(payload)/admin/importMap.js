@@ -22,6 +22,9 @@ import { UnderlineFeatureClient as UnderlineFeatureClient_e70f5e05f09f93e00b997e
 import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ExportSubscribersLink as ExportSubscribersLink_e866fce2aabeaf9e0deb8b32f4e59ab0 } from '../../../cms/components/export-subscribers-link'
+import { HandbookNavLink as HandbookNavLink_ccfa945bf89f587a76360bdcba735d08 } from '../../../cms/components/handbook/handbook-link'
+import { HandbookDashboardNote as HandbookDashboardNote_ccfa945bf89f587a76360bdcba735d08 } from '../../../cms/components/handbook/handbook-link'
+import { HandbookView as HandbookView_089f861d0f3e23aec88f8f497bcfd9f5 } from '../../../cms/components/handbook/handbook-view'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
 
@@ -51,6 +54,9 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#BoldFeatureClient": BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "/cms/components/export-subscribers-link#ExportSubscribersLink": ExportSubscribersLink_e866fce2aabeaf9e0deb8b32f4e59ab0,
+  "/cms/components/handbook/handbook-link#HandbookNavLink": HandbookNavLink_ccfa945bf89f587a76360bdcba735d08,
+  "/cms/components/handbook/handbook-link#HandbookDashboardNote": HandbookDashboardNote_ccfa945bf89f587a76360bdcba735d08,
+  "/cms/components/handbook/handbook-view#HandbookView": HandbookView_089f861d0f3e23aec88f8f497bcfd9f5,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24
 }

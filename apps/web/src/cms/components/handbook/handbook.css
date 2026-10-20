@@ -1,0 +1,203 @@
+/* Scoped to .erc-handbook so none of it reaches the rest of the admin. Payload always sets data-theme on <html>. */
+.erc-handbook {
+  --hb-bg: #f7f6f2;
+  --hb-surface: #ffffff;
+  --hb-sunken: #efede7;
+  --hb-border: #dedbd2;
+  --hb-ink: #231f20;
+  --hb-muted: #5d5852;
+  --hb-orange: #f28a1a;
+  --hb-orange-soft: #fdebd5;
+  --hb-accent-text: #a3520f;
+  --hb-on-orange: #231f20;
+  --hb-good: #2f6b3a;
+  --hb-good-soft: #e2efe2;
+  --hb-bad: #a1261e;
+  --hb-bad-soft: #fbeae8;
+  --hb-display: var(--font-hb-display), 'Arial Narrow', sans-serif;
+  --hb-body: var(--font-hb-body), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --hb-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --hb-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  color: var(--hb-ink);
+  font-family: var(--hb-body);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  max-width: 52rem;
+  padding-block: 2rem 4rem;
+  display: grid;
+  gap: 3.5rem;
+  container-type: inline-size;
+}
+[data-theme='dark'] .erc-handbook {
+  --hb-bg: #131211;
+  --hb-surface: #1c1b19;
+  --hb-sunken: #262421;
+  --hb-border: #36332e;
+  --hb-ink: #efece6;
+  --hb-muted: #aaa59c;
+  --hb-orange-soft: #3a2410;
+  --hb-accent-text: #f7a54a;
+  --hb-on-orange: #1a1206;
+  --hb-good: #8fd19a;
+  --hb-good-soft: #1b301e;
+  --hb-bad: #ff8f84;
+  --hb-bad-soft: #3b1714;
+}
+
+.erc-handbook section { display: grid; gap: 1.1rem; min-width: 0; }
+.erc-handbook :is(h1, h2, h3) { font-family: var(--hb-display); font-weight: 700; line-height: 1.05; text-wrap: balance; margin: 0; letter-spacing: 0.005em; color: inherit; }
+.erc-handbook h2 { font-size: 2.1rem; text-transform: uppercase; }
+.erc-handbook h3 { font-size: 1.35rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.erc-handbook p { margin: 0; max-width: 65ch; }
+.erc-handbook :is(ul, ol) { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.4rem; max-width: 65ch; }
+.erc-handbook a { color: var(--hb-accent-text); text-underline-offset: 0.18em; }
+.erc-handbook a:focus-visible { outline: 3px solid var(--hb-accent-text); outline-offset: 3px; border-radius: 4px; }
+.erc-handbook :is(b, strong) { font-weight: 700; }
+.erc-handbook .ui { font-weight: 700; font-size: 0.92em; background: var(--hb-sunken); border: 1px solid var(--hb-border); border-radius: 5px; padding: 0.05em 0.4em; white-space: nowrap; }
+.erc-handbook code { font-family: var(--hb-mono); font-size: 0.88em; background: var(--hb-sunken); border-radius: 4px; padding: 0.1em 0.35em; }
+.erc-handbook .eyebrow { font-family: var(--hb-display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.95rem; color: var(--hb-accent-text); }
+.erc-handbook .lede { color: var(--hb-muted); }
+
+.erc-handbook .bib {
+  position: relative;
+  background: var(--hb-orange);
+  color: var(--hb-on-orange);
+  border-radius: 14px;
+  padding: 2.25rem clamp(1.25rem, 5vw, 3rem) 2rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.25rem 1.75rem;
+  align-items: center;
+}
+.erc-handbook .bib::before,
+.erc-handbook .bib::after,
+.erc-handbook .bib .pins::before,
+.erc-handbook .bib .pins::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--theme-bg, var(--hb-bg));
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.35);
+}
+.erc-handbook .bib::before { top: 12px; left: 12px; }
+.erc-handbook .bib::after { top: 12px; right: 12px; }
+.erc-handbook .bib .pins::before { bottom: 12px; left: 12px; }
+.erc-handbook .bib .pins::after { bottom: 12px; right: 12px; }
+.erc-handbook .bib img { width: clamp(84px, 16vw, 128px); height: auto; display: block; }
+.erc-handbook .bib-text { display: grid; gap: 0.6rem; min-width: 0; }
+.erc-handbook .bib .eyebrow { color: var(--hb-on-orange); opacity: 0.85; }
+.erc-handbook .bib h1 { font-size: clamp(2.8rem, 9vw, 4.6rem); text-transform: uppercase; }
+.erc-handbook .bib p { color: var(--hb-on-orange); }
+.erc-handbook .bib-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; border-top: 2px dashed rgb(35 31 32 / 0.35); padding-top: 1.1rem; }
+.erc-handbook .address { font-family: var(--hb-mono); font-weight: 600; background: var(--hb-on-orange); color: var(--hb-orange); padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; }
+.erc-handbook .address:hover { text-decoration: underline; }
+@container (max-width: 34rem) {
+  .erc-handbook .bib { grid-template-columns: 1fr; }
+}
+
+.erc-handbook .roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9rem; }
+.erc-handbook .role { background: var(--hb-surface); border: 1px solid var(--hb-border); border-radius: 10px; padding: 1.1rem 1.15rem 1.2rem; display: grid; gap: 0.6rem; align-content: start; }
+.erc-handbook .role ul { font-size: 0.97rem; }
+.erc-handbook .tag { justify-self: start; font-family: var(--hb-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.85rem; padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--hb-sunken); color: var(--hb-muted); }
+.erc-handbook .is-editor .tag { background: var(--hb-orange-soft); color: var(--hb-accent-text); }
+.erc-handbook .is-admin .tag { background: var(--hb-orange); color: var(--hb-on-orange); }
+@container (max-width: 44rem) {
+  .erc-handbook .roles { grid-template-columns: 1fr; }
+}
+
+.erc-handbook .figure { background: var(--hb-surface); border: 1px solid var(--hb-border); border-radius: 12px; padding: 1.4rem clamp(1rem, 3vw, 1.6rem); display: grid; gap: 1rem; min-width: 0; }
+.erc-handbook .track { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: 0.5rem; }
+.erc-handbook .track.two { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.erc-handbook .stop { border: 2px solid var(--hb-border); border-radius: 10px; padding: 0.8rem 0.9rem; display: grid; gap: 0.4rem; align-content: start; background: var(--hb-bg); }
+.erc-handbook .stop p { font-size: 0.93rem; }
+.erc-handbook .who { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--hb-muted); font-weight: 700; }
+.erc-handbook .stop.is-live { border-color: var(--hb-good); background: var(--hb-good-soft); }
+.erc-handbook .stop.is-off { border-color: var(--hb-bad); background: var(--hb-bad-soft); }
+.erc-handbook .state { justify-self: start; font-family: var(--hb-display); font-weight: 700; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.erc-handbook .is-live .state { color: var(--hb-good); }
+.erc-handbook .is-off .state { color: var(--hb-bad); }
+.erc-handbook .leg { display: grid; place-items: center; text-align: center; font-size: 0.82rem; font-weight: 700; color: var(--hb-accent-text); max-width: 7.5rem; }
+.erc-handbook .leg::after { content: '→'; font-size: 1.6rem; line-height: 1; }
+.erc-handbook .return { border: 2px dashed var(--hb-border); border-radius: 10px; padding: 0.6rem 0.9rem; font-size: 0.93rem; display: flex; gap: 0.6rem; align-items: baseline; }
+.erc-handbook .return::before { content: '↺'; font-size: 1.3rem; color: var(--hb-accent-text); line-height: 1; }
+.erc-handbook .branches { display: grid; gap: 0.5rem; }
+@container (max-width: 40rem) {
+  .erc-handbook :is(.track, .track.two) { grid-template-columns: 1fr; }
+  .erc-handbook .leg { max-width: none; grid-auto-flow: column; gap: 0.5rem; justify-content: start; padding-left: 1rem; }
+  .erc-handbook .leg::after { content: '↓'; }
+}
+
+.erc-handbook .mock { border: 1px solid var(--hb-border); border-radius: 12px; overflow: hidden; background: var(--hb-surface); font-size: 0.85rem; }
+.erc-handbook .mock-bar { display: flex; gap: 0.4rem; align-items: center; padding: 0.55rem 0.8rem; background: var(--hb-sunken); border-bottom: 1px solid var(--hb-border); color: var(--hb-muted); font-family: var(--hb-mono); font-size: 0.78rem; }
+.erc-handbook .mock-bar i { width: 9px; height: 9px; border-radius: 50%; background: var(--hb-border); display: inline-block; }
+.erc-handbook .mock-bar span { margin-left: 0.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.erc-handbook .mock-body { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) 13rem; min-height: 19rem; }
+.erc-handbook .mock-nav { border-right: 1px solid var(--hb-border); padding: 0.9rem 0.8rem; display: grid; gap: 0.2rem; align-content: start; color: var(--hb-muted); }
+.erc-handbook .mock-nav b { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 0.6rem; color: var(--hb-ink); }
+.erc-handbook .mock-nav b:first-child { margin-top: 0; }
+.erc-handbook .mock-nav .on { color: var(--hb-ink); font-weight: 700; }
+.erc-handbook .mock-main { padding: 0.9rem 1rem; display: grid; gap: 0.7rem; align-content: start; min-width: 0; }
+.erc-handbook .mock-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; }
+.erc-handbook .mock-title { font-weight: 700; font-size: 1rem; }
+.erc-handbook .btns { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.erc-handbook .btn { border: 1px solid var(--hb-border); border-radius: 6px; padding: 0.3rem 0.65rem; font-weight: 700; background: var(--hb-surface); white-space: nowrap; }
+.erc-handbook .btn.primary { background: var(--hb-ink); color: var(--hb-bg); border-color: var(--hb-ink); }
+.erc-handbook .field-label { font-size: 0.72rem; color: var(--hb-muted); font-weight: 700; }
+.erc-handbook .line { height: 0.55rem; border-radius: 4px; background: var(--hb-sunken); }
+.erc-handbook .box { border: 1px solid var(--hb-border); border-radius: 6px; padding: 0.5rem; display: grid; gap: 0.4rem; }
+.erc-handbook .mock-side { border-left: 1px solid var(--hb-border); padding: 0.9rem 0.8rem; display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 0.75rem; align-content: start; background: var(--hb-bg); }
+.erc-handbook .select { border: 1px solid var(--hb-border); border-radius: 6px; padding: 0.3rem 0.5rem; display: flex; justify-content: space-between; gap: 0.4rem; background: var(--hb-surface); overflow: hidden; white-space: nowrap; }
+.erc-handbook .select.plain { display: block; text-overflow: ellipsis; }
+.erc-handbook .select::after { content: '▾'; color: var(--hb-muted); }
+.erc-handbook .select.plain::after { content: none; }
+.erc-handbook .hl { position: relative; outline: 3px solid var(--hb-orange); outline-offset: 3px; border-radius: 6px; }
+.erc-handbook .num { display: inline-grid; place-items: center; width: 1.45rem; height: 1.45rem; border-radius: 50%; background: var(--hb-orange); color: var(--hb-on-orange); font-family: var(--hb-display); font-weight: 700; font-size: 0.9rem; flex: none; line-height: 1; }
+.erc-handbook .hl > .num { position: absolute; top: -0.85rem; right: -0.85rem; z-index: 1; }
+.erc-handbook .legend { list-style: none; padding: 0; display: grid; gap: 0.6rem; }
+.erc-handbook .legend li { display: flex; gap: 0.7rem; align-items: baseline; }
+@container (max-width: 44rem) {
+  .erc-handbook .mock-body { grid-template-columns: minmax(0, 1fr); }
+  .erc-handbook .mock-nav { display: none; }
+  .erc-handbook .mock-side { border-left: 0; border-top: 1px solid var(--hb-border); }
+}
+
+.erc-handbook .table-wrap { overflow-x: auto; border: 1px solid var(--hb-border); border-radius: 10px; background: var(--hb-surface); }
+.erc-handbook table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: 0.95rem; }
+.erc-handbook :is(th, td) { text-align: left; padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--hb-border); vertical-align: top; }
+.erc-handbook tr:last-child td { border-bottom: 0; }
+.erc-handbook th { font-family: var(--hb-display); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.95rem; background: var(--hb-sunken); }
+.erc-handbook td:first-child { font-weight: 700; white-space: nowrap; }
+.erc-handbook .grp { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--hb-muted); font-weight: 700; }
+@container (max-width: 34rem) {
+  .erc-handbook table { min-width: 0; }
+  .erc-handbook thead { display: none; }
+  .erc-handbook :is(tbody, tr, td) { display: block; }
+  .erc-handbook tr { border-bottom: 1px solid var(--hb-border); padding-block: 0.4rem; }
+  .erc-handbook :is(td, tr:last-child td) { border-bottom: 0; padding-block: 0.25rem; }
+  .erc-handbook td:first-child { white-space: normal; }
+  .erc-handbook tbody tr:last-child { border-bottom: 0; }
+}
+
+.erc-handbook .recipes { display: grid; gap: 1rem; }
+.erc-handbook .recipe { background: var(--hb-surface); border: 1px solid var(--hb-border); border-radius: 10px; padding: 1.1rem 1.25rem 1.25rem; display: grid; gap: 0.7rem; }
+.erc-handbook .recipe ol li::marker { font-family: var(--hb-display); font-weight: 700; color: var(--hb-accent-text); }
+.erc-handbook .meta { font-size: 0.85rem; color: var(--hb-muted); }
+
+.erc-handbook .habits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; }
+.erc-handbook .habit { border-left: 4px solid var(--hb-orange); padding: 0.2rem 0 0.2rem 1rem; display: grid; gap: 0.3rem; }
+.erc-handbook .habit b { font-size: 1rem; }
+.erc-handbook .habit p { font-size: 0.97rem; color: var(--hb-muted); }
+@container (max-width: 40rem) {
+  .erc-handbook .habits { grid-template-columns: 1fr; }
+}
+
+.erc-handbook footer { border-top: 2px dashed var(--hb-border); padding-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; justify-content: space-between; color: var(--hb-muted); font-size: 0.9rem; }
+.erc-handbook .motto { font-family: var(--hb-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; font-size: 1.15rem; color: var(--hb-ink); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .erc-handbook .address { transition: transform 160ms var(--hb-ease-out); }
+  .erc-handbook .address:active { transform: scale(0.97); }
+}
