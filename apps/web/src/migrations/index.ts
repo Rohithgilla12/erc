@@ -7,6 +7,7 @@ import * as migration_20261019_153928_learning_centre from './20261019_153928_le
 import * as migration_20261019_154509_pages_and_enquiries from './20261019_154509_pages_and_enquiries';
 import * as migration_20261020_024631_plans_and_resources from './20261020_024631_plans_and_resources';
 import * as migration_20261020_032538_newsletter_subscribers from './20261020_032538_newsletter_subscribers';
+import * as migration_20261020_033438_home_blocks from './20261020_033438_home_blocks';
 
 export const migrations = [
   {
@@ -52,6 +53,11 @@ export const migrations = [
   {
     up: migration_20261020_032538_newsletter_subscribers.up,
     down: migration_20261020_032538_newsletter_subscribers.down,
-    name: '20261020_032538_newsletter_subscribers'
+    name: '20261020_032538_newsletter_subscribers',
+  },
+  {
+    up: migration_20261020_033438_home_blocks.up,
+    down: migration_20261020_033438_home_blocks.down,
+    name: '20261020_033438_home_blocks'
   },
 ];
