@@ -1,6 +1,6 @@
 # ERC
 
-Website for ERC: race calendar, training plans, learning centre, and athlete profiles. Design: [docs/20261019-erc-phase-1-design.md](docs/20261019-erc-phase-1-design.md).
+Website for ERC: race calendar, training plans, learning centre, and athlete profiles. Design: [docs/20261019-erc-phase-1-design.md](docs/20261019-erc-phase-1-design.md). Analytics and newsletter setup: [docs/20261020-analytics-and-newsletter.md](docs/20261020-analytics-and-newsletter.md).
 
 ## Layout
 

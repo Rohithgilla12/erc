@@ -59,6 +59,10 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
       ENQUIRY_NOTIFY_TO: ${ENQUIRY_NOTIFY_TO:-}
+      # The tracker is on only when both are set, read per request, so setting them needs a restart, not a rebuild.
+      # The website id exists only after erc-umami is up and the website is created in its dashboard.
+      UMAMI_URL: ${UMAMI_URL:-}
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     volumes:
       - /data/media/erc/uploads:/data/uploads
       # The page cache grows with distinct URLs, so it lives on the large volume, not the root disk.
@@ -68,6 +72,36 @@ services:
     stop_grace_period: 10s
     labels:
       # Upgrades can carry Payload migrations, so they ship through deploy.sh, never Watchtower.
+      com.centurylinklabs.watchtower.enable: "false"
+    logging: *logging
+    networks: [erc-internal]
+
+  erc-umami:
+    # Verified 2026-10-20: Docker Hub index digest for 3.4.0 (MIT), which lists linux/arm64 and linux/amd64; the same
+    # platform images as ghcr.io/umami-software/umami:3.4.0. Pinned by digest; upgrades go through deploy.sh.
+    image: umamisoftware/umami:3.4.0@sha256:89b79efaffb7bff1f7137963f1edc31e543894b4a4a63a6f2c6cf59cc8f8fd4c
+    container_name: erc-umami
+    restart: unless-stopped
+    depends_on:
+      erc-postgres:
+        condition: service_healthy
+    environment:
+      # Its own role and database in erc-postgres, created by deploy.sh. Umami runs its own migrations on boot.
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD:?UMAMI_DB_PASSWORD is required}@erc-postgres:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET:?UMAMI_APP_SECRET is required}
+      # The tunnel is the only way in; without this Umami would see every visitor as cloudflared.
+      CLIENT_IP_HEADER: cf-connecting-ip
+      DISABLE_TELEMETRY: "1"
+      DISABLE_UPDATES: "1"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/heartbeat').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # Measured about 210 MB after loading the dashboard locally.
+    mem_limit: 384m
+    labels:
       com.centurylinklabs.watchtower.enable: "false"
     logging: *logging
     networks: [erc-internal]
