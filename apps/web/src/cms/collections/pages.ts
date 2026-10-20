@@ -1,8 +1,8 @@
-import { parseLinkHref, parseSlug } from '@erc/domain'
+import { parseLinkHref } from '@erc/domain'
 import type { Block, Field, GroupField, TextFieldSingleValidation } from 'payload'
 import { text } from 'payload/shared'
 
-import { seoField } from '../editorial-fields'
+import { seoField, slugField } from '../editorial-fields'
 import { defineEditorial } from '../kinds'
 
 const linkGroup = (name: string, label: string, required: boolean): GroupField => {
@@ -35,12 +35,6 @@ const linkGroup = (name: string, label: string, required: boolean): GroupField =
       },
     ],
   }
-}
-
-const validSlug: TextFieldSingleValidation = (value, args) => {
-  const base = text(value, args)
-  if (base !== true || !value) return base
-  return parseSlug(value).ok || 'Use lower-case words joined by hyphens, such as about.'
 }
 
 const optionalHeading: Field = { name: 'heading', type: 'text' }
@@ -138,15 +132,7 @@ export const Pages = defineEditorial({
   },
   fields: [
     { name: 'title', type: 'text', required: true },
-    {
-      name: 'slug',
-      type: 'text',
-      required: true,
-      unique: true,
-      index: true,
-      validate: validSlug,
-      admin: { position: 'sidebar', description: 'home is the front page; about, coaching and contact have their own addresses.' },
-    },
+    slugField({ from: 'title', description: 'home is the front page; about, coaching and contact have their own addresses.' }),
     seoField,
     {
       name: 'layout',

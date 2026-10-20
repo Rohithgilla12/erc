@@ -7,7 +7,7 @@ import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
 import { getPayload, type RequiredDataFromCollectionSlug } from 'payload'
 
-import type { Coach, Staff } from '@/payload-types'
+import type { Coach, Page, Staff } from '@/payload-types'
 
 import { FORGED_SESSION } from './fixtures/forged-session'
 
@@ -51,6 +51,7 @@ const author = await createStaff('author')
 const editor = await createStaff('editor')
 const coachIds: number[] = []
 const raceIds: number[] = []
+const pageIds: number[] = []
 
 const coachData = (slug: string, credentials: string): RequiredDataFromCollectionSlug<'coaches'> => ({
   name: slug,
@@ -270,6 +271,24 @@ async function reservedSlugCases() {
       400,
     )
   }
+
+  const body = {
+    root: { type: 'root', version: 1, direction: null, format: '', indent: 0, children: [{ type: 'paragraph', version: 1, children: [{ type: 'text', version: 1, text: 'Check' }] }] },
+  } as unknown as Extract<Page['layout'][number], { blockType: 'richText' }>['body']
+  const pageData = { title: `Write Check Page ${run}`, layout: [{ blockType: 'richText' as const, body }] }
+  const page = await payload.create({ collection: 'pages', data: pageData, draft: true, ...as(editor) })
+  pageIds.push(page.id)
+  expect('a page left without a slug takes one from its title, like every other editorial slug', page.slug, `write-check-page-${run}`)
+  expect(
+    'a page cannot take a malformed slug',
+    // Drafts skip validation, so only a publish can show the refusal.
+    await outcome(
+      payload
+        .create({ collection: 'pages', data: { ...pageData, slug: `Write Check ${run}`, _status: 'published' }, draft: false, ...as(editor) })
+        .then((created) => pageIds.push(created.id)),
+    ),
+    400,
+  )
 }
 
 async function restEditorialCases(site: string) {
@@ -335,6 +354,7 @@ try {
   else console.log('SKIP REST cases: set ERC_CHECK_URL to a running site')
 } finally {
   for (const id of coachIds) await payload.delete({ collection: 'coaches', id, ...system() })
+  for (const id of pageIds) await payload.delete({ collection: 'pages', id, ...system() })
   for (const id of raceIds) await payload.delete({ collection: 'races', id, ...system() })
   for (const user of [author, editor]) await payload.delete({ collection: 'staff', id: user.id, ...system() })
 }

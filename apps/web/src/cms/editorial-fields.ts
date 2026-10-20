@@ -15,9 +15,17 @@ const slugify = (title: unknown) =>
 
 /**
  * A URL slug, filled from `from` when left empty. `reserved` names route segments the slug would shadow, such as
- * `topic` under `/learn`.
+ * `topic` under `/learn`. `description` replaces the admin hint where the slug means more than an address.
  */
-export const slugField = ({ from, reserved }: { from: string; reserved?: (slug: string) => string | null }): TextField => {
+export const slugField = ({
+  from,
+  reserved,
+  description,
+}: {
+  from: string
+  reserved?: (slug: string) => string | null
+  description?: string
+}): TextField => {
   const validate: TextFieldSingleValidation = (value, args) => {
     if (value && !parseSlug(value).ok) return 'Use lower-case letters and digits joined by single hyphens, such as zone-2-basics'
     const clash = value ? reserved?.(value) : null
@@ -32,7 +40,7 @@ export const slugField = ({ from, reserved }: { from: string; reserved?: (slug: 
     hooks: { beforeValidate: [({ value, data }) => value || slugify(data?.[from])] },
     admin: {
       position: 'sidebar',
-      description: `Part of the page address. Left empty, it is made from the ${from}. Changing it breaks shared links.`,
+      description: description ?? `Part of the page address. Left empty, it is made from the ${from}. Changing it breaks shared links.`,
     },
   }
 }
