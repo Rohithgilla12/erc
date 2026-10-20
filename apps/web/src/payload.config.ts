@@ -16,6 +16,8 @@ import { Posts } from './cms/collections/posts'
 import { Topics } from './cms/collections/topics'
 import { Videos } from './cms/collections/videos'
 import { emailAdapter } from './cms/email'
+import { Resources } from './cms/collections/resources'
+import { TrainingPlans } from './cms/collections/training-plans'
 import { buildErcConfig } from './cms/kinds'
 import { revalidateEndpoint } from './cms/revalidate'
 import { mediaStorage } from './cms/storage'
@@ -31,7 +33,7 @@ export default buildErcConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, Pages, Enquiries],
+  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, Pages, Enquiries, Resources, TrainingPlans],
   endpoints: [revalidateEndpoint],
   editor: lexicalEditor(),
   email: emailAdapter(),

@@ -1,0 +1,494 @@
+.plans,
+.resources {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+.plans-head {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 42rem;
+}
+
+.plans-head .lede {
+  font-size: var(--text-lg);
+  color: var(--color-text-muted);
+}
+
+.plan-results {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.plan-results .result-count a {
+  font-weight: var(--weight-medium);
+}
+
+.plan-list,
+.resource-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-card,
+.resource-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: transform var(--duration-press) var(--ease-out);
+}
+
+.plan-card:active,
+.resource-card:active {
+  transform: scale(var(--press-scale));
+}
+
+.plan-card h2,
+.resource-card h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.plan-card h2 a,
+.resource-card h3 a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+/* The whole card is the tap target; the link stays the one focusable, announced element. */
+.plan-card h2 a::after,
+.resource-card h3 a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.plan-card h2 a:focus-visible,
+.resource-card h3 a:focus-visible {
+  outline: none;
+}
+
+.plan-card h2 a:focus-visible::after,
+.resource-card h3 a:focus-visible::after {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.plan-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-tags li {
+  padding: 0.125rem var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.plan-tags .plan-tag-access {
+  border: 1px solid var(--color-border-strong);
+  background: none;
+  color: var(--color-text-muted);
+}
+
+.plan-card-facts {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.plan-card-facts dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.plan-card-facts dd {
+  margin: 0 0 var(--space-2);
+}
+
+.plan-card-facts dd:last-child {
+  margin-bottom: 0;
+}
+
+.plan-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  max-width: 48rem;
+}
+
+.plan-detail h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-xl);
+}
+
+.plan-head {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.plan-head .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  justify-self: start;
+  min-height: var(--tap-target);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.plan-credit {
+  color: var(--color-text-muted);
+}
+
+.plan-head .button {
+  flex-wrap: wrap;
+  padding-block: var(--space-2);
+}
+
+.button-note {
+  font-size: var(--text-sm);
+  font-weight: normal;
+}
+
+.plan-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.plan-facts dt {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.plan-facts dd {
+  margin: 0 0 var(--space-3);
+}
+
+.plan-facts dd:last-child {
+  margin-bottom: 0;
+}
+
+.schedule-hint {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.print-title {
+  display: none;
+}
+
+.weeks {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.week {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.plan-detail .week h3 {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-sunken);
+  font-size: var(--text-base);
+}
+
+.week-focus {
+  font-size: var(--text-sm);
+  font-weight: normal;
+  color: var(--color-text-muted);
+}
+
+.sessions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.session {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.session + .session {
+  border-top: 1px solid var(--color-border);
+}
+
+.session-day {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.session-body {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.session-title {
+  font-weight: var(--weight-medium);
+}
+
+.session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The marker repeats the label, so effort never relies on colour alone. Harder sessions get the brand fill. */
+.intensity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.intensity::before {
+  content: '';
+  width: 0.625rem;
+  height: 0.625rem;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: var(--radius-pill);
+}
+
+.session:is([data-intensity='tempo'], [data-intensity='intervals'], [data-intensity='long']) .intensity::before {
+  border-color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.session[data-intensity='strength'] .intensity::before {
+  border-radius: 2px;
+  background: var(--color-text-muted);
+}
+
+.session[data-intensity='rest'] .intensity::before {
+  border-style: dashed;
+}
+
+.session-notes {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.plan-coaches {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-coaches li {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.plan-coaches span {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.resource-group h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.resource-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.resources .empty {
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 40rem) {
+  .plan-list,
+  .resource-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plan-facts {
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--space-3) var(--space-5);
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .plan-facts dd {
+    margin: 0;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .plan-card:hover,
+  .resource-card:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  .plan-card:hover h2 a,
+  .resource-card:hover h3 a {
+    text-decoration: underline;
+  }
+
+  .plan-head .back-link:hover {
+    color: var(--color-text);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-card:active,
+  .resource-card:active {
+    transform: none;
+    opacity: 0.75;
+  }
+
+  .plan-card,
+  .resource-card {
+    transition: opacity var(--duration-press) var(--ease-out);
+  }
+}
+
+/* Printing a plan page gives the schedule alone, in ink on white, whatever the reader's colour scheme. */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  :root:root {
+    --color-bg: #fff;
+    --color-surface: #fff;
+    --color-surface-sunken: #fff;
+    --color-border: #9a9a94;
+    --color-border-strong: #5b5b55;
+    --color-text: #000;
+    --color-text-muted: #3a3a36;
+    --color-accent: #000;
+    --color-on-accent: #000;
+  }
+
+  body {
+    font-size: 9.5pt;
+  }
+
+  body:has(.plan-detail) :is(.skip-link, .site-header, .site-footer) {
+    display: none;
+  }
+
+  .plan-detail {
+    display: block;
+    max-width: none;
+    padding: 0;
+  }
+
+  .plan-detail > :not(.plan-schedule) {
+    display: none;
+  }
+
+  .print-title {
+    display: block;
+    margin-bottom: 1mm;
+    font-size: 13pt;
+    font-weight: var(--weight-bold);
+  }
+
+  .plan-detail .plan-schedule h2 {
+    margin: 0 0 1mm;
+    font-size: 11pt;
+  }
+
+  .schedule-hint {
+    margin-bottom: 3mm;
+    font-size: 8.5pt;
+  }
+
+  .weeks {
+    display: block;
+    columns: 2;
+    column-gap: 6mm;
+  }
+
+  .week {
+    margin-bottom: 3mm;
+    border-radius: 0;
+    break-inside: avoid;
+  }
+
+  .plan-detail .week h3 {
+    padding: 1mm 2mm;
+    font-size: 10pt;
+  }
+
+  .week-focus,
+  .session-meta,
+  .session-notes {
+    font-size: 8.5pt;
+  }
+
+  .session {
+    grid-template-columns: 9mm minmax(0, 1fr);
+    gap: 2mm;
+    padding: 1mm 2mm;
+  }
+
+  .session-day {
+    font-size: 8.5pt;
+  }
+}

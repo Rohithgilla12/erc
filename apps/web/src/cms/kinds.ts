@@ -40,7 +40,7 @@ type SpecBase = Pick<CollectionConfig, 'hooks' | 'indexes' | 'labels' | 'default
   access?: WriteAccess
 }
 
-export type EditorialSpec = SpecBase & { slug: EditorialSlug }
+export type EditorialSpec = SpecBase & Pick<CollectionConfig, 'upload'> & { slug: EditorialSlug }
 
 /**
  * `moderated` rows are public once approved, `public` rows always, `private` rows never.

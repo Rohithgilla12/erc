@@ -78,6 +78,8 @@ export interface Config {
     videos: Video;
     pages: Page;
     enquiries: Enquiry;
+    resources: Resource;
+    trainingPlans: TrainingPlan;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -96,6 +98,8 @@ export interface Config {
     videos: VideosSelect<false> | VideosSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     enquiries: EnquiriesSelect<false> | EnquiriesSelect<true>;
+    resources: ResourcesSelect<false> | ResourcesSelect<true>;
+    trainingPlans: TrainingPlansSelect<false> | TrainingPlansSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -191,7 +195,7 @@ export interface Coach {
   id: number;
   name: string;
   /**
-   * Part of the page address. Left empty, it is made from the name.
+   * Part of the page address. Left empty, it is made from the name. Changing it breaks shared links.
    */
   slug: string;
   credentials: string;
@@ -513,7 +517,7 @@ export interface Topic {
   id: number;
   title: string;
   /**
-   * Part of the page address. Left empty, it is made from the title.
+   * Part of the page address. Left empty, it is made from the title. Changing it breaks shared links.
    */
   slug: string;
   /**
@@ -550,7 +554,7 @@ export interface Post {
   id: number;
   title: string;
   /**
-   * Part of the page address. Left empty, it is made from the title.
+   * Part of the page address. Left empty, it is made from the title. Changing it breaks shared links.
    */
   slug: string;
   /**
@@ -604,11 +608,11 @@ export interface Post {
   publishedAt?: string | null;
   seo?: {
     /**
-     * Defaults to the title.
+     * Leave empty to use the title.
      */
     title?: string | null;
     /**
-     * Defaults to the excerpt or description.
+     * Shown under the link in search results. Leave empty to use the excerpt or description.
      */
     description?: string | null;
     /**
@@ -643,7 +647,7 @@ export interface Video {
   id: number;
   title: string;
   /**
-   * Part of the page address. Left empty, it is made from the title.
+   * Part of the page address. Left empty, it is made from the title. Changing it breaks shared links.
    */
   slug: string;
   /**
@@ -696,11 +700,11 @@ export interface Video {
   publishedAt?: string | null;
   seo?: {
     /**
-     * Defaults to the title.
+     * Leave empty to use the title.
      */
     title?: string | null;
     /**
-     * Defaults to the excerpt or description.
+     * Shown under the link in search results. Leave empty to use the excerpt or description.
      */
     description?: string | null;
     /**
@@ -914,6 +918,204 @@ export interface Enquiry {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "resources".
+ */
+export interface Resource {
+  id: number;
+  title: string;
+  /**
+   * Part of the page address. Left empty, it is made from the title. Changing it breaks shared links.
+   */
+  slug: string;
+  description: string;
+  category: 'plan-pdf' | 'checklist' | 'guide' | 'spreadsheet';
+  access: {
+    kind: 'free';
+  };
+  seo?: {
+    /**
+     * Leave empty to use the title.
+     */
+    title?: string | null;
+    /**
+     * Shown under the link in search results. Leave empty to use the excerpt or description.
+     */
+    description?: string | null;
+    /**
+     * Shown when the page is shared. Defaults to the cover image, or a video’s thumbnail.
+     */
+    image?: (number | null) | Media;
+    noindex?: boolean | null;
+  };
+  workflow?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Applied when you save.
+   */
+  reviewRequest?: ('submit' | 'request_changes') | null;
+  reviewNote?: string | null;
+  prefix?: string | null;
+  _objectKey?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * The plan length is the number of weeks you add; there is no separate duration to keep in step.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "trainingPlans".
+ */
+export interface TrainingPlan {
+  id: number;
+  title: string;
+  /**
+   * Part of the page address. Left empty, it is made from the title. Changing it breaks shared links.
+   */
+  slug: string;
+  goal:
+    | '5k'
+    | '10k'
+    | 'half'
+    | 'marathon'
+    | 'ultra-50k'
+    | 'ultra-50mi'
+    | 'ultra-100k'
+    | 'ultra-100mi'
+    | 'ultra-multiday'
+    | 'other';
+  level: 'beginner' | 'intermediate' | 'advanced';
+  /**
+   * What a runner should already manage, such as "30 minutes of easy running, three times a week".
+   */
+  prerequisites: string;
+  audience: string;
+  overview: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  weeks: {
+    /**
+     * One line, such as "Build to 20 minutes of running".
+     */
+    focus: string;
+    sessions: {
+      day: '1' | '2' | '3' | '4' | '5' | '6' | '7';
+      intensity: 'easy' | 'steady' | 'tempo' | 'intervals' | 'long' | 'strength' | 'rest';
+      title: string;
+      target: {
+        kind: 'distance' | 'duration' | 'none';
+        metres?: number | null;
+        /**
+         * 1800 is 30 minutes.
+         */
+        seconds?: number | null;
+      };
+      notes?: string | null;
+      id?: string | null;
+    }[];
+    id?: string | null;
+  }[];
+  strength?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  recovery?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  coaches: (number | Coach)[];
+  access: {
+    kind: 'free';
+  };
+  /**
+   * Optional. Readers download it through its Downloads entry.
+   */
+  pdf?: (number | null) | Resource;
+  seo?: {
+    /**
+     * Leave empty to use the title.
+     */
+    title?: string | null;
+    /**
+     * Shown under the link in search results. Leave empty to use the excerpt or description.
+     */
+    description?: string | null;
+    /**
+     * Shown when the page is shared. Defaults to the cover image, or a video’s thumbnail.
+     */
+    image?: (number | null) | Media;
+    noindex?: boolean | null;
+  };
+  workflow?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Applied when you save.
+   */
+  reviewRequest?: ('submit' | 'request_changes') | null;
+  reviewNote?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -979,6 +1181,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'enquiries';
         value: number | Enquiry;
+      } | null)
+    | ({
+        relationTo: 'resources';
+        value: number | Resource;
+      } | null)
+    | ({
+        relationTo: 'trainingPlans';
+        value: number | TrainingPlan;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1438,6 +1648,104 @@ export interface EnquiriesSelect<T extends boolean = true> {
   senderKey?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "resources_select".
+ */
+export interface ResourcesSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  description?: T;
+  category?: T;
+  access?:
+    | T
+    | {
+        kind?: T;
+      };
+  seo?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        image?: T;
+        noindex?: T;
+      };
+  workflow?: T;
+  reviewRequest?: T;
+  reviewNote?: T;
+  prefix?: T;
+  _objectKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "trainingPlans_select".
+ */
+export interface TrainingPlansSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  goal?: T;
+  level?: T;
+  prerequisites?: T;
+  audience?: T;
+  overview?: T;
+  weeks?:
+    | T
+    | {
+        focus?: T;
+        sessions?:
+          | T
+          | {
+              day?: T;
+              intensity?: T;
+              title?: T;
+              target?:
+                | T
+                | {
+                    kind?: T;
+                    metres?: T;
+                    seconds?: T;
+                  };
+              notes?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  strength?: T;
+  recovery?: T;
+  coaches?: T;
+  access?:
+    | T
+    | {
+        kind?: T;
+      };
+  pdf?: T;
+  seo?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        image?: T;
+        noindex?: T;
+      };
+  workflow?: T;
+  reviewRequest?: T;
+  reviewNote?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
