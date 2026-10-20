@@ -33,7 +33,7 @@ export type ErcCollection = Classified & { readonly [built]: true }
 
 type WriteAccess = Pick<NonNullable<CollectionConfig['access']>, 'create' | 'update' | 'delete' | 'unlock'>
 
-type SpecBase = Pick<CollectionConfig, 'hooks' | 'indexes' | 'labels' | 'defaultSort'> & {
+type SpecBase = Pick<CollectionConfig, 'hooks' | 'indexes' | 'labels' | 'defaultSort' | 'endpoints'> & {
   fields: Field[]
   admin?: Omit<NonNullable<CollectionConfig['admin']>, 'group'>
   /** Read access is never configurable; it comes from the kind. Writes default to staff only. */

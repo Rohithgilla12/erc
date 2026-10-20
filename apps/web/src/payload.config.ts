@@ -12,6 +12,7 @@ import { Pages } from './cms/collections/pages'
 import { raceCalendarIndexes, Races } from './cms/collections/races'
 import { Results } from './cms/collections/results'
 import { Staff } from './cms/collections/staff'
+import { Subscribers } from './cms/collections/subscribers'
 import { Posts } from './cms/collections/posts'
 import { Topics } from './cms/collections/topics'
 import { Videos } from './cms/collections/videos'
@@ -33,7 +34,7 @@ export default buildErcConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, Pages, Enquiries, Resources, TrainingPlans],
+  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, Pages, Enquiries, Subscribers, Resources, TrainingPlans],
   endpoints: [revalidateEndpoint],
   editor: lexicalEditor(),
   email: emailAdapter(),

@@ -78,6 +78,7 @@ export interface Config {
     videos: Video;
     pages: Page;
     enquiries: Enquiry;
+    subscribers: Subscriber;
     resources: Resource;
     trainingPlans: TrainingPlan;
     'payload-kv': PayloadKv;
@@ -98,6 +99,7 @@ export interface Config {
     videos: VideosSelect<false> | VideosSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     enquiries: EnquiriesSelect<false> | EnquiriesSelect<true>;
+    subscribers: SubscribersSelect<false> | SubscribersSelect<true>;
     resources: ResourcesSelect<false> | ResourcesSelect<true>;
     trainingPlans: TrainingPlansSelect<false> | TrainingPlansSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
@@ -917,6 +919,28 @@ export interface Enquiry {
   createdAt: string;
 }
 /**
+ * Newsletter signups. Email only confirmed subscribers. Delete a subscriber to erase them on request.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "subscribers".
+ */
+export interface Subscriber {
+  id: number;
+  email: string;
+  status: 'pending' | 'confirmed' | 'unsubscribed';
+  source: 'site-footer';
+  /**
+   * When they last sent the signup form and we emailed them a confirmation link.
+   */
+  consentedAt: string;
+  confirmedAt?: string | null;
+  confirmTokenHash?: string | null;
+  confirmExpiresAt?: string | null;
+  senderKey?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "resources".
  */
@@ -1181,6 +1205,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'enquiries';
         value: number | Enquiry;
+      } | null)
+    | ({
+        relationTo: 'subscribers';
+        value: number | Subscriber;
       } | null)
     | ({
         relationTo: 'resources';
@@ -1645,6 +1673,22 @@ export interface EnquiriesSelect<T extends boolean = true> {
   message?: T;
   consent?: T;
   status?: T;
+  senderKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "subscribers_select".
+ */
+export interface SubscribersSelect<T extends boolean = true> {
+  email?: T;
+  status?: T;
+  source?: T;
+  consentedAt?: T;
+  confirmedAt?: T;
+  confirmTokenHash?: T;
+  confirmExpiresAt?: T;
   senderKey?: T;
   updatedAt?: T;
   createdAt?: T;

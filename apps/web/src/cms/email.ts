@@ -26,3 +26,6 @@ export const emailAdapter = () =>
     : undefined
 
 export const enquiryRecipient = (): string | null => (settings && process.env.ENQUIRY_NOTIFY_TO?.trim()) || null
+
+/** Newsletter signup is offered only when a confirmation email can actually go out. */
+export const emailConfigured = (): boolean => settings !== null
