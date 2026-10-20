@@ -4,6 +4,7 @@ import React from 'react'
 
 import { siteConfig } from '@/site-config'
 
+import { NewsletterSignup } from './newsletter/_components/newsletter-signup'
 import { CLUB, SITE_SECTIONS } from './site-nav'
 import { SiteNavLinks } from './site-nav-links'
 import './styles.css'
@@ -49,7 +50,8 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
         <main id="content">{children}</main>
         <footer className="site-footer">
           <div className="site-footer-inner">
-            <p className="tagline">{CLUB.tagline}</p>
+            <NewsletterSignup />
+            <p className="tagline">{CLUB.motto}</p>
             <nav aria-label="Footer">
               {SITE_SECTIONS.map(({ href, label }) => (
                 <a key={href} href={href}>
