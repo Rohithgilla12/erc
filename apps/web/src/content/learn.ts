@@ -35,7 +35,7 @@ import type { ErcSlug } from '@/cms/slugs'
 import type { Coach as CoachDoc, Media, Post as PostDoc, Topic as TopicDoc, Video as VideoDoc } from '@/payload-types'
 
 import { plainTextOf, wordCount } from './plain-text'
-import { fail, mediaUrl, nonEmpty, parsing, richTextOf, slugOf, type Logger } from './published'
+import { fail, LINK_TARGETS, mediaUrl, nonEmpty, parsing, richTextOf, slugOf, type Logger } from './published'
 
 export const POSTS_PER_PAGE = 12
 export const VIDEOS_PER_PAGE = 12
@@ -51,7 +51,7 @@ export type PostFilter = { kind: 'topic'; id: Id<'topics'> } | { kind: 'author';
  */
 const cachedRead = <A extends unknown[], R>(key: string, reads: readonly ErcSlug[], read: (payload: Payload, ...args: A) => Promise<R>) =>
   unstable_cache(async (...args: A) => read(await getPayload({ config }), ...args), [key], {
-    tags: reads.map(collectionTag),
+    tags: [...new Set(reads)].map(collectionTag),
     revalidate: 3600,
   })
 
@@ -139,7 +139,7 @@ const postSlugs = publishedSlugs('posts')
 const videoSlugs = publishedSlugs('videos')
 const coachSlugs = publishedSlugs('coaches')
 
-const readPost = cachedRead('learn:post', ['posts', 'videos', 'topics', 'coaches', 'media'], async (payload, slug: string) => {
+const readPost = cachedRead('learn:post', ['posts', 'videos', 'topics', 'coaches', 'media', ...LINK_TARGETS], async (payload, slug: string) => {
   const { docs } = await payload.find({
     collection: 'posts',
     ...anonymous,
@@ -158,7 +158,7 @@ const readPost = cachedRead('learn:post', ['posts', 'videos', 'topics', 'coaches
  */
 export const getPost = cache(async (slug: string): Promise<Post | null> => ((await postSlugs()).includes(slug) ? readPost(slug) : null))
 
-const readCoach = cachedRead('learn:coach', ['coaches', 'media'], async (payload, slug: string) => {
+const readCoach = cachedRead('learn:coach', ['coaches', 'media', ...LINK_TARGETS], async (payload, slug: string) => {
   const { docs } = await payload.find({ collection: 'coaches', ...anonymous, where: { slug: { equals: slug } }, depth: 1, limit: 1, pagination: false })
   return parseAll(docs, parseCoach, 'coach', payload)[0] ?? null
 })
@@ -204,7 +204,7 @@ export const findVideos = cache(async (category: VideoCategory, page: number): P
   return last === 1 ? first : readVideoPage(category, last, VIDEOS_PER_PAGE)
 })
 
-const readVideo = cachedRead('learn:video', ['videos', 'posts', 'topics', 'media'], async (payload, slug: string) => {
+const readVideo = cachedRead('learn:video', ['videos', 'posts', 'topics', 'media', ...LINK_TARGETS], async (payload, slug: string) => {
   const { docs } = await payload.find({
     collection: 'videos',
     ...anonymous,

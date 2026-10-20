@@ -17,9 +17,10 @@ import { getPayload, type Payload } from 'payload'
 import { cache } from 'react'
 
 import { collectionTag } from '@/cms/revalidate'
+import type { ErcSlug } from '@/cms/slugs'
 import type { Coach as CoachDoc, Page as PageDoc } from '@/payload-types'
 
-import { mediaUrl, type Logger } from './published'
+import { LINK_TARGETS, mediaUrl, type Logger } from './published'
 import { findRaces } from './races'
 
 export type PageBlock =
@@ -40,9 +41,9 @@ export type SitePage = { slug: Slug; title: string; seo: PageSeo; blocks: readon
 /** Slugs with a route. Only these are read, so the cache holds at most one entry per slug. */
 export type RoutedPageSlug = 'home' | 'about' | 'coaching' | 'contact'
 
-// Coach cards and SEO images embed coach and media data, so a change to either expires the page too.
+// Coach cards, SEO images and rich-text links embed other documents, so a change to any of them expires the page too.
 const cachedPageBySlug = unstable_cache(async (slug: RoutedPageSlug) => pageBySlug(await getPayload({ config }), slug), ['pages:get'], {
-  tags: [collectionTag('pages'), collectionTag('coaches'), collectionTag('media')],
+  tags: [...new Set<ErcSlug>(['pages', 'coaches', 'media', ...LINK_TARGETS])].map(collectionTag),
   revalidate: 3600,
 })
 

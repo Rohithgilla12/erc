@@ -6,6 +6,7 @@
  */
 import config from '@payload-config'
 import type { RichText as RichTextValue } from '@erc/domain'
+import { sql } from '@payloadcms/db-postgres'
 import { getPayload, type RequiredDataFromCollectionSlug } from 'payload'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -48,7 +49,7 @@ const createStaff = async (role: Staff['role']): Promise<StaffUser> => {
 
 const author = await createStaff('author')
 const editor = await createStaff('editor')
-const created = { posts: [] as number[], videos: [] as number[] }
+const created = { posts: [] as number[], videos: [] as number[], plans: [] as number[], races: [] as number[] }
 
 const seededTopic = (await payload.find({ collection: 'topics', where: { slug: { equals: 'beginner-running' } }, limit: 1 })).docs[0]
 const seededCoach = (await payload.find({ collection: 'coaches', where: { slug: { equals: 'placeholder-coach-a' } }, limit: 1 })).docs[0]
@@ -229,7 +230,53 @@ const loadedUrls = (body: string) => [
 
 const YOUTUBE_HOSTS = /youtube\.com|youtube-nocookie\.com|ytimg\.com|googlevideo\.com|youtu\.be/
 
+/** A cached post shows a link only while its target is public, so withdrawing the target must expire the post. */
+async function linkTargetCases(site: string) {
+  const template = (await payload.find({ collection: 'trainingPlans', where: { slug: { equals: 'beginner-5k-placeholder' } }, depth: 0, limit: 1 })).docs[0]
+  if (!template) throw new Error('Run src/scripts/seed-plans.ts first')
+  const weeks: typeof template.weeks = JSON.parse(JSON.stringify(template.weeks, (key, value) => (key === 'id' ? undefined : value)))
+  const { id: _id, slug: _slug, title: _title, pdf: _pdf, workflow: _workflow, createdAt: _c, updatedAt: _u, ...planFields } = template as typeof template & { workflow?: unknown }
+  const plan = await payload.create({
+    collection: 'trainingPlans',
+    data: { ...planFields, weeks, title: `Learn check plan ${run}`, slug: `learn-check-plan-${run}`, pdf: null, _status: 'published' },
+    ...as(editor),
+  })
+  created.plans.push(plan.id)
+  const raceSlug = `learn-check-race-${run}`
+  const { rows } = await payload.db.drizzle.execute(sql`
+    INSERT INTO races (name, slug, discipline, dates_start, dates_day_count, time_zone, location_kind,
+      official_url, registration_url, status_kind, source_kind, last_verified_on, summary, moderation_state)
+    VALUES (${raceSlug}, ${raceSlug}, 'road', '2099-01-01', 1, 'Asia/Kolkata', 'virtual',
+      'https://example.org', 'https://example.org', 'scheduled', 'runner-submission', '2026-10-19', 'check', 'approved')
+    RETURNING id`)
+  const raceId = (rows[0] as { id: number }).id
+  created.races.push(raceId)
+
+  const postSlug = `learn-check-links-${run}`
+  const post = await payload.create({
+    collection: 'posts',
+    data: {
+      ...postData(postSlug, `Learn check links ${run}`),
+      body: withLinks(internalLink('trainingPlans', plan.id, 'plan link'), internalLink('races', raceId, 'race link')),
+      _status: 'published',
+    },
+    ...as(editor),
+  })
+  created.posts.push(post.id)
+  const links = async () => {
+    const body = (await html(site, `/learn/${postSlug}`)).body
+    return [body.includes(`href="/plans/${plan.slug}"`), body.includes(`href="/races/${raceSlug}"`)]
+  }
+  expect('a cached post links to a published plan and an approved race', await links(), [true, true])
+  await payload.update({ collection: 'trainingPlans', id: plan.id, data: { _status: 'draft' }, ...as(editor) })
+  expect('unpublishing the plan takes its link off the cached post', await links(), [false, true])
+  await payload.delete({ collection: 'races', id: raceId })
+  created.races.splice(created.races.indexOf(raceId), 1)
+  expect('deleting the race takes its link off the cached post', await links(), [false, false])
+}
+
 async function siteCases(site: string) {
+  await linkTargetCases(site)
   const SEEDED_POST = '/learn/placeholder-planning-a-first-ultra'
   const SEEDED_VIDEO = '/videos/placeholder-video-running-form-drills'
   const SEEDED_COACH = '/coaches/placeholder-coach-a'
@@ -368,6 +415,8 @@ try {
 } finally {
   for (const id of created.posts) await payload.delete({ collection: 'posts', id })
   for (const id of created.videos) await payload.delete({ collection: 'videos', id })
+  for (const id of created.plans) await payload.delete({ collection: 'trainingPlans', id })
+  for (const id of created.races) await payload.delete({ collection: 'races', id })
   await payload.delete({ collection: 'staff', where: { email: { like: `learn-check-%-${run}@erc.invalid` } }, ...system() })
 }
 

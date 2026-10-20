@@ -18,9 +18,10 @@ import { getPayload, type Payload } from 'payload'
 import { cache } from 'react'
 
 import { collectionTag } from '@/cms/revalidate'
+import type { ErcSlug } from '@/cms/slugs'
 import type { TrainingPlan as PlanDoc } from '@/payload-types'
 
-import { nonEmpty, parsing, present, publishedCoaches, publishedFields, richTextOf, type Logger } from './published'
+import { LINK_TARGETS, nonEmpty, parsing, present, publishedCoaches, publishedFields, richTextOf, type Logger } from './published'
 import { publicResources } from './resources'
 
 type SessionDoc = PlanDoc['weeks'][number]['sessions'][number]
@@ -97,8 +98,8 @@ export async function publishedPlans(payload: Payload): Promise<TrainingPlan[]> 
 }
 
 const cachedPlans = unstable_cache(async () => publishedPlans(await getPayload({ config })), ['plans:all'], {
-  // A plan page shows its coaches, its PDF, and its SEO image, so a change to any of them must expire it too.
-  tags: (['trainingPlans', 'coaches', 'resources', 'media'] as const).map(collectionTag),
+  // A plan page shows its coaches, its PDF, its SEO image and rich-text links, so a change to any of them expires it too.
+  tags: [...new Set<ErcSlug>(['trainingPlans', 'coaches', 'resources', 'media', ...LINK_TARGETS])].map(collectionTag),
   revalidate: 3600,
 })
 

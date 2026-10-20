@@ -1,4 +1,5 @@
 import {
+  CONTENT_KINDS,
   parseSlug,
   type CoachProfile,
   type EditorialState,
@@ -10,6 +11,7 @@ import {
   type Slug,
 } from '@erc/domain'
 
+import type { ErcSlug } from '@/cms/slugs'
 import type { Coach as CoachDoc, Media as MediaDoc } from '@/payload-types'
 import { absoluteUrl, siteConfig } from '@/site-config'
 
@@ -78,6 +80,12 @@ export const publishedFields = (doc: EditorialDoc, fallback: { title: string; de
     } satisfies Seo,
   }
 }
+
+/**
+ * The collections a rich-text link can point at. A cached read that renders rich text is tagged with them too, so
+ * unpublishing a link's target takes the link off cached pages instead of leaving it for up to an hour.
+ */
+export const LINK_TARGETS: readonly ErcSlug[] = Object.values(CONTENT_KINDS).map(({ collection }) => collection)
 
 /** Lexical JSON is opaque to the domain; only `rich-text.tsx` looks inside it. */
 export const richTextOf = (value: object): RichText => value as unknown as RichText
