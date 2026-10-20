@@ -37,6 +37,8 @@ export default buildErcConfig({
   collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, Pages, Enquiries, Subscribers, Resources, TrainingPlans],
   endpoints: [revalidateEndpoint],
   editor: lexicalEditor(),
+  // Pages read through the Local API and the admin through REST, so GraphQL would only be one more public surface.
+  graphQL: { disable: true },
   email: emailAdapter(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

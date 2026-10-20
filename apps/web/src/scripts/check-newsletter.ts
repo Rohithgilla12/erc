@@ -8,6 +8,8 @@ import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
 import { getPayload } from 'payload'
 
+import { FORGED_SESSION } from './fixtures/forged-session'
+
 const payload = await getPayload({ config })
 const site = process.env.ERC_CHECK_URL
 const mailpit = process.env.MAILPIT_URL
@@ -242,10 +244,13 @@ try {
     'confirmed',
   ])
 
+  // Past the API gate as an anonymous reader, so the collection's own access rules answer.
   const anonymous = await Promise.all(
-    [get('/api/subscribers'), get('/api/subscribers/export.csv'), fetch(new URL('/api/subscribers', site), { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } })].map(
-      async (response) => (await response).status,
-    ),
+    [
+      fetch(new URL('/api/subscribers', site), { headers: FORGED_SESSION }),
+      fetch(new URL('/api/subscribers/export.csv', site), { headers: FORGED_SESSION }),
+      fetch(new URL('/api/subscribers', site), { method: 'POST', body: '{}', headers: { 'content-type': 'application/json', ...FORGED_SESSION } }),
+    ].map(async (response) => (await response).status),
   )
   expect('anonymous REST reads, exports and creates are refused', anonymous, [403, 403, 403])
 

@@ -1,10 +1,16 @@
 /**
  * Proves the record read rules against a migrated database: `pnpm payload run src/scripts/check-record-access.ts`.
- * Everything it writes is removed.
+ * Set `ERC_CHECK_URL` to a running site that shares this database and `REVALIDATE_SECRET` to repeat them over REST
+ * and to check the API gate in `src/proxy.ts`. Everything it writes is removed.
  */
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
 import { getPayload } from 'payload'
+import sharp from 'sharp'
+
+import { siteConfig } from '@/site-config'
+
+import { FORGED_SESSION } from './fixtures/forged-session'
 
 const payload = await getPayload({ config })
 const db = payload.db.drizzle
@@ -52,6 +58,7 @@ const staff = await payload.create({
 // Payload's auth strategy tags the user with its collection; a Local API caller must do the same.
 const staffUser = { ...staff, collection: 'staff' as const }
 let athleteId: number | null = null
+let mediaId: number | null = null
 
 try {
   await insertRace(slugs.approved, 'approved')
@@ -97,10 +104,79 @@ try {
   const approvedAthlete = { collection: 'athletes', id: athlete.id, overrideAccess: false } as const
   expect('anonymous reads of an approved athlete leave out who submitted it', (await payload.findByID(approvedAthlete)).moderation.submitter, undefined)
   expect('staff read who submitted an athlete', (await payload.findByID({ ...approvedAthlete, user: staffUser })).moderation.submitter, submitter)
+
+  const site = process.env.ERC_CHECK_URL
+  if (site) await overHttp(site, athlete)
+  else console.log('SKIP REST and API gate cases: set ERC_CHECK_URL to a running site')
 } finally {
+  if (mediaId !== null) await payload.delete({ collection: 'media', id: mediaId })
   if (athleteId !== null) await payload.delete({ collection: 'athletes', id: athleteId })
   await db.execute(sql`DELETE FROM races WHERE slug IN (${slugs.approved}, ${slugs.submitted})`)
   await payload.delete({ collection: 'staff', id: staff.id })
+}
+
+async function overHttp(site: string, athlete: { id: number; slug: string; name: string }) {
+  const request = (path: string, init: RequestInit = {}) => fetch(new URL(path, site), { redirect: 'manual', ...init })
+  const status = async (path: string, init?: RequestInit) => (await request(path, init)).status
+  const json = async (path: string, headers: Record<string, string>) => (await request(path, { headers })).json()
+
+  const image = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#c03' } }).png().toBuffer()
+  const media = await payload.create({
+    collection: 'media',
+    data: { alt: 'Access check' },
+    file: { data: image, mimetype: 'image/png', name: `access-check-${run}.png`, size: image.length },
+  })
+  mediaId = media.id
+
+  const listings = ['/api/media', '/api/races', '/api/athletes', '/api/resources', `/api/athletes/${athlete.id}`, '/api/staff']
+  expect(
+    'anonymous REST listings are not found',
+    await Promise.all(listings.map((path) => status(path))),
+    listings.map(() => 404),
+  )
+  const graphql = { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query: '{ Races { docs { id } } }' }) }
+  expect('anonymous GraphQL is not found', [await status('/api/graphql'), await status('/api/graphql', graphql), await status('/api/graphql-playground')], [404, 404, 404])
+  expect(
+    'GraphQL stays off for a credentialed request',
+    await status('/api/graphql', { ...graphql, headers: { ...graphql.headers, ...FORGED_SESSION } }),
+    404,
+  )
+
+  const file = await request(`/api/media/file/${media.filename}`)
+  expect('anonymous readers still load uploaded images', [file.status, file.headers.get('content-type')], [200, 'image/png'])
+  const me = await request('/api/staff/me')
+  expect('the admin sign-in page can ask who is signed in', [me.status, ((await me.json()) as { user: unknown }).user], [200, null])
+  const revalidate = await request('/api/revalidate', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${siteConfig().revalidateSecret}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ tags: ['collection:races'] }),
+  })
+  expect('scripts still revalidate the site', revalidate.status, 200)
+
+  type Listed = { docs: { slug: string; moderation: { submitter?: unknown } }[] }
+  const forged = (await json(`/api/races?where[slug][in]=${slugs.approved},${slugs.submitted}`, FORGED_SESSION)) as Listed
+  expect('a forged session reads only approved races, without who submitted them', forged.docs.map((race) => [race.slug, race.moderation.submitter]), [
+    [slugs.approved, undefined],
+  ])
+  const forgedAthlete = (await json(`/api/athletes/${athlete.id}`, FORGED_SESSION)) as Listed['docs'][number]
+  expect('a forged session reads an approved athlete without who submitted it', [forgedAthlete.slug, forgedAthlete.moderation.submitter], [athlete.slug, undefined])
+  expect('a forged session is still refused staff accounts', await status('/api/staff', { headers: FORGED_SESSION }), 403)
+
+  const login = await request('/api/staff/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: staff.email, password: `pw-${run}-check` }),
+  })
+  const { token } = (await login.json()) as { token?: string }
+  expect('staff sign in through the admin endpoint', [login.status, typeof token], [200, 'string'])
+  const signedIn = (await json(`/api/races?where[slug][in]=${slugs.approved},${slugs.submitted}&sort=slug`, { cookie: `payload-token=${token}` })) as Listed
+  expect('signed-in staff read every race with its submitter', signedIn.docs.map((race) => [race.slug, race.moderation.submitter]), [
+    [slugs.approved, submitter],
+    [slugs.submitted, submitter],
+  ])
+
+  const profile = await request(`/athletes/${athlete.slug}`)
+  expect('the public profile page still renders', [profile.status, (await profile.text()).includes(athlete.name)], [200, true])
 }
 
 if (failures.length > 0) {

@@ -27,14 +27,14 @@ The schema changes only through migrations, in development too (`push` is off). 
 docker compose -f infra/dev/compose.yaml up -d
 pnpm --filter @erc/web payload migrate                       # apply migrations
 pnpm --filter @erc/web payload migrate:create <name>         # after changing a collection
-pnpm --filter @erc/web payload run src/scripts/check-record-access.ts
+pnpm --filter @erc/web payload run src/scripts/check-record-access.ts   # ERC_CHECK_URL=<site> adds the REST cases and the API gate
 pnpm --filter @erc/web payload run src/scripts/check-write-rules.ts     # ERC_CHECK_URL=<site> adds the REST cases
 pnpm --filter @erc/web payload run src/scripts/check-race-hook.ts
 pnpm --filter @erc/web payload run src/scripts/seed-races.ts          # 3,000 synthetic races, replaced on re-run
 pnpm --filter @erc/web payload run src/scripts/check-race-calendar.ts # after seeding
 pnpm --filter @erc/web payload run src/scripts/check-revalidation.ts  # with the site running
 pnpm --filter @erc/web payload run src/scripts/seed-athletes.ts       # six placeholder athletes, replaced on re-run
-pnpm --filter @erc/web payload run src/scripts/check-athletes.ts      # ERC_CHECK_URL=<site> adds REST, GraphQL, and page cases
+pnpm --filter @erc/web payload run src/scripts/check-athletes.ts      # ERC_CHECK_URL=<site> adds REST and page cases
 pnpm --filter @erc/web payload run src/scripts/seed-learn.ts          # placeholder topics, coaches, posts and videos, upserted by slug
 pnpm --filter @erc/web payload run src/scripts/check-learn.ts         # after seeding; ERC_CHECK_URL=<site> adds route, REST, player and JSON-LD cases
 pnpm --filter @erc/web payload run src/scripts/seed-pages.ts          # placeholder Home, About, Coaching, Contact, published

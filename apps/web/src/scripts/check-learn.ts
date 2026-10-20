@@ -9,6 +9,8 @@ import { getPayload, type RequiredDataFromCollectionSlug } from 'payload'
 
 import type { Staff } from '@/payload-types'
 
+import { FORGED_SESSION } from './fixtures/forged-session'
+
 const payload = await getPayload({ config })
 const run = Date.now()
 const failures: string[] = []
@@ -220,8 +222,9 @@ async function siteCases(site: string) {
   expect('route: the unpublished revision never appears', live.body.includes(revisionTitle), false)
   expect('route: an internal link in the body points at the linked post', live.body.includes(`href="/learn/${LINKED_SLUG}"`), true)
 
+  // Past the API gate as an anonymous reader, so these cases still test the collection's read access.
   const rest = async (query: string) => {
-    const response = await fetch(new URL(`/api/posts${query}`, site))
+    const response = await fetch(new URL(`/api/posts${query}`, site), { headers: FORGED_SESSION })
     return { status: response.status, text: await response.text() }
   }
   const restDraft = await rest(`?where[slug][equals]=${draftSlug}`)

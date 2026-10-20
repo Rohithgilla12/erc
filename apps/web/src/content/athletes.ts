@@ -56,7 +56,7 @@ export const getAthleteProfile = cache(async (slug: string): Promise<AthleteProf
 
 /**
  * Uncached; pages call `listAthletes`. Every read is anonymous (`overrideAccess: false`), so the collections' read
- * access decides what is public, exactly as it does for REST and GraphQL.
+ * access decides what is public, exactly as it does for REST.
  */
 export async function athleteDirectory(payload: Payload): Promise<DirectoryEntry[]> {
   const athletes = await publicAthletes(payload)

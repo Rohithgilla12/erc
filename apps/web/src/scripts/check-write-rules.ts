@@ -9,6 +9,8 @@ import { getPayload, type RequiredDataFromCollectionSlug } from 'payload'
 
 import type { Coach, Staff } from '@/payload-types'
 
+import { FORGED_SESSION } from './fixtures/forged-session'
+
 const payload = await getPayload({ config })
 const db = payload.db.drizzle
 const run = Date.now()
@@ -289,12 +291,12 @@ async function restEditorialCases(site: string) {
   const patch = (headers: Record<string, string>, query: string, body: object) =>
     fetch(new URL(`/api/coaches/${coach.id}${query}`, site), { method: 'PATCH', headers, body: JSON.stringify(body) }).then((r) => r.status)
   const anonymous = async (draft: boolean) => {
-    const response = await fetch(new URL(`/api/coaches?where[slug][equals]=${slug}${draft ? '&draft=true' : ''}`, site))
+    const response = await fetch(new URL(`/api/coaches?where[slug][equals]=${slug}${draft ? '&draft=true' : ''}`, site), { headers: FORGED_SESSION })
     const { docs } = (await response.json()) as { docs: Coach[] }
     return docs.map((doc) => doc.credentials)
   }
   const anonymousById = async () => {
-    const response = await fetch(new URL(`/api/coaches/${coach.id}?draft=true`, site))
+    const response = await fetch(new URL(`/api/coaches/${coach.id}?draft=true`, site), { headers: FORGED_SESSION })
     return response.ok ? ((await response.json()) as Coach).credentials : response.status
   }
 

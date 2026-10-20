@@ -1,13 +1,15 @@
 /**
  * Proves the athlete and result rules against a migrated database: `pnpm payload run src/scripts/check-athletes.ts`.
- * Set `ERC_CHECK_URL` to a running site (for example `http://localhost:3000`) to repeat the visibility cases over REST,
- * GraphQL, and the public pages. Everything it writes is removed.
+ * Set `ERC_CHECK_URL` to a running site (for example `http://localhost:3000`) to repeat the visibility cases over REST
+ * and the public pages. Everything it writes is removed.
  */
 import config from '@payload-config'
 import { deriveAchievements, type RaceResult } from '@erc/domain'
 import { getPayload, type RequiredDataFromCollectionSlug } from 'payload'
 
 import { athleteDirectory, athleteProfile, parseResultDoc } from '@/content/athletes'
+
+import { FORGED_SESSION } from './fixtures/forged-session'
 
 const payload = await getPayload({ config })
 const run = Date.now()
@@ -105,7 +107,7 @@ try {
   const shownApproved = [official10k, self10k, ultra]
   const fixtureSlugs = [shown, quiet, hidden, pending].map((athlete) => athlete.slug)
 
-  // Read access, which REST, GraphQL, and the content layer all go through.
+  // Read access, which REST and the content layer both go through.
   const anonymousAthletes = await payload.find({ collection: 'athletes', overrideAccess: false, where: { id: { in: athleteIds } } })
   expect('anonymous sees only approved public profiles', ids(anonymousAthletes.docs), [shown.id, quiet.id])
   const anonymousResults = await payload.find({ collection: 'results', overrideAccess: false, where: { athlete: { in: athleteIds } } })
@@ -213,7 +215,7 @@ try {
   expect('the profile links the result to its race', raceSlugs, { [race.id]: race.slug })
 
   if (site) await overHttp({ shown, quiet, hidden, pending, hiddenResult, quietResult, unapproved10k, pendingResult })
-  else console.log('SKIP REST, GraphQL, and page checks: set ERC_CHECK_URL to a running site')
+  else console.log('SKIP REST and page checks: set ERC_CHECK_URL to a running site')
 
   await payload.delete({ collection: 'athletes', id: shown.id, ...asStaff })
   const orphans = await payload.find({ collection: 'results', where: { athlete: { equals: shown.id } } })
@@ -227,31 +229,21 @@ try {
 type Doc = { id: number; slug?: string; name?: string; eventName?: string }
 
 async function overHttp(f: Record<'shown' | 'quiet' | 'hidden' | 'pending', Doc> & Record<'hiddenResult' | 'quietResult' | 'unapproved10k' | 'pendingResult', Doc>) {
-  const get = async (path: string) => {
-    const response = await fetch(`${site}${path}`)
+  const get = async (path: string, headers: Record<string, string> = {}) => {
+    const response = await fetch(`${site}${path}`, { headers })
     return { status: response.status, body: await response.text() }
   }
+  // Past the API gate as an anonymous reader, so these cases still test the collections' read access.
+  const api = (path: string) => get(path, FORGED_SESSION)
   const privateResultIds = [f.hiddenResult.id, f.quietResult.id, f.unapproved10k.id, f.pendingResult.id]
 
-  const athletesApi = JSON.parse((await get('/api/athletes?limit=1000&depth=0')).body) as { docs: Doc[] }
+  const athletesApi = JSON.parse((await api('/api/athletes?limit=1000&depth=0')).body) as { docs: Doc[] }
   expect('REST /api/athletes omits hidden and unapproved profiles', athletesApi.docs.filter((d) => [f.hidden.id, f.pending.id].includes(d.id)), [])
   expect('REST /api/athletes lists the public profiles', athletesApi.docs.filter((d) => [f.shown.id, f.quiet.id].includes(d.id)).length, 2)
-  const resultsApi = JSON.parse((await get('/api/results?limit=1000&depth=1')).body) as { docs: Doc[] }
+  const resultsApi = JSON.parse((await api('/api/results?limit=1000&depth=1')).body) as { docs: Doc[] }
   expect('REST /api/results omits hidden and unapproved results', resultsApi.docs.filter((d) => privateResultIds.includes(d.id)), [])
-  expect('REST /api/results by id of a hidden result is refused', (await get(`/api/results/${f.hiddenResult.id}`)).status, 404)
-  const graphql = await fetch(`${site}/api/graphql`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ query: '{ Results(limit: 1000) { docs { id } } Athletes(limit: 1000) { docs { id } } }' }),
-  }).then((response) => response.json() as Promise<{ data?: { Results: { docs: { id: number }[] }; Athletes: { docs: { id: number }[] } } }>)
-  expect(
-    'GraphQL omits hidden and unapproved records',
-    [
-      graphql.data?.Results.docs.filter((d) => privateResultIds.includes(d.id)),
-      graphql.data?.Athletes.docs.filter((d) => [f.hidden.id, f.pending.id].includes(d.id)),
-    ],
-    [[], []],
-  )
+  expect('REST /api/results by id of a hidden result is refused', (await api(`/api/results/${f.hiddenResult.id}`)).status, 404)
+  expect('REST without a session is not found', [(await get('/api/athletes')).status, (await get('/api/results')).status], [404, 404])
 
   const directoryPage = await get('/athletes')
   expect('the directory names public athletes only', [f.shown, f.quiet, f.hidden, f.pending].map((a) => directoryPage.body.includes(a.name ?? '')), [
@@ -287,7 +279,7 @@ async function overHttp(f: Record<'shown' | 'quiet' | 'hidden' | 'pending', Doc>
   await payload.update({ collection: 'athletes', id: f.shown.id, ...asStaff, data: { visibility: { profile: 'public', results: 'hidden' } } })
   const nowQuiet = await get(`/athletes/${f.shown.slug}`)
   expect('hiding results takes them off the cached profile', [nowQuiet.status, shownResultNames.some((name) => nowQuiet.body.includes(name))], [200, false])
-  const resultsAfter = JSON.parse((await get(`/api/results?where[athlete][equals]=${f.shown.id}`)).body) as { totalDocs: number }
+  const resultsAfter = JSON.parse((await api(`/api/results?where[athlete][equals]=${f.shown.id}`)).body) as { totalDocs: number }
   expect('hiding results takes them off REST', resultsAfter.totalDocs, 0)
   await payload.update({ collection: 'athletes', id: f.shown.id, ...asStaff, data: { visibility: { profile: 'hidden', results: 'hidden' } } })
   expect('hiding the profile 404s the cached page', (await get(`/athletes/${f.shown.slug}`)).status, 404)

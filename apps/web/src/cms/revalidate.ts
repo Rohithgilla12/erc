@@ -34,7 +34,7 @@ const outsideNextRequest = (error: unknown) =>
   typeof error === 'object' && error !== null && (error as { __NEXT_ERROR_CODE?: unknown }).__NEXT_ERROR_CODE === NO_REQUEST_STORE
 
 /**
- * Expires the tags in-process when Next allows it (REST, GraphQL, and the admin all write inside a request), and
+ * Expires the tags in-process when Next allows it (REST and the admin both write inside a request), and
  * otherwise asks the running server over HTTP. Never throws: the document is already written when this runs, so an
  * error here would fail a write that succeeded. Outside a request, as in a `payload run` script, the fallback is
  * expected; any other refusal from Next, such as a write during render, is logged as a warning.
