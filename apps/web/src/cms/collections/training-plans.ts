@@ -8,7 +8,7 @@ import {
 } from '@erc/domain'
 
 import { accessField, seoField, slugField } from '../editorial-fields'
-import { optionsFrom, shownWhen } from '../fields'
+import { labelsOf, optionsFrom, shownWhen } from '../fields'
 import { defineEditorial } from '../kinds'
 
 const TARGET_LABELS: Record<SessionTarget['kind'], string> = { distance: 'Distance', duration: 'Time', none: 'No target' }
@@ -33,7 +33,7 @@ export const TrainingPlans = defineEditorial({
           type: 'select',
           required: true,
           index: true,
-          options: PLAN_GOALS.map((goal) => ({ value: goal, label: goalLabel(goal) })),
+          options: optionsFrom(labelsOf(PLAN_GOALS.map((goal) => ({ key: goal, label: goalLabel(goal) })))),
         },
         { name: 'level', type: 'select', required: true, index: true, options: optionsFrom(PLAN_LEVEL_LABELS) },
       ],
@@ -64,7 +64,7 @@ export const TrainingPlans = defineEditorial({
             {
               type: 'row',
               fields: [
-                { name: 'day', type: 'select', required: true, options: WEEK_DAYS.map((day) => ({ value: String(day), label: `Day ${day}` })) },
+                { name: 'day', type: 'select', required: true, options: optionsFrom(labelsOf(WEEK_DAYS.map((day) => ({ key: String(day), label: `Day ${day}` })))) },
                 { name: 'intensity', type: 'select', required: true, options: optionsFrom(SESSION_INTENSITY_LABELS) },
               ],
             },

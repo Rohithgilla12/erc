@@ -3,6 +3,7 @@ import type { TextField } from 'payload'
 import { text } from 'payload/shared'
 
 import { publishedAtField, seoField, slugField, stampFirstPublished } from '../editorial-fields'
+import { labelsOf, optionsFrom } from '../fields'
 import { defineEditorial } from '../kinds'
 
 /** Editors paste whatever YouTube gives them; only the 11-character id is stored. */
@@ -54,7 +55,7 @@ export const Videos = defineEditorial({
       name: 'category',
       type: 'select',
       required: true,
-      options: VIDEO_CATEGORIES.map(({ key, label }) => ({ value: key, label })),
+      options: optionsFrom(labelsOf(VIDEO_CATEGORIES)),
       admin: { position: 'sidebar' },
     },
     { name: 'description', type: 'richText', required: true },

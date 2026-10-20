@@ -3,8 +3,12 @@ import type { TextField, TextFieldSingleValidation } from 'payload'
 import { text } from 'payload/shared'
 
 /** Select options from a label record; the explicit key type makes the compiler reject a missing or extra value. */
-export const optionsFrom = <K extends string>(labels: Record<K, string>) =>
+export const optionsFrom = <K extends string>(labels: Readonly<Record<K, string>>) =>
   (Object.entries(labels) as [K, string][]).map(([value, label]) => ({ value, label }))
+
+/** A domain `{ key, label }` list as the label record `optionsFrom` takes. */
+export const labelsOf = <K extends string>(list: readonly { readonly key: K; readonly label: string }[]) =>
+  Object.fromEntries(list.map(({ key, label }) => [key, label])) as Record<K, string>
 
 /**
  * Admin condition for one variant of a stored union. Payload skips validation of a hidden field and keeps its

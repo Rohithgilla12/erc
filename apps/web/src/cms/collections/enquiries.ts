@@ -1,15 +1,15 @@
-import { ENQUIRY_TOPICS, type EnquiryTopic } from '@erc/domain'
+import { ENQUIRY_TOPICS } from '@erc/domain'
 import type { Payload } from 'payload'
 
 import type { Enquiry } from '../../payload-types'
 import { absoluteUrl } from '../../site-config'
 import { enquiryRecipient } from '../email'
-import { optionsFrom } from '../fields'
+import { labelsOf, optionsFrom } from '../fields'
 import { defineRecord } from '../kinds'
 
 type EnquiryStatus = 'new' | 'handled'
 
-const TOPIC_LABELS = Object.fromEntries(ENQUIRY_TOPICS.map(({ key, label }) => [key, label])) as Record<EnquiryTopic, string>
+const TOPIC_LABELS = labelsOf(ENQUIRY_TOPICS)
 
 /**
  * Never throws: the enquiry is already stored and staff see it in the admin whether or not the email goes out. Callers
