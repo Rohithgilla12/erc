@@ -4,6 +4,7 @@ import React from 'react'
 
 import { siteConfig } from '@/site-config'
 
+import { FEED_PATH, FEED_TITLE } from './learn/_components/feed'
 import { CLUB, SITE_SECTIONS } from './site-nav'
 import { SiteNavLinks } from './site-nav-links'
 import './styles.css'
@@ -30,6 +31,10 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
 
   return (
     <html lang="en">
+      <head>
+        {/* Not metadata `alternates.types`: a page that sets `alternates` for its canonical link replaces the layout's whole object. */}
+        <link rel="alternate" type="application/rss+xml" href={FEED_PATH} title={FEED_TITLE} />
+      </head>
       <body>
         <a className="skip-link" href="#content">
           Skip to content

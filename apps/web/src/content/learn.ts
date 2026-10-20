@@ -113,6 +113,24 @@ export const findPosts = cache(async (filter: PostFilter | null, page: number): 
   return last === 1 ? first : readPostPage(filter, last)
 })
 
+// Depth 0 is enough: the feed shows only the title, link, date and excerpt.
+const readFeed = cachedRead('learn:feed', ['posts'], async (payload): Promise<PostSummary[]> => {
+  const { docs } = await payload.find({
+    collection: 'posts',
+    ...anonymous,
+    // Rows saved before the field existed hold null, which a plain not-equals would also drop.
+    where: { or: [{ 'seo.noindex': { equals: false } }, { 'seo.noindex': { exists: false } }] },
+    select: summaryFields,
+    depth: 0,
+    sort: ['-publishedAt', '-id'],
+    limit: POSTS_PER_PAGE,
+  })
+  return parseAll(docs as PostDoc[], parsePostSummary, 'post', payload)
+})
+
+/** The newest published posts that search engines may index, for the article feed. */
+export const feedPosts = cache(() => readFeed())
+
 const publishedSlugs = (collection: 'posts' | 'videos' | 'coaches') =>
   cachedRead(`learn:${collection}:slugs`, [collection], async (payload): Promise<string[]> => {
     const { docs } = await payload.find({ collection, ...anonymous, depth: 0, select: { slug: true }, pagination: false })
