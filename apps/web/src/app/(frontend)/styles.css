@@ -370,6 +370,29 @@ svg {
   }
 }
 
+/*
+ * A captured element cannot be clicked until its transition ends, and the default capture is the whole page, which
+ * blocked every tap for about 250 ms after each navigation. So pages swap without a cross-fade, and only named
+ * elements that are on both pages, such as the race calendar's list and chips, animate between them. The snapshot
+ * layer lets taps through to the live page underneath.
+ */
+:root {
+  view-transition-name: none;
+}
+
+::view-transition {
+  pointer-events: none;
+}
+
+/*
+ * A named element on only one side would otherwise fade as a ghost over a page that does not have it. A zero duration
+ * jumps straight to the end of the fade, and a named rule such as the filter sheet's exit still wins.
+ */
+::view-transition-old(*):only-child,
+::view-transition-new(*):only-child {
+  animation-duration: 0s;
+}
+
 ::view-transition-group(*) {
   animation-duration: var(--duration-enter);
   animation-timing-function: var(--ease-in-out);

@@ -73,6 +73,12 @@
   font-weight: var(--weight-medium);
 }
 
+/* The calendar's list morphs between calendar views; a few featured cards morphing into it is not that, and a
+   second featured block would repeat the name, which cancels every transition on the page. */
+.race-list.featured-race-list {
+  view-transition-name: none;
+}
+
 /* The calendar's cards title races with h2; here they sit under a section h2, so they are h3. */
 .featured-race h3 {
   margin: 0;

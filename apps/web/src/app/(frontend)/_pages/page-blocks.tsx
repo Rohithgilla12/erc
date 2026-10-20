@@ -89,7 +89,7 @@ async function FeaturedRaces({ block }: { block: Extract<PageBlock, { kind: 'fea
     <section className="block">
       <h2>{block.heading}</h2>
       {races.length > 0 ? (
-        <ul className="race-list">
+        <ul className="race-list featured-race-list">
           {races.map((race) => (
             <FeaturedRace key={race.id} race={race} today={today} />
           ))}
