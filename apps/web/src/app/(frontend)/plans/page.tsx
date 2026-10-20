@@ -20,7 +20,8 @@ import { getPlans } from '@/content/plans'
 import { siteConfig } from '@/site-config'
 
 import { CheckIcon } from '../races/_components/badges'
-import { accessLabel, jsonLd, planLabels } from './_components/format'
+import { jsonLd } from './_components/format'
+import { PlanCard } from './_components/plan-card'
 
 import '../races/_components/races.css'
 import './_components/plans.css'
@@ -119,28 +120,6 @@ export default async function PlansPage({ searchParams }: Props) {
         )}
       </section>
     </div>
-  )
-}
-
-function PlanCard({ plan }: { plan: TrainingPlan }) {
-  return (
-    <li className="plan-card">
-      <h2>
-        <a href={`/plans/${plan.slug}`}>{plan.title}</a>
-      </h2>
-      <ul className="plan-tags" aria-label="Plan details">
-        {planLabels(plan).map((label) => (
-          <li key={label}>{label}</li>
-        ))}
-        <li className="plan-tag-access">{accessLabel(plan.access)}</li>
-      </ul>
-      <dl className="plan-card-facts">
-        <dt>Who it is for</dt>
-        <dd>{plan.audience}</dd>
-        <dt>Before you start</dt>
-        <dd>{plan.prerequisites}</dd>
-      </dl>
-    </li>
   )
 }
 

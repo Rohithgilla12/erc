@@ -52,21 +52,21 @@
   transform: scale(var(--press-scale));
 }
 
-.plan-card h2,
+.plan-card :is(h2, h3),
 .resource-card h3 {
   margin: 0;
   font-size: var(--text-lg);
   font-weight: var(--weight-bold);
 }
 
-.plan-card h2 a,
+.plan-card :is(h2, h3) a,
 .resource-card h3 a {
   color: var(--color-text);
   text-decoration: none;
 }
 
 /* The whole card is the tap target; the link stays the one focusable, announced element. */
-.plan-card h2 a::after,
+.plan-card :is(h2, h3) a::after,
 .resource-card h3 a::after {
   content: '';
   position: absolute;
@@ -74,12 +74,12 @@
   border-radius: inherit;
 }
 
-.plan-card h2 a:focus-visible,
+.plan-card :is(h2, h3) a:focus-visible,
 .resource-card h3 a:focus-visible {
   outline: none;
 }
 
-.plan-card h2 a:focus-visible::after,
+.plan-card :is(h2, h3) a:focus-visible::after,
 .resource-card h3 a:focus-visible::after {
   outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;

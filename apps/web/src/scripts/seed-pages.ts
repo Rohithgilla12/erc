@@ -45,6 +45,8 @@ const pages = (coaches: number[]): PageData[] => {
           secondary: { label: 'Coaching', href: '/coaching' },
         },
         { blockType: 'featuredRaces', heading: 'Upcoming races', count: 3 },
+        { blockType: 'latestPosts', heading: 'Latest articles', count: 3 },
+        { blockType: 'featuredPlans', heading: 'Training plans', count: 3 },
         {
           blockType: 'richText',
           body: richText('Placeholder: a short introduction to the club, its runs and its runners goes here.'),

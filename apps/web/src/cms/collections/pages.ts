@@ -62,11 +62,12 @@ const richText: Block = {
   fields: [{ name: 'body', type: 'richText', required: true }],
 }
 
-const featuredRaces: Block = {
-  slug: 'featuredRaces',
-  labels: { singular: 'Upcoming races', plural: 'Upcoming races' },
+/** A section listing the first few of something the site already orders; the editor picks the heading and how many. */
+const listingBlock = ({ slug, label, countHint }: { slug: string; label: string; countHint: string }): Block => ({
+  slug,
+  labels: { singular: label, plural: label },
   fields: [
-    { name: 'heading', type: 'text', required: true, defaultValue: 'Upcoming races' },
+    { name: 'heading', type: 'text', required: true, defaultValue: label },
     {
       name: 'count',
       type: 'number',
@@ -74,11 +75,20 @@ const featuredRaces: Block = {
       defaultValue: 3,
       min: 1,
       max: 12,
-      admin: { step: 1, description: 'How many approved races to show, soonest first.' },
+      admin: { step: 1, description: countHint },
     },
   ],
-}
+})
 
+const featuredRaces = listingBlock({ slug: 'featuredRaces', label: 'Upcoming races', countHint: 'How many approved races to show, soonest first.' })
+
+const latestPosts = listingBlock({ slug: 'latestPosts', label: 'Latest articles', countHint: 'How many published articles to show, newest first.' })
+
+const featuredPlans = listingBlock({
+  slug: 'featuredPlans',
+  label: 'Training plans',
+  countHint: 'How many published plans to show, in the order of the plans page.',
+})
 const callToAction: Block = {
   slug: 'callToAction',
   labels: { singular: 'Call to action', plural: 'Calls to action' },
@@ -143,7 +153,7 @@ export const Pages = defineEditorial({
       type: 'blocks',
       required: true,
       minRows: 1,
-      blocks: [hero, richText, featuredRaces, callToAction, coachGrid, faq],
+      blocks: [hero, richText, featuredRaces, latestPosts, featuredPlans, callToAction, coachGrid, faq],
     },
   ],
 })

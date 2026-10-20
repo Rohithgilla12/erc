@@ -816,6 +816,26 @@ export interface Page {
       }
     | {
         heading: string;
+        /**
+         * How many published articles to show, newest first.
+         */
+        count: number;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'latestPosts';
+      }
+    | {
+        heading: string;
+        /**
+         * How many published plans to show, in the order of the plans page.
+         */
+        count: number;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'featuredPlans';
+      }
+    | {
+        heading: string;
         body?: string | null;
         link: {
           label: string;
@@ -1582,6 +1602,22 @@ export interface PagesSelect<T extends boolean = true> {
               blockName?: T;
             };
         featuredRaces?:
+          | T
+          | {
+              heading?: T;
+              count?: T;
+              id?: T;
+              blockName?: T;
+            };
+        latestPosts?:
+          | T
+          | {
+              heading?: T;
+              count?: T;
+              id?: T;
+              blockName?: T;
+            };
+        featuredPlans?:
           | T
           | {
               heading?: T;

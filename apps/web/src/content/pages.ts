@@ -25,6 +25,8 @@ export type PageBlock =
   | { kind: 'hero'; heading: string; body: string | null; primary: CtaLink | null; secondary: CtaLink | null }
   | { kind: 'richText'; body: RichText }
   | { kind: 'featuredRaces'; heading: string; count: number }
+  | { kind: 'latestPosts'; heading: string; count: number }
+  | { kind: 'featuredPlans'; heading: string; count: number }
   | { kind: 'callToAction'; heading: string; body: string | null; link: CtaLink }
   | { kind: 'coachGrid'; heading: string | null; coaches: readonly CoachProfile[] }
   | { kind: 'faq'; heading: string | null; items: readonly { question: string; answer: RichText }[] }
@@ -111,7 +113,9 @@ function blockOf(block: Block): PageBlock | null {
     case 'richText':
       return { kind: 'richText', body: richText(block.body) }
     case 'featuredRaces':
-      return { kind: 'featuredRaces', heading: block.heading, count: Math.min(12, Math.max(1, Math.trunc(block.count))) }
+    case 'latestPosts':
+    case 'featuredPlans':
+      return { kind: block.blockType, heading: block.heading, count: Math.min(12, Math.max(1, Math.trunc(block.count))) }
     case 'callToAction': {
       const link = linkOf(block.link)
       return link ? { kind: 'callToAction', heading: block.heading, body: textOrNull(block.body), link } : null

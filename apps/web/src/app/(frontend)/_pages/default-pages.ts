@@ -28,6 +28,8 @@ export const DEFAULT_PAGES: Readonly<Record<RoutedPageSlug, SitePage>> = {
         secondary: link('Coaching', '/coaching'),
       },
       { kind: 'featuredRaces', heading: 'Upcoming races', count: 3 },
+      { kind: 'latestPosts', heading: 'Latest articles', count: 3 },
+      { kind: 'featuredPlans', heading: 'Training plans', count: 3 },
       {
         kind: 'callToAction',
         heading: CLUB.motto,
