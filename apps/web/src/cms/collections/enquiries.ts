@@ -2,7 +2,7 @@ import { ENQUIRY_TOPICS, type EnquiryTopic } from '@erc/domain'
 import type { Payload } from 'payload'
 
 import type { Enquiry } from '../../payload-types'
-import { siteConfig } from '../../site-config'
+import { absoluteUrl } from '../../site-config'
 import { enquiryRecipient } from '../email'
 import { optionsFrom } from '../fields'
 import { defineRecord } from '../kinds'
@@ -30,7 +30,7 @@ export async function notifyStaffOfEnquiry(payload: Payload, enquiry: Enquiry) {
         '',
         enquiry.message,
         '',
-        `Reply to this email to answer them, then mark it handled: ${new URL(`/admin/collections/enquiries/${enquiry.id}`, siteConfig().siteUrl).href}`,
+        `Reply to this email to answer them, then mark it handled: ${absoluteUrl(`/admin/collections/enquiries/${enquiry.id}`)}`,
       ].join('\n'),
     })
   } catch (error) {

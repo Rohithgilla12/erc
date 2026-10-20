@@ -11,8 +11,9 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
 import { getRace } from '@/content/races'
+import { absoluteUrl } from '@/site-config'
 
-import { absoluteUrl, breadcrumbList, JsonLd } from '../../structured-data'
+import { breadcrumbList, JsonLd } from '../../structured-data'
 
 import { StaleBadge, StatusBadge } from '../_components/badges'
 import {

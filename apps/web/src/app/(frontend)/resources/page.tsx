@@ -3,8 +3,9 @@ import type { Metadata } from 'next'
 import { connection } from 'next/server'
 
 import { downloadPath, getResources } from '@/content/resources'
+import { absoluteUrl } from '@/site-config'
 import { accessLabel, describeFile } from '../plans/_components/format'
-import { absoluteUrl, breadcrumbList, JsonLd } from '../structured-data'
+import { breadcrumbList, JsonLd } from '../structured-data'
 
 import '../plans/_components/plans.css'
 

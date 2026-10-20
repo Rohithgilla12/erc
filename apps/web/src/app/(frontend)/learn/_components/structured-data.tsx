@@ -1,8 +1,9 @@
 import { contentPath, isoDuration, type Coach, type CoachProfile, type Post, type Video } from '@erc/domain'
 
 import { clip, plainTextOf } from '@/content/plain-text'
+import { absoluteUrl } from '@/site-config'
 
-import { absoluteUrl, organisationRef } from '../../structured-data'
+import { organisationRef } from '../../structured-data'
 
 const personRef = (coach: CoachProfile) => ({ '@type': 'Person', name: coach.name, url: absoluteUrl(`/coaches/${coach.slug}`) })
 

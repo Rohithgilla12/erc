@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
 import { getAthleteProfile, type AthleteProfile, type RaceSlugs } from '@/content/athletes'
+import { absoluteUrl } from '@/site-config'
 
 import {
   Avatar,
@@ -13,7 +14,7 @@ import {
   homeOf,
   Proof,
 } from '../_components/athlete-parts'
-import { absoluteUrl, breadcrumbList, JsonLd } from '../../structured-data'
+import { breadcrumbList, JsonLd } from '../../structured-data'
 
 import '../_components/athletes.css'
 

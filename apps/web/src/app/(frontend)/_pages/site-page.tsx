@@ -3,9 +3,10 @@ import { connection } from 'next/server'
 import React, { type ReactNode } from 'react'
 
 import { getPage, type RoutedPageSlug, type SitePage } from '@/content/pages'
+import { absoluteUrl } from '@/site-config'
 
 import { CLUB } from '../site-nav'
-import { absoluteUrl, breadcrumbList, JsonLd, organisation, website } from '../structured-data'
+import { breadcrumbList, JsonLd, organisation, website } from '../structured-data'
 
 import { DEFAULT_PAGES } from './default-pages'
 import { PageBlocks } from './page-blocks'

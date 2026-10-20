@@ -17,9 +17,10 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 
 import { getPlans } from '@/content/plans'
+import { absoluteUrl } from '@/site-config'
 
 import { CheckIcon } from '../races/_components/badges'
-import { absoluteUrl, breadcrumbList, JsonLd } from '../structured-data'
+import { breadcrumbList, JsonLd } from '../structured-data'
 import { PlanCard } from './_components/plan-card'
 
 import '../races/_components/races.css'

@@ -15,7 +15,7 @@ import { getPayload, type Payload } from 'payload'
 
 import { sendConfirmationEmail } from '@/cms/collections/subscribers'
 import { emailConfigured } from '@/cms/email'
-import { siteConfig } from '@/site-config'
+import { absoluteUrl } from '@/site-config'
 
 import { HONEYPOT_FIELD, TOKEN_FIELD } from './form-fields'
 import { checkFormToken, issueFormToken, mac, sameMac, senderKeyOf } from './form-guard'
@@ -54,7 +54,7 @@ const subscriberIdOf = (token: string): number | null => {
 }
 
 const linkTo = (path: string, token: string) => {
-  const url = new URL(path, siteConfig().siteUrl)
+  const url = new URL(absoluteUrl(path))
   url.searchParams.set('token', token)
   return url
 }

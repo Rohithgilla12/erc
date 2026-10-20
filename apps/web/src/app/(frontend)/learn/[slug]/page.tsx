@@ -6,10 +6,11 @@ import React from 'react'
 
 import { getPost } from '@/content/learn'
 import { RichText } from '@/content/rich-text'
+import { absoluteUrl } from '@/site-config'
 
 import { formatDay, formatReadingTime, sameDay } from '../_components/format'
 import { Breadcrumbs, RelatedList } from '../_components/lists'
-import { absoluteUrl, breadcrumbList, JsonLd } from '../../structured-data'
+import { breadcrumbList, JsonLd } from '../../structured-data'
 import { article, coachPath } from '../_components/structured-data'
 
 import '../_components/learn.css'

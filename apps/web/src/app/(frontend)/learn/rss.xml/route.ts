@@ -1,7 +1,7 @@
 import { contentPath, type PostSummary } from '@erc/domain'
 
 import { feedPosts } from '@/content/learn'
-import { siteConfig } from '@/site-config'
+import { absoluteUrl } from '@/site-config'
 
 import { CLUB } from '../../site-nav'
 import { FEED_PATH, FEED_TITLE } from '../_components/feed'
@@ -18,8 +18,8 @@ const text = (value: string) => value.replace(FORBIDDEN, '').replace(/[&<>"']/g,
 
 const rfc822 = (instant: string) => new Date(instant).toUTCString()
 
-const item = (post: PostSummary, absolute: (path: string) => string) => {
-  const link = text(absolute(contentPath(post)))
+const item = (post: PostSummary) => {
+  const link = text(absoluteUrl(contentPath(post)))
   return `    <item>
       <title>${text(post.title)}</title>
       <link>${link}</link>
@@ -31,18 +31,16 @@ const item = (post: PostSummary, absolute: (path: string) => string) => {
 
 /** The newest published articles that are not hidden from search engines: title, link, date and excerpt only, so a reader comes to the site for the article. */
 export async function GET() {
-  const { siteUrl } = siteConfig()
-  const absolute = (path: string) => new URL(path, siteUrl).href
   const items = await feedPosts()
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>${text(FEED_TITLE)}</title>
-    <link>${text(absolute('/learn'))}</link>
+    <link>${text(absoluteUrl('/learn'))}</link>
     <description>${text(CLUB.description)}</description>
     <language>en-IN</language>
-    <atom:link href="${text(absolute(FEED_PATH))}" rel="self" type="application/rss+xml" />
-${items.map((post) => item(post, absolute)).join('\n')}
+    <atom:link href="${text(absoluteUrl(FEED_PATH))}" rel="self" type="application/rss+xml" />
+${items.map(item).join('\n')}
   </channel>
 </rss>
 `

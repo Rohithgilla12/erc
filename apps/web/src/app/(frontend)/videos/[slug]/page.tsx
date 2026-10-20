@@ -7,11 +7,12 @@ import React from 'react'
 import { getVideo } from '@/content/learn'
 import { clip } from '@/content/plain-text'
 import { RichText } from '@/content/rich-text'
+import { absoluteUrl } from '@/site-config'
 
 import { formatDay } from '../../learn/_components/format'
 import { Breadcrumbs, RelatedList } from '../../learn/_components/lists'
 import { thumbnailPath, videoObject } from '../../learn/_components/structured-data'
-import { absoluteUrl, breadcrumbList, JsonLd } from '../../structured-data'
+import { breadcrumbList, JsonLd } from '../../structured-data'
 
 import '../../learn/_components/learn.css'
 

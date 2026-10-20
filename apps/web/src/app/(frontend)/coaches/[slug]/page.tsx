@@ -7,10 +7,11 @@ import React from 'react'
 import { findPosts, getCoach } from '@/content/learn'
 import { clip, plainTextOf } from '@/content/plain-text'
 import { RichText } from '@/content/rich-text'
+import { absoluteUrl } from '@/site-config'
 
 import { Breadcrumbs, Pagination, PostList } from '../../learn/_components/lists'
 import { coachPath, person } from '../../learn/_components/structured-data'
-import { absoluteUrl, breadcrumbList, JsonLd } from '../../structured-data'
+import { breadcrumbList, JsonLd } from '../../structured-data'
 
 import '../../learn/_components/learn.css'
 

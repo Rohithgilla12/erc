@@ -24,3 +24,6 @@ export const readSiteConfig = (env: NodeJS.ProcessEnv): SiteConfig => {
 let config: SiteConfig | undefined
 
 export const siteConfig = (): SiteConfig => (config ??= readSiteConfig(process.env))
+
+/** A path on this site as a full URL, for canonical links, structured data, emails, and feeds. */
+export const absoluteUrl = (path: string): string => new URL(path, siteConfig().siteUrl).href

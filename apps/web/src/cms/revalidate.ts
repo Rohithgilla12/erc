@@ -9,7 +9,7 @@ import type {
   PayloadRequest,
 } from 'payload'
 
-import { siteConfig } from '../site-config'
+import { absoluteUrl, siteConfig } from '../site-config'
 
 import { EDITORIAL_SLUGS, RECORD_SLUGS, type ErcSlug } from './slugs'
 
@@ -68,12 +68,12 @@ const REVALIDATE_PATH = '/revalidate'
 /** Never throws: the write has already succeeded, and a stale page is better than a rolled-back edit. */
 export const refreshRunningSite = async (payload: Payload, tags: readonly string[]) => {
   try {
-    const { siteUrl, revalidateSecret: secret } = siteConfig()
+    const secret = siteConfig().revalidateSecret
     if (!secret) {
       payload.logger.warn({ tags }, 'Not revalidating: set REVALIDATE_SECRET so scripts refresh the running site')
       return
     }
-    const response = await fetch(new URL(`/api${REVALIDATE_PATH}`, siteUrl), {
+    const response = await fetch(absoluteUrl(`/api${REVALIDATE_PATH}`), {
       method: 'POST',
       headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' },
       body: JSON.stringify({ tags }),

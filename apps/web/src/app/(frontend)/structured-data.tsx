@@ -1,10 +1,8 @@
 import React from 'react'
 
-import { siteConfig } from '@/site-config'
+import { absoluteUrl } from '@/site-config'
 
 import { CLUB } from './site-nav'
-
-export const absoluteUrl = (path: string) => new URL(path, siteConfig().siteUrl).href
 
 // JSON.stringify leaves `<` alone, so a title containing `</script>` could otherwise end the tag early.
 const serialise = (value: unknown) => JSON.stringify(value).replace(/</g, '\\u003c')
