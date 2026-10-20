@@ -10,6 +10,8 @@ const payload = await getPayload({ config })
 const db = payload.db.drizzle
 const run = Date.now()
 const slugs = { approved: `access-check-approved-${run}`, submitted: `access-check-submitted-${run}` }
+const submitterEmail = `submitter-${run}@example.com`
+const submitter = { name: 'Check Submitter', email: submitterEmail }
 const failures: string[] = []
 
 const expect = (label: string, actual: unknown, wanted: unknown) => {
@@ -22,9 +24,11 @@ const insertRace = (slug: string, state: 'approved' | 'submitted') =>
   db.execute(sql`
     WITH race AS (
       INSERT INTO races (name, slug, discipline, dates_start, dates_day_count, time_zone, location_kind,
-        official_url, registration_url, status_kind, source_kind, last_verified_on, summary, moderation_state)
+        official_url, registration_url, status_kind, source_kind, last_verified_on, summary, moderation_state,
+        moderation_submitter_name, moderation_submitter_email)
       VALUES (${slug}, ${slug}, 'road', '2099-01-01', 1, 'Asia/Kolkata', 'virtual',
-        'https://example.org', 'https://example.org', 'scheduled', 'runner-submission', '2026-10-19', 'check', ${state})
+        'https://example.org', 'https://example.org', 'scheduled', 'runner-submission', '2026-10-19', 'check', ${state},
+        'Check Submitter', ${submitterEmail})
       RETURNING id
     )
     INSERT INTO races_distances (_order, _parent_id, id, metres, category, band)
@@ -46,7 +50,8 @@ const staff = await payload.create({
   data: { email: `access-check-${run}@erc.invalid`, password: `pw-${run}-check`, role: 'editor' },
 })
 // Payload's auth strategy tags the user with its collection; a Local API caller must do the same.
-const staffUser = { ...staff, collection: 'staff' }
+const staffUser = { ...staff, collection: 'staff' as const }
+let athleteId: number | null = null
 
 try {
   await insertRace(slugs.approved, 'approved')
@@ -70,7 +75,30 @@ try {
     (error: { status?: number }) => error.status,
   )
   expect('anonymous is refused staff accounts', anonymousStaff, 403)
+
+  const approvedRace = { collection: 'races', overrideAccess: false, where: { slug: { equals: slugs.approved } } } as const
+  expect('anonymous reads of an approved race leave out who submitted it', (await payload.find(approvedRace)).docs[0]?.moderation.submitter, undefined)
+  expect('staff read who submitted a race', (await payload.find({ ...approvedRace, user: staffUser })).docs[0]?.moderation.submitter, submitter)
+
+  const athlete = await payload.create({
+    collection: 'athletes',
+    user: staffUser,
+    overrideAccess: false,
+    data: {
+      name: `Access Check ${run}`,
+      slug: `access-check-athlete-${run}`,
+      home: { city: 'Hyderabad', subdivision: 'IN-TS' },
+      visibility: { profile: 'public', results: 'public' },
+      moderation: { state: 'submitted', submitter },
+      moderationDecision: 'approve',
+    },
+  })
+  athleteId = athlete.id
+  const approvedAthlete = { collection: 'athletes', id: athlete.id, overrideAccess: false } as const
+  expect('anonymous reads of an approved athlete leave out who submitted it', (await payload.findByID(approvedAthlete)).moderation.submitter, undefined)
+  expect('staff read who submitted an athlete', (await payload.findByID({ ...approvedAthlete, user: staffUser })).moderation.submitter, submitter)
 } finally {
+  if (athleteId !== null) await payload.delete({ collection: 'athletes', id: athleteId })
   await db.execute(sql`DELETE FROM races WHERE slug IN (${slugs.approved}, ${slugs.submitted})`)
   await payload.delete({ collection: 'staff', id: staff.id })
 }

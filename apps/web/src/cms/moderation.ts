@@ -1,7 +1,7 @@
 import { decide, mayDecide, type Instant, type Moderation, type ModerationDecision, type ModerationRefusal, type StaffRole } from '@erc/domain'
 import { APIError, ValidationError, type CollectionBeforeChangeHook, type Field, type GroupField, type PayloadRequest, type Where } from 'payload'
 
-import { actorOf, staffOf } from './access'
+import { actorOf, isStaff, staffOf } from './access'
 import { optionsFrom, shownWhen } from './fields'
 
 const approved: Where = { 'moderation.state': { equals: 'approved' satisfies Moderation['state'] } }
@@ -38,6 +38,8 @@ export const moderationField: GroupField = {
     {
       name: 'submitter',
       type: 'group',
+      // Approved rows are public, but the person who sent one in is not; this keeps them out of every non-staff read.
+      access: { read: isStaff },
       admin: { description: 'Who sent a public submission. Empty when staff added the record.' },
       fields: [
         { name: 'name', type: 'text' },
