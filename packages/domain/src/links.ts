@@ -1,6 +1,6 @@
 import { err, ok, type Brand, type Result } from './primitives'
 
-/** A link target that is safe to render: a path on this site or a web link, never `javascript:` or `data:`. */
+/** A link target that is safe to render: never `javascript:`, `data:`, or a path a browser reads as another site. */
 export type LinkHref = Brand<string, 'LinkHref'>
 
 export type CtaLink = { label: string; href: LinkHref }
