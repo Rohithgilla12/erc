@@ -425,6 +425,6 @@ Product and later work:
 - `.ics` for a postponed race uses the original start date.
 - Writes made inside the server but outside a request, such as the job queue's scheduled publishing, still revalidate over HTTP through `ERC_SITE_URL`, because Next has no request store for `revalidateTag` there. A tunnel failure leaves those pages stale for up to an hour, with a warning in the log.
 - Uncached views (text search, custom dates) cost six SQL statements each, twice that past page 1, and have no rate limit yet; a Cloudflare rate-limit rule on `/races*` is the planned defence.
-- No sitemap yet, and no admin list of stale races.
+- No admin list of stale races.
 - A state-led filter will want a partial index on `(location_subdivision, dates_start)` for approved races as the table grows (inferred from the EXPLAIN plans at 3,000 rows).
 - Image sizes and remote image patterns for the R2 domain.
