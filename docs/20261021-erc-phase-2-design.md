@@ -199,6 +199,20 @@ Sign-in needs email. Production has no SMTP yet, so member sign-in stays switche
 - **No Strava on the boards.** We accept that Strava runs never count publicly. In exchange, a licence breach can't happen by accident.
 - **No route maps.** We accept discarding GPS tracks. In exchange, the club never holds the locations of runners' homes.
 
+## Implementation reconciliation
+
+Slice 1 was built on 2026-10-21 (`packages/domain`, `packages/contract`, `apps/web/src/members`, `apps/web/src/scripts/check-members.ts`). Deviations from the text above, and why:
+
+- **Email shares.** `EMAIL_SHARES` is `{ enquiry_staff_notice: 3, newsletter_confirmation: 7, sign_in_code: 10 }` an hour, 480 a day. Phase 1's 5 and 15 already summed to 480, so the two Phase 1 caps shrank to make room rather than the total growing. A vitest holds the daily sum under `RELAY_DAILY_LIMIT` (500). The two forms still count their own rows under `withCapLock`; the lock is now named by the purpose.
+- **Code storage.** A sign-in code is stored as an HMAC under the server's secret, not a bare SHA-256: six digits are small enough to brute-force from a leaked table. One row is kept per code sent, for a day, so the per-address (3 an hour), per-sender (10 an hour), and site-wide limits can count them; sending a new code closes the earlier ones, so the five-try lock cannot be reset by asking again.
+- **Age declaration.** The declaration is a required checkbox on the email step, asked of everyone every time, because the form must not know whether an address already has an account. It is stored once, as `ageDeclaredAt` on the member, timestamped from the code request that carried it. The JSON form of the field is `true`.
+- **Tokens and carriers.** A session token is one string: the web stores it in the `__Host-erc_member` cookie and an app sends it as a bearer. `/api/v1` reads only the bearer, pages read only the cookie, and the session row records which carrier issued it. In local http runs the cookie keeps its `__Host-` name and `Secure` flag; browsers treat `localhost` as a secure origin, and the check script keeps its own cookie jar.
+- **Activities in slice 1.** Manual entries are day-level, so `activities` holds `on_date`, `metres`, `moving_s`, and `logged_at`; the start time and elapsed columns arrive with file uploads in slice 5, as does `mergeRuns`, which with one source is the identity. Week and month totals are `totalsOf` over the period's rows. The run form carries a `ref` minted when it is shown, so a resubmitted form converges on one row; an API client may send one as an idempotency key.
+- **Owner-only data.** `OwnerOnly` and `PublicSafe` are enforced by the compiler through the contract's `ownedBy` constructor. The runtime owner check on `run()`'s way out is deferred until an operation exists whose output could describe another member.
+- **Client version header.** `ERC-Client` and `upgrade_required` are not in slice 1; they are additive and arrive with `apps/mobile`.
+- **Members in `/admin`.** Staff read members and change `status`; the other fields refuse updates at field level. Admins may also delete a member, which cascades to sessions and runs, so an erasure request has a door.
+- **Payload's admin and a member cookie.** `/admin` answers an anonymous visitor, and so a member cookie, with a 200 "Unauthorized" view and sends them to the login page from the client; the check asserts that rather than a redirect.
+
 ## Open questions
 
 1. **Strava.** Creating the Strava app needs a paid Strava subscription. Does someone at the club already pay for one? Until then, Strava stays switched off.

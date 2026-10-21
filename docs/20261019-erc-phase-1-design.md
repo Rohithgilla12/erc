@@ -395,6 +395,7 @@ Deviations accepted while moving the sketch into `packages/domain` on 2026-10-19
 - Image references in domain types are URLs (`photoUrl`), not CMS media ids. Resolving media is the content layer's job.
 - `payloadStatusOf` and everything that touches Payload (`defineEditorial`, `defineRecord`, `collectionTag`, `findRaces`) stay in `apps/web`.
 - `canAccess` is implemented as "always allow", which is exactly the Phase 1 policy.
+- The hourly email caps above (5 staff notices, 15 confirmations) moved into `EMAIL_SHARES` in `@erc/domain` on 2026-10-21 and were rebalanced to 3 and 7 to make room for sign-in codes; see [the Phase 2 reconciliation](20261021-erc-phase-2-design.md#implementation-reconciliation).
 
 ## Trade-offs accepted
 
