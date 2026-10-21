@@ -38,18 +38,38 @@ R2_SECRET_ACCESS_KEY=<from 1Password>
 R2_PUBLIC_URL=https://erc-media.gilla.fun
 ```
 
-All five must be set. If only some are set, the app refuses to start and names the missing ones.
+All five must be set. If only some are set, the app refuses to start and names the missing ones. Do not redeploy yet.
 
-Then redeploy the running version so the container picks up the new values:
+## 5. Copy existing uploads into the bucket
+
+Once R2 is on, the app builds every image URL from `R2_PUBLIC_URL` and reads every download from the bucket, including files uploaded before the switch. Files left only on the server's disk break: their images return 404 and their downloads fail with a server error. Copy them before you switch.
+
+The bucket uses the same layout as the uploads folder: images at the top, downloads under `resources/`. A plain sync is enough. This command runs the AWS CLI in a throwaway container and reads the R2 values from `.env`:
+
+```sh
+ssh <host> 'cd ~/erc && docker run --rm --env-file .env -v /data/media/erc/uploads:/uploads:ro --entrypoint sh amazon/aws-cli -c '\''AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" aws s3 sync /uploads "s3://$R2_BUCKET" --endpoint-url "$R2_ENDPOINT" --region auto'\'''
+```
+
+The sync copies only missing or changed files, so it is safe to run again.
+
+## 6. Switch
+
+Redeploy the running version so the container picks up the new values:
 
 ```sh
 ssh <host> 'cd ~/erc && ./deploy.sh "$(grep ^ERC_WEB_TAG= .env | cut -d= -f2)"'
 ```
 
-## 5. Check it
+Then run the step 5 command again. It copies anything uploaded between the first copy and the redeploy.
+
+Keep `/data/media/erc/uploads` on the server. Pages cached before the switch still link images at `/api/media/file/...`, and the app keeps serving those from disk until each page refreshes.
+
+## 7. Check it
 
 1. In `/admin`, open **Records → Media** and upload an image with alt text.
 2. Open the uploaded image. Its URL must start with `https://erc-media.gilla.fun/`.
 3. In the R2 dashboard, the object appears in the `erc-media` bucket.
+4. Open a page that showed an image before the switch, such as a coach profile. The image still loads.
+5. Open a download from `/resources`. The file still downloads.
 
-Images uploaded before the switch stay on the server's disk and keep working from there.
+To rehearse the whole switch locally against any S3-compatible store, run `apps/web/src/scripts/check-r2.ts` (see the README).
