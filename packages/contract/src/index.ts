@@ -58,7 +58,8 @@ declare const atob: (text: string) => string
 const toBase64Url = (text: string) => btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 
 const fromBase64Url = (text: string): string | null => {
-  if (!/^[A-Za-z0-9_-]{1,512}$/.test(text)) return null
+  // A length one past a multiple of four is not base64 at all, and atob throws on it.
+  if (!/^[A-Za-z0-9_-]{1,512}$/.test(text) || text.length % 4 === 1) return null
   const decoded = atob(text.replace(/-/g, '+').replace(/_/g, '/'))
   return /^[\x21-\x7e]+$/.test(decoded) ? decoded : null
 }

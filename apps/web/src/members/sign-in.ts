@@ -136,8 +136,10 @@ export async function verifySignIn(payload: Payload, input: SignInVerify, carrie
   const row = await latestCode(db, input.email)
   const matches = row !== null && sameMac(row.code_hash, codeHash(input.email, input.code))
   const check = checkSignInCode(row && storedOf(row), matches, now)
+  // The fifth wrong try reports `locked`, so it still counts; the guard stops a locked code collecting more, which keeps
+  // the daily failure cap at three codes' worth for an attacker.
   if (row && !matches && (check.kind === 'wrong' || check.kind === 'locked')) {
-    await db.execute(sql`UPDATE sign_in_codes SET tries = tries + 1 WHERE id = ${row.id}`)
+    await db.execute(sql`UPDATE sign_in_codes SET tries = tries + 1 WHERE id = ${row.id} AND tries < ${SIGN_IN_CODE_MAX_TRIES}`)
   }
   if (check.kind === 'locked') return err('locked')
   if (check.kind !== 'accepted' || !row) return err('wrong_code')

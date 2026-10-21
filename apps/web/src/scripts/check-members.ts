@@ -406,6 +406,8 @@ try {
   expect('four wrong codes are wrong, the fifth locks the code', attempts, ['wrong', 'wrong', 'wrong', 'wrong', 'locked'])
   const afterLock = text(await (await typeCode(chloeBrowser, chloePage, chloeCode.code)).text())
   expect('the right code is refused once locked, and no account was created', [afterLock.includes('too many wrong tries'), await memberRow(chloe), (await latestCode(chloe))?.tries], [true, null, 5])
+  for (let n = 0; n < 3; n += 1) await typeCode(chloeBrowser, chloePage, wrongFor(chloeCode.code))
+  expect('more wrong tries on a locked code are not counted, so the daily cap costs three codes', (await latestCode(chloe))?.tries, 5)
   const renewed = await askForCode(chloeBrowser, chloe)
   const chloeSecond = await codeFrom(chloe, 2)
   expect('asking again after a lock sends a fresh code at once, and the locked one stays closed', [formWith(renewed, CODE_FORM) !== null, chloeSecond.code !== chloeCode.code, await count(sql`SELECT count(*)::int AS n FROM sign_in_codes WHERE email = ${chloe} AND closed_at IS NOT NULL`)], [true, true, 1])

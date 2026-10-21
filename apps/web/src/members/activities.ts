@@ -24,12 +24,12 @@ const activityOf = (row: Row): Activity<PublicSource> => ({
 /**
  * Upsert on (member, source, ref): a form sent twice, or a client retrying, changes nothing the second time. Refuses
  * once the member has logged `RUNS_LOGGED_PER_HOUR` entries in the hour; `logged_at` is never updated, so a retry of
- * an existing entry is not counted twice.
+ * an existing entry is neither counted again nor refused.
  */
 export async function recordManual(payload: Payload, session: MemberSession, entry: ManualEntry): Promise<Result<Activity<'manual'>, 'too_many'>> {
   const db = payload.db.drizzle
   const recent = await db.execute(sql`SELECT count(*)::int AS n FROM activities WHERE member_id = ${session.member} AND logged_at > now() - interval '1 hour'`)
-  if ((recent.rows[0] as { n: number }).n >= RUNS_LOGGED_PER_HOUR) return err('too_many')
+  if ((recent.rows[0] as { n: number }).n >= RUNS_LOGGED_PER_HOUR && !(entry.ref && (await hasEntry(payload, session, entry.ref)))) return err('too_many')
   const ref = entry.ref ?? (randomUUID() as SourceRef)
   const { rows } = await db.execute(sql`
     INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s)
@@ -37,6 +37,11 @@ export async function recordManual(payload: Payload, session: MemberSession, ent
     ON CONFLICT (member_id, source, ref) DO UPDATE SET on_date = EXCLUDED.on_date, metres = EXCLUDED.metres, moving_s = EXCLUDED.moving_s
     RETURNING ${columns}`)
   return ok(activityOf(rows[0] as Row) as Activity<'manual'>)
+}
+
+async function hasEntry(payload: Payload, session: MemberSession, ref: SourceRef): Promise<boolean> {
+  const { rows } = await payload.db.drizzle.execute(sql`SELECT 1 FROM activities WHERE member_id = ${session.member} AND source = 'manual' AND ref = ${ref}`)
+  return rows.length > 0
 }
 
 export async function runsIn(payload: Payload, session: MemberSession, period: Period): Promise<readonly Activity<PublicSource>[]> {

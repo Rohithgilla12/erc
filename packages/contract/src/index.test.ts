@@ -54,6 +54,8 @@ describe('run cursors', () => {
     ['two parts', encode('2026-10-20|2026-10-20T12:34:56.789Z')],
     ['not base64url', 'not a cursor!'],
     ['nothing after decoding', 'AA'],
+    ['one character', 'A'],
+    ['a length atob refuses', 'AAAAA'],
   ])('refuses %s as a field error on `after`', (_label, after) => {
     expect(parseRunCursor(after)).toEqual({ ok: false, error: 'not_a_cursor' })
     expect(OPERATIONS.listRuns.parse({ after })).toEqual({ ok: false, error: { after: 'That page link is not valid. Start again from the newest runs.' } })
