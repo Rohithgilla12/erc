@@ -52,6 +52,9 @@ declare const ownerOnly: unique symbol
 export type OwnerOnlyMark = { readonly [ownerOnly]: MemberId }
 export type OwnerOnly<T> = T & OwnerOnlyMark
 
+/** The only way to build owner-only data: server code names the member whose session it holds. */
+export const ownedBy = <T>(_member: MemberId, value: T): OwnerOnly<T> => value as OwnerOnly<T>
+
 export type Method = 'GET' | 'POST'
 export type Access = 'anyone' | 'member'
 

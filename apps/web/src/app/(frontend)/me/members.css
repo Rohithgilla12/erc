@@ -1,0 +1,221 @@
+.member-page {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 36rem;
+}
+
+.member-page h1,
+.member-page h2,
+.member-page p {
+  margin: 0;
+}
+
+.member-page h2 {
+  font-size: var(--text-lg);
+}
+
+.member-lede {
+  color: var(--color-text-muted);
+}
+
+.member-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.member-field {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.member-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  /* 1rem keeps iOS Safari from zooming the page when a field takes focus. */
+  font: inherit;
+  font-size: 1rem;
+  font-weight: normal;
+}
+
+.member-field input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
+.member-code {
+  max-width: 10rem;
+  font-size: var(--text-xl) !important;
+  letter-spacing: 0.25em;
+  font-variant-numeric: tabular-nums;
+}
+
+.member-hint,
+.member-note {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: normal;
+}
+
+.member-error {
+  color: var(--color-danger);
+  font-weight: normal;
+}
+
+.member-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.member-check input {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.125rem 0 0;
+  accent-color: var(--color-accent);
+}
+
+.member-alert {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+}
+
+/* Off-screen rather than display: none, which some bots read as "skip this field". */
+.member-trap {
+  position: absolute;
+  left: -100vw;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.member-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.member-row .button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.member-fields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 30rem) {
+  .member-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.member-stats {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 30rem) {
+  .member-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.member-stat {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.member-stat h2 {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-muted);
+}
+
+.member-stat-value {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.member-stat-detail {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.member-saved {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+  transition:
+    opacity var(--duration-enter) var(--ease-out),
+    transform var(--duration-enter) var(--ease-out);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.member-runs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.member-run {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.member-run-detail {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.member-signout {
+  display: inline;
+}
+
+.member-signout button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-saved {
+    transition: none;
+  }
+}

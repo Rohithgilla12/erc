@@ -81,6 +81,7 @@ export interface Config {
     subscribers: Subscriber;
     resources: Resource;
     trainingPlans: TrainingPlan;
+    members: Member;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -102,6 +103,7 @@ export interface Config {
     subscribers: SubscribersSelect<false> | SubscribersSelect<true>;
     resources: ResourcesSelect<false> | ResourcesSelect<true>;
     trainingPlans: TrainingPlansSelect<false> | TrainingPlansSelect<true>;
+    members: MembersSelect<false> | MembersSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -1161,6 +1163,27 @@ export interface TrainingPlan {
   _status?: ('draft' | 'published') | null;
 }
 /**
+ * People who sign in to the site. Accounts are created by signing in, never here. Suspend a member to sign them out everywhere and refuse new sign-ins.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "members".
+ */
+export interface Member {
+  id: number;
+  email: string;
+  /**
+   * Suspended members are signed out and cannot sign in again until reactivated.
+   */
+  status: 'active' | 'suspended';
+  /**
+   * When they confirmed they are 18 or over, on their first sign-in.
+   */
+  ageDeclaredAt: string;
+  lastSignInAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -1239,6 +1262,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'trainingPlans';
         value: number | TrainingPlan;
+      } | null)
+    | ({
+        relationTo: 'members';
+        value: number | Member;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1830,6 +1857,18 @@ export interface TrainingPlansSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "members_select".
+ */
+export interface MembersSelect<T extends boolean = true> {
+  email?: T;
+  status?: T;
+  ageDeclaredAt?: T;
+  lastSignInAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

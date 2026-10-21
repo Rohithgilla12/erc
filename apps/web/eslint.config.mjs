@@ -37,6 +37,10 @@ export default defineConfig([
               group: ['@payloadcms/**', '@/cms', '@/cms/**', '@/payload.config', '@/payload-types', '@/migrations', '@/migrations/**'],
               message: 'Read through src/content instead.',
             },
+            {
+              group: ['@/members/**', '!@/members/run', '!@/members/actions'],
+              message: 'Pages and forms act on members only through run.ts and actions.ts, so the dashboard and the API stay one code path.',
+            },
           ],
         },
       ],

@@ -1,4 +1,4 @@
-import { CONFIRM_LIMIT_WINDOW_MS, CONFIRM_LINK_TTL_MS } from '@erc/domain'
+import { CONFIRM_LIMIT_WINDOW_MS, CONFIRM_LINK_TTL_MS, MIN_MEMBER_AGE, SESSION_IDLE_DAYS, SIGN_IN_CODE_TTL_MS } from '@erc/domain'
 import type { Metadata } from 'next'
 import React from 'react'
 
@@ -60,6 +60,13 @@ export default function PrivacyPage() {
           athlete agrees to show them, and the athlete decides for each one. A photo is added only once the athlete agrees, and an
           uploaded photo can be opened by anyone who has its web address.
         </p>
+        <h3>Member accounts</h3>
+        <p>
+          If you sign in, we store your email address, when you confirmed you are {MIN_MEMBER_AGE} or over, and when you last
+          signed in. Each sign-in emails you a code; we store only a keyed hash of it for {SIGN_IN_CODE_TTL_MS / 60_000} minutes. We
+          store a hash of each signed-in device&apos;s session, which lasts {SESSION_IDLE_DAYS} days from its last use, and the
+          runs you log: date, distance, and time. Your runs are shown only to you.
+        </p>
         <h3>Keeping the forms safe</h3>
         <p>
           To limit how often one connection can send the forms, we store a keyed hash of the network each form was sent from, with
@@ -90,6 +97,10 @@ export default function PrivacyPage() {
           </li>
           <li>An athlete profile stays until the athlete asks us to remove it. Removing a profile deletes its results too.</li>
           <li>
+            A member account and its runs stay until you ask us to erase them. A sign-in code is deleted a day after it was
+            sent, and a session once it has not been used for {SESSION_IDLE_DAYS} days.
+          </li>
+          <li>
             Visit statistics are kept on our server with no set deletion date. They are not linked to your name or email address.
           </li>
         </ul>
@@ -105,9 +116,9 @@ export default function PrivacyPage() {
             to our server. Cloudflare sees your IP address and the pages your browser asks for.
           </li>
           <li>
-            <strong>Google (Gmail).</strong> Once the club sends email from the site, newsletter confirmation emails and our
-            notices of new contact form messages go out through the club&apos;s Gmail account, so Google handles the address and
-            the content of each email.
+            <strong>Google (Gmail).</strong> Once the club sends email from the site, newsletter confirmation emails, sign-in
+            codes, and our notices of new contact form messages go out through the club&apos;s Gmail account, so Google handles
+            the address and the content of each email.
           </li>
           <li>
             <strong>Cloudflare R2.</strong> Photos and files uploaded to the site, including athlete photos, are stored in

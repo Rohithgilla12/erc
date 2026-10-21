@@ -17,6 +17,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@erc/contract':
+        specifier: workspace:*
+        version: link:../../packages/contract
       '@erc/domain':
         specifier: workspace:*
         version: link:../../packages/domain

@@ -11,7 +11,7 @@ const monorepoRoot = path.resolve(dirname, '../..')
 const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: monorepoRoot,
-  transpilePackages: ['@erc/domain'],
+  transpilePackages: ['@erc/contract', '@erc/domain'],
   images: {
     localPatterns: [
       {

@@ -3,11 +3,15 @@ import { NextResponse, type NextRequest } from 'next/server'
 // Payload names its auth cookie `<cookiePrefix>-token`, and the config keeps the default prefix.
 const AUTH_COOKIE = 'payload-token'
 
-/** The only API paths a visitor without a credential needs: the admin's sign-in pages, uploaded images, and script revalidation. */
+/**
+ * The only API paths a visitor without a credential needs: the admin's sign-in pages, uploaded images, script
+ * revalidation, and the member API, which authenticates its own bearer tokens and answers 401 in its own error shape.
+ */
 const OPEN_PATHS = [
   /^\/api\/staff\/(?:login|logout|me|forgot-password|reset-password|first-register)$/,
   /^\/api\/[A-Za-z]+\/file\/[^/]+$/,
   /^\/api\/revalidate$/,
+  /^\/api\/v1\//,
 ]
 
 /**

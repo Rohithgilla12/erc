@@ -3,7 +3,7 @@ import { Forbidden, type PayloadRequest } from 'payload'
 
 type AccessArgs = { req: PayloadRequest }
 
-// Phase 2 adds a `members` auth collection, so "logged in" must never be read as "staff".
+// Members are never Payload users (they sign in through src/members), so "logged in" here can only mean staff.
 export const staffOf = ({ user }: PayloadRequest) => (user?.collection === 'staff' ? user : null)
 
 export const isStaff = ({ req }: AccessArgs) => staffOf(req) !== null

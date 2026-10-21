@@ -7,6 +7,7 @@ import { siteConfig } from '@/site-config'
 import { Analytics } from './analytics'
 import { NewsletterSignup } from './newsletter/_components/newsletter-signup'
 import { FEED_PATH, FEED_TITLE } from './learn/_components/feed'
+import { MemberNav } from './member-nav'
 import { CLUB, PRIVACY_NOTICE, SITE_SECTIONS } from './site-nav'
 import { SiteNavLinks } from './site-nav-links'
 import './styles.css'
@@ -48,6 +49,7 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
               <span className="brand-name-full">{CLUB.name}</span>
               <span className="brand-name-short">{CLUB.shortName}</span>
             </a>
+            <MemberNav />
             <nav className="site-nav" aria-label="Site">
               <SiteNavLinks />
             </nav>

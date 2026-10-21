@@ -31,7 +31,7 @@ const code = (overrides: Partial<StoredSignInCode> = {}): StoredSignInCode => ({
   sentAt: ago(MINUTE),
   expiresAt: ahead(SIGN_IN_CODE_TTL_MS - MINUTE),
   tries: 0,
-  consumedAt: null,
+  closedAt: null,
   ...overrides,
 })
 
@@ -64,7 +64,7 @@ describe('parseSignInCode', () => {
 describe('planCodeRequest', () => {
   it('sends when nothing is stored, or the stored code was used', () => {
     expect(planCodeRequest(null, now)).toBe('send')
-    expect(planCodeRequest(code({ consumedAt: ago(MINUTE) }), now)).toBe('send')
+    expect(planCodeRequest(code({ closedAt: ago(MINUTE) }), now)).toBe('send')
   })
 
   it('resends nothing within a minute of a live code', () => {
@@ -85,7 +85,7 @@ describe('checkSignInCode', () => {
 
   it('reads a missing or used code as unknown, whatever was typed', () => {
     expect(checkSignInCode(null, true, now)).toEqual({ kind: 'unknown' })
-    expect(checkSignInCode(code({ consumedAt: ago(1) }), true, now)).toEqual({ kind: 'unknown' })
+    expect(checkSignInCode(code({ closedAt: ago(1) }), true, now)).toEqual({ kind: 'unknown' })
   })
 
   it('expires at ten minutes exactly', () => {

@@ -5,7 +5,7 @@ import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto'
  * field name in `form-fields.ts`. Each form signs with its own purpose, so a token or key from one never counts for
  * another.
  */
-export type PublicForm = 'enquiry' | 'newsletter'
+export type PublicForm = 'enquiry' | 'newsletter' | 'sign-in'
 
 export type FormTiming = 'ok' | 'too_fast' | 'expired' | 'invalid'
 

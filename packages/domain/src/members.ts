@@ -39,14 +39,14 @@ export const parseSignInCode = (raw: unknown): Result<SignInCode, 'not_a_code'> 
 /** A six-digit code from 32 bits of randomness, zero-padded. */
 export const codeFromRandom = (random: number): SignInCode => String(random % 1_000_000).padStart(6, '0') as SignInCode
 
-/** The newest code stored for an address, as the shell reads it. */
-export type StoredSignInCode = { sentAt: Instant; expiresAt: Instant; tries: number; consumedAt: Instant | null }
+/** The newest code stored for an address, as the shell reads it. A code is closed once it is used or a newer one is sent. */
+export type StoredSignInCode = { sentAt: Instant; expiresAt: Instant; tries: number; closedAt: Instant | null }
 
 /** What a code request does, decided before any email is spent. `none` means the code sent a moment ago still stands. */
 export type CodeRequestStep = 'send' | 'none'
 
 export const planCodeRequest = (latest: StoredSignInCode | null, now: Date): CodeRequestStep => {
-  if (!latest || latest.consumedAt !== null) return 'send'
+  if (!latest || latest.closedAt !== null) return 'send'
   const live = Date.parse(latest.expiresAt) > now.getTime() && latest.tries < SIGN_IN_CODE_MAX_TRIES
   return live && now.getTime() - Date.parse(latest.sentAt) < SIGN_IN_CODE_RESEND_AFTER_MS ? 'none' : 'send'
 }
@@ -60,7 +60,7 @@ export const codeExpiryFrom = (now: Date): Instant => new Date(now.getTime() + S
 export type CodeCheck = { kind: 'accepted' } | { kind: 'wrong'; triesLeft: number } | { kind: 'expired' } | { kind: 'locked' } | { kind: 'unknown' }
 
 export const checkSignInCode = (stored: StoredSignInCode | null, matches: boolean, now: Date): CodeCheck => {
-  if (!stored || stored.consumedAt !== null) return { kind: 'unknown' }
+  if (!stored || stored.closedAt !== null) return { kind: 'unknown' }
   if (Date.parse(stored.expiresAt) <= now.getTime()) return { kind: 'expired' }
   if (stored.tries >= SIGN_IN_CODE_MAX_TRIES) return { kind: 'locked' }
   if (matches) return { kind: 'accepted' }
