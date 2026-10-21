@@ -72,7 +72,6 @@ export async function revokeSession(payload: Payload, session: MemberSession): P
   await payload.db.drizzle.execute(sql`DELETE FROM member_sessions WHERE id = ${session.id}`)
 }
 
-/** Cookie attributes for a session, and for clearing it. */
 export const sessionCookie = (expiresAt: Instant | null) => ({
   httpOnly: true,
   secure: true,

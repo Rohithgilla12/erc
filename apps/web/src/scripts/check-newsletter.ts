@@ -222,14 +222,18 @@ const settledCount = async (matches: (mail: MailSummary & { Subject: string }) =
 
 const BURST = 60
 
+/** Moves this run's confirmation emails out of the current hour, so a case that needs room under the share starts with the whole share. */
+const clearHour = () =>
+  payload.db.drizzle.execute(sql`
+    UPDATE subscribers SET consented_at = consented_at - interval '2 hours', prior_consented_at = prior_consented_at - interval '2 hours'
+    WHERE email LIKE ${`newsletter-check-${run}-%`}`)
+
 /**
  * Many signups at once, each from its own network so no per-sender limit applies, must not mail more than the hour's
  * room under the cap. The hour is emptied of this run's earlier rows first, so the room is known.
  */
 async function newsletterBurstCases() {
-  await payload.db.drizzle.execute(sql`
-    UPDATE subscribers SET consented_at = consented_at - interval '2 hours', prior_consented_at = prior_consented_at - interval '2 hours'
-    WHERE email LIKE ${`newsletter-check-${run}-%`}`)
+  await clearHour()
   const { rows } = await payload.db.drizzle.execute(sql`
     SELECT (count(*) FILTER (WHERE consented_at > now() - interval '1 hour') + count(*) FILTER (WHERE prior_consented_at > now() - interval '1 hour'))::int AS n
     FROM subscribers`)
@@ -384,6 +388,7 @@ try {
 
   expect('an invalid address is refused with a field error', await signUp(again, 'not-an-address', sender), 'Enter an email address such as name@example.com.')
 
+  await clearHour()
   const busySender = `198.51.100.${200 + (run % 50)}`
   const busy = await footerForm(busySender)
   const outcomes = []
@@ -398,6 +403,7 @@ try {
   ])
 
   await payload.db.drizzle.execute(sql`UPDATE subscribers SET status = 'confirmed', confirmed_at = now() WHERE email = ${ben}`)
+  await clearHour()
   const probeSender = `198.51.100.${250 + (run % 5)}`
   const probe = await footerForm(probeSender)
   const probed = []
