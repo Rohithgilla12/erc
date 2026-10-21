@@ -37,12 +37,12 @@ const csvCell = (value: string) => {
 
 const ymd = (date: Date) => date.toISOString().slice(0, 10).replace(/-/g, '')
 
-/** `GET /api/subscribers/export.csv`: confirmed addresses only, for staff. */
+/** `GET /api/subscribers/export.csv`: confirmed addresses only, for admins. The whole list in one file is not an editor's job. */
 const exportConfirmed: Endpoint = {
   path: '/export.csv',
   method: 'get',
   handler: async (req) => {
-    if (!staffOf(req)) return Response.json({ errors: [{ message: 'You are not allowed to perform this action.' }] }, { status: 403 })
+    if (staffOf(req)?.role !== 'admin') return Response.json({ errors: [{ message: 'You are not allowed to perform this action.' }] }, { status: 403 })
     const { docs } = await req.payload.find({
       collection: 'subscribers',
       where: { status: { equals: 'confirmed' satisfies SubscriberStatus } },

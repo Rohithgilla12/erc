@@ -196,10 +196,19 @@ async function newsletterCapCases(listed: string) {
   expect('and no confirmation email goes out', [(await mailsTo(fresh)).length, await subscriberRow(fresh)], [0, null])
 }
 
-const staff = await payload.create({
-  collection: 'staff',
-  data: { email: `newsletter-check-${run}@erc.invalid`, password: `pw-${run}-check`, role: 'editor' },
-})
+const staffAs = (role: 'admin' | 'editor') =>
+  payload.create({ collection: 'staff', data: { email: `newsletter-check-${run}-${role}@erc.invalid`, password: `pw-${run}-check`, role } })
+const staff = await staffAs('editor')
+const admin = await staffAs('admin')
+
+const tokenFor = async (email: string) => {
+  const login = await fetch(new URL('/api/staff/login', site), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password: `pw-${run}-check` }),
+  })
+  return ((await login.json()) as { token: string }).token
+}
 
 try {
   const sender = `198.51.100.${run % 200}`
@@ -329,15 +338,18 @@ try {
   )
   expect('anonymous REST reads, exports and creates are refused', anonymous, [403, 403, 403])
 
-  const login = await fetch(new URL('/api/staff/login', site), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: staff.email, password: `pw-${run}-check` }),
-  })
-  const { token } = (await login.json()) as { token: string }
-  const csv = await fetch(new URL('/api/subscribers/export.csv', site), { headers: { authorization: `JWT ${token}` } })
+  const token = await tokenFor(staff.email)
+  const adminToken = await tokenFor(admin.email)
+  const exportAs = (jwt: string) => fetch(new URL('/api/subscribers/export.csv', site), { headers: { authorization: `JWT ${jwt}` } })
+  expect('an editor cannot export subscribers', (await exportAs(token)).status, 403)
+  const listPage = async (jwt: string) =>
+    (await (await fetch(new URL('/admin/collections/subscribers', site), { headers: { cookie: `payload-token=${jwt}` } })).text()).includes(
+      'Download confirmed subscribers',
+    )
+  expect('and the admin list shows the export button to admins only', [await listPage(token), await listPage(adminToken)], [false, true])
+  const csv = await exportAs(adminToken)
   const lines = (await csv.text()).trim().split('\r\n')
-  expect('staff download a CSV', [csv.status, csv.headers.get('content-type'), lines[0]], [200, 'text/csv; charset=utf-8', 'email,confirmed_at,consented_at,source'])
+  expect('an admin downloads a CSV', [csv.status, csv.headers.get('content-type'), lines[0]], [200, 'text/csv; charset=utf-8', 'email,confirmed_at,consented_at,source'])
   expect('it lists confirmed subscribers only', lines.filter((line) => line.includes(`newsletter-check-${run}`)).map((line) => line.split(',')[0]).sort(), [ben, kept].sort())
   const staffCreate = await fetch(new URL('/api/subscribers', site), {
     method: 'POST',
@@ -348,7 +360,7 @@ try {
 } finally {
   await payload.db.drizzle.execute(sql`DELETE FROM subscribers WHERE email LIKE ${`newsletter-check-${run}-%`}`)
   await payload.db.drizzle.execute(sql`DELETE FROM enquiries WHERE name IN (${`Cap filler ${run}`}) OR name LIKE ${`Cap check ${run} %`}`)
-  await payload.delete({ collection: 'staff', id: staff.id })
+  await payload.delete({ collection: 'staff', where: { id: { in: [staff.id, admin.id] } } })
 }
 
 if (failures.length > 0) {

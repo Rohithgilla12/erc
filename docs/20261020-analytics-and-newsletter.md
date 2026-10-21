@@ -62,7 +62,7 @@ Signup only, with double opt-in. Sending issues comes later with listmonk.
 - An address left unconfirmed for 30 days is deleted at the next signup, so an address someone else typed in does not stay on file.
 - Confirming and unsubscribing happen on a button press, not on opening the link. Mail scanners open links before people do, and would otherwise use up the single-use link or unsubscribe the reader.
 - Nobody can create or edit a subscriber through the admin or REST API, so every subscriber went through double opt-in. Staff can delete a subscriber to erase them.
-- Staff download confirmed subscribers as CSV from the Subscribers list in the admin, or from `GET /api/subscribers/export.csv` while signed in. Anonymous requests get 403.
+- Admins download confirmed subscribers as CSV from the Subscribers list in the admin, or from `GET /api/subscribers/export.csv` while signed in. Editors, authors and anonymous requests get 403, and only admins see the button.
 
 Check the whole flow, and both forms' hourly email caps, against a running site whose SMTP points at a local Mailpit and which shares `ENQUIRY_NOTIFY_TO` with the check:
 
