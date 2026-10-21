@@ -28,6 +28,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"member_id" integer NOT NULL REFERENCES "members"("id") ON DELETE cascade,
   	"token_hash" varchar(64) NOT NULL UNIQUE,
   	"carrier" varchar NOT NULL CHECK ("carrier" IN ('cookie', 'bearer')),
+  	"label" varchar(40) NOT NULL,
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"last_seen_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"expires_at" timestamp(3) with time zone NOT NULL
@@ -67,12 +68,13 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TABLE "activities";
   DROP TABLE "sign_in_codes";
   DROP TABLE "member_sessions";`)
+  // DROP TABLE ... CASCADE already removes the rels constraint, so dropping it again must tolerate its absence.
   await db.execute(sql`
    ALTER TABLE "members" DISABLE ROW LEVEL SECURITY;
   DROP TABLE "members" CASCADE;
-  ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT "payload_locked_documents_rels_members_fk";
-  
-  DROP INDEX "payload_locked_documents_rels_members_id_idx";
+  ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT IF EXISTS "payload_locked_documents_rels_members_fk";
+
+  DROP INDEX IF EXISTS "payload_locked_documents_rels_members_id_idx";
   ALTER TABLE "payload_locked_documents_rels" DROP COLUMN "members_id";
   DROP TYPE "public"."enum_members_status";`)
 }

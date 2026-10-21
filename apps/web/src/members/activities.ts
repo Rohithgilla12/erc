@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 
 import { sql } from '@payloadcms/db-postgres/drizzle'
-import type { Cursor, Page } from '@erc/contract'
-import type { Activity, LocalDate, ManualEntry, MemberId, Metres, Period, PublicSource, Seconds, SourceRef } from '@erc/domain'
+import { encodeRunCursor, type Page, type RunCursor } from '@erc/contract'
+import { err, ok, RUNS_LOGGED_PER_HOUR, type Activity, type LocalDate, type ManualEntry, type MemberId, type Metres, type Period, type PublicSource, type Result, type Seconds, type SourceRef } from '@erc/domain'
 import type { Payload } from 'payload'
 
 import { instantOf, type MemberSession } from './session'
@@ -21,15 +21,22 @@ const activityOf = (row: Row): Activity<PublicSource> => ({
   loggedAt: instantOf(row.logged_at),
 })
 
-/** Upsert on (member, source, ref): a form sent twice, or a client retrying, changes nothing the second time. */
-export async function recordManual(payload: Payload, session: MemberSession, entry: ManualEntry): Promise<Activity<'manual'>> {
+/**
+ * Upsert on (member, source, ref): a form sent twice, or a client retrying, changes nothing the second time. Refuses
+ * once the member has logged `RUNS_LOGGED_PER_HOUR` entries in the hour; `logged_at` is never updated, so a retry of
+ * an existing entry is not counted twice.
+ */
+export async function recordManual(payload: Payload, session: MemberSession, entry: ManualEntry): Promise<Result<Activity<'manual'>, 'too_many'>> {
+  const db = payload.db.drizzle
+  const recent = await db.execute(sql`SELECT count(*)::int AS n FROM activities WHERE member_id = ${session.member} AND logged_at > now() - interval '1 hour'`)
+  if ((recent.rows[0] as { n: number }).n >= RUNS_LOGGED_PER_HOUR) return err('too_many')
   const ref = entry.ref ?? (randomUUID() as SourceRef)
-  const { rows } = await payload.db.drizzle.execute(sql`
+  const { rows } = await db.execute(sql`
     INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s)
     VALUES (${session.member}, 'manual', ${ref}, ${entry.on}, ${entry.distance}, ${entry.moving})
     ON CONFLICT (member_id, source, ref) DO UPDATE SET on_date = EXCLUDED.on_date, metres = EXCLUDED.metres, moving_s = EXCLUDED.moving_s
     RETURNING ${columns}`)
-  return activityOf(rows[0] as Row) as Activity<'manual'>
+  return ok(activityOf(rows[0] as Row) as Activity<'manual'>)
 }
 
 export async function runsIn(payload: Payload, session: MemberSession, period: Period): Promise<readonly Activity<PublicSource>[]> {
@@ -42,26 +49,16 @@ export async function runsIn(payload: Payload, session: MemberSession, period: P
 
 export const RUNS_PAGE_SIZE = 20
 
-const encodeCursor = (run: Activity): Cursor => Buffer.from(`${run.on}|${run.loggedAt}|${run.ref}`).toString('base64url') as Cursor
-
-const decodeCursor = (cursor: Cursor): [LocalDate, string, string] | null => {
-  const parts = Buffer.from(cursor, 'base64url').toString().split('|')
-  if (parts.length !== 3) return null
-  const [on = '', loggedAt = '', ref = ''] = parts
-  return /^\d{4}-\d{2}-\d{2}$/.test(on) && !Number.isNaN(Date.parse(loggedAt)) ? [on as LocalDate, loggedAt, ref] : null
-}
-
-/** Newest first. A cursor that does not decode starts from the top rather than failing the page. */
-export async function listRuns(payload: Payload, session: MemberSession, after: Cursor | null): Promise<Page<Activity<PublicSource>>> {
-  const from = after === null ? null : decodeCursor(after)
+/** Newest first, from just after the parsed cursor. The contract's parser has already refused anything malformed. */
+export async function listRuns(payload: Payload, session: MemberSession, after: RunCursor | null): Promise<Page<Activity<PublicSource>>> {
   const { rows } = await payload.db.drizzle.execute(sql`
     SELECT ${columns} FROM activities
     WHERE member_id = ${session.member}
-      ${from ? sql`AND (on_date, logged_at, ref) < (${from[0]}::date, ${from[1]}::timestamptz, ${from[2]})` : sql``}
+      ${after ? sql`AND (on_date, logged_at, ref) < (${after.on}::date, ${after.loggedAt}::timestamptz, ${after.ref})` : sql``}
     ORDER BY on_date DESC, logged_at DESC, ref DESC
     LIMIT ${RUNS_PAGE_SIZE + 1}`)
   const items = (rows as Row[]).map(activityOf)
   const page = items.slice(0, RUNS_PAGE_SIZE)
   const last = page.at(-1)
-  return { items: page, next: items.length > RUNS_PAGE_SIZE && last ? encodeCursor(last) : null }
+  return { items: page, next: items.length > RUNS_PAGE_SIZE && last ? encodeRunCursor(last) : null }
 }

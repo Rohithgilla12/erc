@@ -5,7 +5,7 @@ import { formatDuration, formatKm, type LocalDate, type Metres, type Seconds } f
 import type { Metadata } from 'next'
 import React from 'react'
 
-import { signOut } from '@/members/actions'
+import { signOut, signOutDevice } from '@/members/actions'
 import { requireMember, run } from '@/members/run'
 
 import { RunForm } from './run-form'
@@ -23,6 +23,10 @@ const day = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric',
 const formatDay = (date: LocalDate | string) => day.format(new Date(`${date}T00:00:00Z`))
 
 const paceOf = (distance: Metres, moving: Seconds) => `${formatDuration(Math.round(moving / (distance / 1000)) as Seconds)} /km`
+
+// Session dates are instants, shown as club dates so a member in India reads the day they remember.
+const clubDay = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })
+const formatInstant = (instant: string) => clubDay.format(new Date(instant))
 
 function Stat({ title, period }: { title: string; period: PeriodTotals }) {
   const { totals } = period
@@ -43,13 +47,14 @@ function Stat({ title, period }: { title: string; period: PeriodTotals }) {
 export default async function MePage({ searchParams }: Props) {
   const caller = await requireMember()
   const after = first((await searchParams).after)
-  const [dashboard, runs] = await Promise.all([run('dashboard', caller, {}), run('listRuns', caller, { after })])
-  if (!dashboard.ok || !runs.ok) {
+  const [dashboard, runs, devices] = await Promise.all([run('dashboard', caller, {}), run('listRuns', caller, { after }), run('listSessions', caller, {})])
+  if (!dashboard.ok || !runs.ok || !devices.ok) {
+    const failed = [dashboard, runs, devices].find((result) => !result.ok)
     return (
       <div className="page member-page">
         <h1>My running</h1>
         <p className="member-alert" role="alert">
-          {dashboard.ok ? (runs.ok ? '' : runs.error.message) : dashboard.error.message}
+          {failed && !failed.ok ? (failed.error.fields ? Object.values(failed.error.fields).join(' ') : failed.error.message) : ''}
         </p>
       </div>
     )
@@ -100,6 +105,30 @@ export default async function MePage({ searchParams }: Props) {
           {runs.data.next ? <a href={`/me?after=${encodeURIComponent(runs.data.next)}#recent-runs`}>Older runs</a> : null}
           {after ? <a href="/me#recent-runs">Back to recent runs</a> : null}
         </p>
+      </section>
+
+      <section aria-labelledby="devices">
+        <h2 id="devices">Signed-in devices</h2>
+        <p className="member-note">Signing out a device you no longer have ends its session straight away. Nothing else here changes.</p>
+        <ul className="member-devices">
+          {devices.data.items.map((device) => (
+            <li className="member-device" key={device.id}>
+              <span className="member-device-label">
+                {device.label}
+                {device.current ? <span className="member-device-current"> (this device)</span> : null}
+              </span>
+              <span className="member-device-detail">
+                Signed in {formatInstant(device.createdAt)}, last used {formatInstant(device.lastSeenAt)}
+              </span>
+              {device.current ? null : (
+                <form className="member-signout" action={signOutDevice}>
+                  <input type="hidden" name="session" value={device.id} />
+                  <button type="submit">Sign out this device</button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   )

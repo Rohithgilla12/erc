@@ -2,7 +2,7 @@
 
 import React, { useActionState } from 'react'
 
-import { HONEYPOT_FIELD } from '@/content/form-fields'
+import { HONEYPOT_FIELD, TOKEN_FIELD } from '@/content/form-fields'
 import { signIn, type SignInFormState } from '@/members/actions'
 
 import { PRIVACY_NOTICE } from '../site-nav'
@@ -38,6 +38,7 @@ export function SignInForm({ initial }: { initial: SignInFormState }) {
         ) : null}
         <form className="member-form" action={action}>
           <input type="hidden" name="step" value="code" />
+          <input type="hidden" name={TOKEN_FIELD} value={state.token} />
           <input type="hidden" name="email" value={state.email} />
           <label className="member-field">
             <span>Code from the email</span>
@@ -63,6 +64,7 @@ export function SignInForm({ initial }: { initial: SignInFormState }) {
         </form>
         <form className="member-row" action={action}>
           <input type="hidden" name="step" value="email" />
+          <input type="hidden" name={TOKEN_FIELD} value={state.token} />
           <input type="hidden" name="email" value={state.email} />
           <input type="hidden" name="over18" value="on" />
           <button className="button button-secondary" type="submit" disabled={pending}>
@@ -77,6 +79,7 @@ export function SignInForm({ initial }: { initial: SignInFormState }) {
   return (
     <form className="member-form" action={action}>
       <input type="hidden" name="step" value="email" />
+      <input type="hidden" name={TOKEN_FIELD} value={state.token} />
       {state.notice ? (
         <p className="member-alert" role="alert">
           {state.notice}

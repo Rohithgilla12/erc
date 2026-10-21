@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import React from 'react'
 
+import { issueFormToken } from '@/content/form-guard'
 import { currentCaller, signInOpen } from '@/members/run'
 
 import { SignInForm } from './sign-in-form'
@@ -25,7 +26,7 @@ export default async function SignInPage() {
     <div className="page member-page">
       <h1>Sign in</h1>
       <p className="member-lede">Enter your email address and we will send you a six-digit code. There is no password.</p>
-      <SignInForm initial={{ step: 'email', email: '' }} />
+      <SignInForm initial={{ step: 'email', token: issueFormToken('sign-in'), email: '' }} />
     </div>
   )
 }

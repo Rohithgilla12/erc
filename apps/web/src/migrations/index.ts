@@ -9,7 +9,7 @@ import * as migration_20261020_024631_plans_and_resources from './20261020_02463
 import * as migration_20261020_032538_newsletter_subscribers from './20261020_032538_newsletter_subscribers';
 import * as migration_20261020_033438_home_blocks from './20261020_033438_home_blocks';
 import * as migration_20261021_085649_subscriber_prior_consent from './20261021_085649_subscriber_prior_consent';
-import * as migration_20261021_093343_members from './20261021_093343_members';
+import * as migration_20261021_105447_members from './20261021_105447_members';
 
 export const migrations = [
   {
@@ -68,8 +68,8 @@ export const migrations = [
     name: '20261021_085649_subscriber_prior_consent',
   },
   {
-    up: migration_20261021_093343_members.up,
-    down: migration_20261021_093343_members.down,
-    name: '20261021_093343_members'
+    up: migration_20261021_105447_members.up,
+    down: migration_20261021_105447_members.down,
+    name: '20261021_105447_members'
   },
 ];

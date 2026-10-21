@@ -78,11 +78,16 @@
   cursor: pointer;
 }
 
+/* Undoes the text-field sizing `.member-field input` gives every input, which stretched the box to the tap-target height
+   and drew the tick well below the label's first line. The margin centres the box on that line. */
 .member-check input {
   flex-shrink: 0;
   width: 1.25rem;
   height: 1.25rem;
+  min-height: 0;
+  padding: 0;
   margin: 0.125rem 0 0;
+  margin-top: calc((1lh - 1.25rem) / 2);
   accent-color: var(--color-accent);
 }
 
@@ -197,6 +202,31 @@
 .member-run-detail {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+}
+
+.member-devices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.member-device {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.member-device-label {
+  font-weight: var(--weight-medium);
+}
+
+.member-device-current,
+.member-device-detail {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: normal;
 }
 
 .member-signout {

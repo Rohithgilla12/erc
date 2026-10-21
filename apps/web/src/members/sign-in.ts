@@ -6,14 +6,15 @@ import {
   checkSignInCode,
   codeExpiryFrom,
   codeFromRandom,
+  deviceLabelOf,
   EMAIL_SHARES,
   err,
   ok,
   planCodeRequest,
   SIGN_IN_CODE_MAX_TRIES,
   SIGN_IN_CODE_TTL_MS,
-  SIGN_IN_CODES_PER_ADDRESS_PER_HOUR,
-  SIGN_IN_CODES_PER_SENDER_PER_HOUR,
+  type Carrier,
+  type CodeRequestCounts,
   type MemberId,
   type Result,
   type SignInCode,
@@ -29,22 +30,34 @@ import { emailConfigured } from '@/cms/email'
 import { withCapLock, type Transaction } from '@/content/email-cap'
 import { mac, sameMac } from '@/content/form-guard'
 
-import { instantOf, issueSession, type Carrier } from './session'
+import { instantOf, issueSession } from './session'
 
 /** Sign-in is offered exactly when a code can be emailed, the same rule as the newsletter form. */
 export const signInOpen = (): boolean => emailConfigured()
 
-export type StartRefusal = 'per_address' | 'per_sender' | 'unavailable'
+export type StartRefusal = 'per_address' | 'per_sender' | 'too_many_failures' | 'unavailable'
 export type VerifyRefusal = 'wrong_code' | 'locked' | 'suspended'
 
 // Keyed with the server's secret rather than a bare hash: a six-digit code is small enough to brute-force from a leaked table.
 const codeHash = (email: string, code: SignInCode) => mac('sign-in-code', `${email}:${code}`)
 
 const HOUR = sql`now() - interval '1 hour'`
+const DAY = sql`now() - interval '1 day'`
 
 const count = async (transaction: Transaction, where: ReturnType<typeof sql>) => {
   const { rows } = await transaction.execute(sql`SELECT count(*)::int AS n FROM sign_in_codes WHERE ${where}`)
   return (rows[0] as { n: number }).n
+}
+
+/** Wrong tries are kept on each code's row, so a day's failures for an address are the sum over its codes. Rows live a day. */
+const requestCounts = async (db: Transaction, email: string, senderKey: string): Promise<CodeRequestCounts> => {
+  const { rows } = await db.execute(sql`
+    SELECT
+      (SELECT count(*)::int FROM sign_in_codes WHERE email = ${email} AND sent_at > ${HOUR}) AS to_address,
+      (SELECT count(*)::int FROM sign_in_codes WHERE sender_key = ${senderKey} AND sent_at > ${HOUR}) AS by_sender,
+      (SELECT coalesce(sum(tries), 0)::int FROM sign_in_codes WHERE email = ${email} AND sent_at > ${DAY}) AS failures`)
+  const row = rows[0] as { to_address: number; by_sender: number; failures: number }
+  return { toAddressInHour: row.to_address, bySenderInHour: row.by_sender, failuresForAddressInDay: row.failures }
 }
 
 type CodeRow = { id: number; code_hash: string; sent_at: Date | string; expires_at: Date | string; tries: number; closed_at: Date | string | null }
@@ -87,10 +100,10 @@ async function sendCode(payload: Payload, to: string, code: SignInCode) {
 export async function startSignIn(payload: Payload, input: SignInStart, senderKey: string): Promise<Result<{ sent: true }, StartRefusal>> {
   const now = new Date()
   const outcome = await withCapLock(payload, 'sign_in_code', async (_req, db): Promise<Result<SignInCode | null, StartRefusal>> => {
-    if ((await count(db, sql`sender_key = ${senderKey} AND sent_at > ${HOUR}`)) >= SIGN_IN_CODES_PER_SENDER_PER_HOUR) return err('per_sender')
-    if ((await count(db, sql`email = ${input.email} AND sent_at > ${HOUR}`)) >= SIGN_IN_CODES_PER_ADDRESS_PER_HOUR) return err('per_address')
     const latest = await latestCode(db, input.email)
-    if (planCodeRequest(latest && storedOf(latest), now) === 'none') return ok(null)
+    const step = planCodeRequest(latest && storedOf(latest), await requestCounts(db, input.email, senderKey), now)
+    if (step === 'none') return ok(null)
+    if (step !== 'send') return err(step)
     if ((await count(db, sql`sent_at > ${HOUR}`)) >= EMAIL_SHARES.sign_in_code) {
       payload.logger.warn({ cap: EMAIL_SHARES.sign_in_code }, 'Refused a sign-in code: the hourly share is reached')
       return err('unavailable')
@@ -148,5 +161,7 @@ export async function verifySignIn(payload: Payload, input: SignInVerify, carrie
         context,
         depth: 0,
       })
-  return ok(await issueSession(payload, member.id as MemberId, carrier))
+  // A browser is always "Web browser"; only an app, which sends the bearer, gets to name itself.
+  const label = deviceLabelOf(carrier === 'bearer' ? input.device : null, carrier)
+  return ok(await issueSession(payload, member.id as MemberId, carrier, label))
 }

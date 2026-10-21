@@ -1,18 +1,17 @@
 import { createHash, randomBytes } from 'node:crypto'
 
 import { sql } from '@payloadcms/db-postgres/drizzle'
-import type { IssuedSession, SessionToken } from '@erc/contract'
-import { checkSession, sessionExpiryFrom, type Email, type Instant, type MemberId, type MemberStatus } from '@erc/domain'
+import type { IssuedSession, SessionToken, SessionView } from '@erc/contract'
+import { checkSession, SESSION_COOKIE_MAX_AGE_S, sessionExpiryFrom, type Carrier, type Email, type Instant, type MemberId, type MemberStatus } from '@erc/domain'
 import type { Payload } from 'payload'
+
+export type { Carrier }
 
 /**
  * `__Host-` pins the cookie to this origin, path `/`, and HTTPS. Browsers treat `localhost` as a secure origin, so
  * the same cookie works in local http runs; a check script that manages its own cookie jar never enforces the prefix.
  */
 export const SESSION_COOKIE = '__Host-erc_member'
-
-/** How the token reached us. The API takes only bearers, pages only the cookie, so a stolen cookie cannot drive the API. */
-export type Carrier = 'cookie' | 'bearer'
 
 declare const sessionBrand: unique symbol
 export type SessionId = string & { readonly [sessionBrand]: 'SessionId' }
@@ -35,24 +34,27 @@ const hashOf = (token: string) => createHash('sha256').update(token).digest('hex
 export const instantOf = (value: unknown): Instant => new Date(value as string | Date).toISOString() as Instant
 
 /** `erc_` plus 32 random bytes in base64url. Only its SHA-256 is stored, so a database leak signs nobody in. */
-export async function issueSession(payload: Payload, member: MemberId, carrier: Carrier): Promise<IssuedSession> {
+export async function issueSession(payload: Payload, member: MemberId, carrier: Carrier, label: string): Promise<IssuedSession> {
   const token = `erc_${randomBytes(32).toString('base64url')}` as SessionToken
   const expiresAt = sessionExpiryFrom(new Date())
   await payload.db.drizzle.execute(
-    sql`INSERT INTO member_sessions (member_id, token_hash, carrier, expires_at) VALUES (${member}, ${hashOf(token)}, ${carrier}, ${expiresAt})`,
+    sql`INSERT INTO member_sessions (member_id, token_hash, carrier, label, expires_at) VALUES (${member}, ${hashOf(token)}, ${carrier}, ${label}, ${expiresAt})`,
   )
   return { token, expiresAt }
 }
 
 type SessionRow = { id: string; member_id: number; email: string; status: MemberStatus; expires_at: Date | string; last_seen_at: Date | string }
 
-/** Null for an unknown, expired, or revoked token, and for a suspended member. Slides the expiry at most once a day. */
+/**
+ * Null for an unknown, expired, or revoked token, for a suspended member, and for a token presented by the other
+ * carrier: a cookie never works as a bearer, nor a bearer as a cookie. Slides the expiry at most once a day.
+ */
 export async function resolveSession(payload: Payload, token: string, carrier: Carrier): Promise<MemberSession | null> {
   if (!TOKEN.test(token)) return null
   const { rows } = await payload.db.drizzle.execute(sql`
     SELECT s.id, s.member_id, s.expires_at, s.last_seen_at, m.email, m.status
     FROM member_sessions s JOIN members m ON m.id = s.member_id
-    WHERE s.token_hash = ${hashOf(token)}`)
+    WHERE s.token_hash = ${hashOf(token)} AND s.carrier = ${carrier}`)
   const row = rows[0] as SessionRow | undefined
   if (!row) return null
   const now = new Date()
@@ -72,10 +74,31 @@ export async function revokeSession(payload: Payload, session: MemberSession): P
   await payload.db.drizzle.execute(sql`DELETE FROM member_sessions WHERE id = ${session.id}`)
 }
 
-export const sessionCookie = (expiresAt: Instant | null) => ({
-  httpOnly: true,
-  secure: true,
-  sameSite: 'lax' as const,
-  path: '/',
-  expires: expiresAt ? new Date(expiresAt) : new Date(0),
-})
+type DeviceRow = { id: string; label: string; created_at: Date | string; last_seen_at: Date | string }
+
+/** Every live session of the caller's member, newest first. Nothing identifies the device beyond its label and dates. */
+export async function listSessions(payload: Payload, session: MemberSession): Promise<readonly SessionView[]> {
+  const { rows } = await payload.db.drizzle.execute(sql`
+    SELECT id, label, created_at, last_seen_at FROM member_sessions
+    WHERE member_id = ${session.member} AND expires_at > now()
+    ORDER BY created_at DESC, id`)
+  return (rows as DeviceRow[]).map((row) => ({
+    id: row.id,
+    label: row.label,
+    current: row.id === session.id,
+    createdAt: instantOf(row.created_at),
+    lastSeenAt: instantOf(row.last_seen_at),
+  }))
+}
+
+/** Ends one of the caller's own sessions. False when the id is not theirs, which the caller cannot tell from "not found". */
+export async function revokeOwnSession(payload: Payload, session: MemberSession, id: string): Promise<boolean> {
+  const { rows } = await payload.db.drizzle.execute(sql`DELETE FROM member_sessions WHERE id = ${id} AND member_id = ${session.member} RETURNING id`)
+  return rows.length > 0
+}
+
+const COOKIE = { httpOnly: true, secure: true, sameSite: 'lax' as const, path: '/' }
+
+/** The cookie outlives any slide of the row, so the row's `expires_at` alone decides whether the member is signed in. */
+export const sessionCookie = () => ({ ...COOKIE, maxAge: SESSION_COOKIE_MAX_AGE_S })
+export const clearedSessionCookie = () => ({ ...COOKIE, expires: new Date(0) })
