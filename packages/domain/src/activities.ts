@@ -1,6 +1,6 @@
 import { collect, firstOf, type FieldErrors } from './form-fields'
 import type { MemberId, RawInput } from './members'
-import { err, ok, parseLocalDate, type Brand, type Instant, type LocalDate, type Metres, type Result, type Seconds } from './primitives'
+import { err, isUuid, ok, parseLocalDate, type Brand, type Instant, type LocalDate, type Metres, type Result, type Seconds } from './primitives'
 
 export const ACTIVITY_SOURCES = ['manual', 'file', 'strava'] as const
 export type ActivitySource = (typeof ACTIVITY_SOURCES)[number]
@@ -15,11 +15,9 @@ export type PublicSource = (typeof PUBLIC_SOURCES)[number]
 /** Unique per member and source: a manual entry's UUID, a file's SHA-256, a Strava activity id. Writing it twice converges. */
 export type SourceRef = Brand<string, 'SourceRef'>
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 export const parseSourceRef = (raw: unknown): Result<SourceRef, 'not_a_ref'> => {
   const value = firstOf(raw)
-  return UUID.test(value) ? ok(value.toLowerCase() as SourceRef) : err('not_a_ref')
+  return isUuid(value) ? ok(value.toLowerCase() as SourceRef) : err('not_a_ref')
 }
 
 /** One source's record of a run, as stored. `on` is fixed in IST when the row is written. */
@@ -45,6 +43,10 @@ export const totalsOf = (runs: readonly Pick<Activity, 'distance' | 'moving'>[])
 export const MAX_RUN_METRES = 250_000 as Metres
 /** Faster than the fastest road pace anyone has held, so a mistyped distance or time is caught at entry. */
 export const MIN_SECONDS_PER_KM = 150
+/** Nobody is back-filling a log from before this; a year typed with a missing digit is caught instead. */
+export const EARLIEST_RUN_DATE = '2000-01-01' as LocalDate
+/** Manual entries one member may log in an hour. A back-fill fits; a script filling the table does not. */
+export const RUNS_LOGGED_PER_HOUR = 60
 
 /**
  * `ref` lets a form or client retry the same entry without logging it twice; the shell mints one when it is absent.
@@ -77,6 +79,7 @@ const runDate = (raw: string, today: LocalDate): Result<LocalDate, string> => {
   if (raw === '') return ok(today)
   const parsed = parseLocalDate(raw)
   if (!parsed.ok) return err('Enter the date as YYYY-MM-DD.')
+  if (parsed.value < EARLIEST_RUN_DATE) return err('That date is before 2000. Check the year.')
   return parsed.value > today ? err('That date is still to come.') : parsed
 }
 
@@ -87,7 +90,7 @@ const ref = (raw: unknown): Result<SourceRef | null, string> => {
 }
 
 /**
- * Takes plain fields: `date` (defaults to today, never in the future), `distanceKm`, `duration` (`mm:ss` or
+ * Takes plain fields: `date` (defaults to today; from 2000-01-01 to today), `distanceKm`, `duration` (`mm:ss` or
  * `h:mm:ss`), and an optional `ref`. Refuses over 250 km and an average pace faster than 2:30 per km.
  */
 export const parseManualEntry = (fields: RawInput, today: LocalDate): Result<ManualEntry, FieldErrors> => {

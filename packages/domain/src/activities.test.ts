@@ -18,6 +18,13 @@ describe('parseManualEntry', () => {
     expect(parseManualEntry(fields({ date: '2026-10-22' }), today)).toEqual({ ok: false, error: { date: 'That date is still to come.' } })
   })
 
+  it('refuses a date before 2000, including year 0000, and accepts 2000-01-01', () => {
+    for (const date of ['1999-12-31', '0000-01-01', '0200-06-15']) {
+      expect(parseManualEntry(fields({ date }), today)).toEqual({ ok: false, error: { date: 'That date is before 2000. Check the year.' } })
+    }
+    expect(parseManualEntry(fields({ date: '2000-01-01' }), today)).toMatchObject({ ok: true, value: { on: '2000-01-01' } })
+  })
+
   it('needs a duration', () => {
     expect(parseManualEntry(fields({ duration: '' }), today)).toMatchObject({ ok: false, error: { duration: expect.stringContaining('minutes:seconds') } })
   })

@@ -1,26 +1,32 @@
 import {
   CLUB_TIME_ZONE,
+  err,
   ok,
+  parseLocalDate,
   parseManualEntry,
+  parseRevokeSession,
   parseSignInStart,
   parseSignInVerify,
+  parseSourceRef,
   todayIn,
   type Activity,
   type Brand,
   type Email,
   type FieldErrors,
   type Instant,
+  type LocalDate,
   type MemberId,
   type Period,
   type PublicSource,
   type RawInput,
   type Result,
+  type SourceRef,
   type Totals,
 } from '@erc/domain'
 
 export const API_BASE = '/api/v1'
 
-export type ApiErrorCode = 'unauthenticated' | 'forbidden' | 'not_found' | 'invalid' | 'conflict' | 'rate_limited' | 'unavailable'
+export type ApiErrorCode = 'unauthenticated' | 'forbidden' | 'not_found' | 'invalid' | 'unsupported_media_type' | 'conflict' | 'rate_limited' | 'unavailable'
 
 /** The only error shape. `fields` is present only for `invalid`, keyed like the input. */
 export type ApiError = { code: ApiErrorCode; message: string; fields?: FieldErrors }
@@ -31,6 +37,7 @@ export const STATUS: Readonly<Record<ApiErrorCode, number>> = {
   forbidden: 403,
   not_found: 404,
   invalid: 422,
+  unsupported_media_type: 415,
   conflict: 409,
   rate_limited: 429,
   unavailable: 503,
@@ -39,6 +46,39 @@ export const STATUS: Readonly<Record<ApiErrorCode, number>> = {
 /** Opaque to clients; the server encodes the sort key. */
 export type Cursor = Brand<string, 'Cursor'>
 export type Page<T> = { items: readonly T[]; next: Cursor | null }
+
+/** The sort key behind a runs cursor: the position of the last run shown, newest first. */
+export type RunCursor = { on: LocalDate; loggedAt: Instant; ref: SourceRef }
+
+// Both Node and browsers have these; declared here because the package compiles with no DOM or Node lib.
+declare const btoa: (text: string) => string
+declare const atob: (text: string) => string
+
+// The three parts are a date, an ISO instant and a ref, all ASCII, so base64 of the text itself is enough.
+const toBase64Url = (text: string) => btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+const fromBase64Url = (text: string): string | null => {
+  if (!/^[A-Za-z0-9_-]{1,512}$/.test(text)) return null
+  const decoded = atob(text.replace(/-/g, '+').replace(/_/g, '/'))
+  return /^[\x21-\x7e]+$/.test(decoded) ? decoded : null
+}
+
+export const encodeRunCursor = (run: Pick<Activity, 'on' | 'loggedAt' | 'ref'>): Cursor => toBase64Url(`${run.on}|${run.loggedAt}|${run.ref}`) as Cursor
+
+/**
+ * Every part must round-trip: a real calendar date, an instant exactly as the server writes it, and a source ref. A
+ * cursor is then a parsed value by the time it is a query parameter, and the database only ever sees well-formed ones.
+ */
+export const parseRunCursor = (raw: string): Result<RunCursor, 'not_a_cursor'> => {
+  const parts = fromBase64Url(raw)?.split('|')
+  if (!parts || parts.length !== 3) return err('not_a_cursor')
+  const [onText = '', loggedAt = '', refText = ''] = parts
+  const on = parseLocalDate(onText)
+  const ref = parseSourceRef(refText)
+  const instant = Date.parse(loggedAt)
+  if (!on.ok || !ref.ok || Number.isNaN(instant) || new Date(instant).toISOString() !== loggedAt) return err('not_a_cursor')
+  return ok({ on: on.value, loggedAt: loggedAt as Instant, ref: ref.value })
+}
 
 export type SessionToken = Brand<string, 'SessionToken'>
 /** Returned by every sign-in. The web sets it as an HttpOnly cookie; an app keeps it in secure storage and sends it as a bearer token. */
@@ -107,10 +147,14 @@ export type PeriodTotals = Period & { totals: Totals }
 
 export type Dashboard = OwnerOnly<{ member: { email: Email }; today: string; week: PeriodTotals; month: PeriodTotals }>
 
-/** `after` is a cursor from the previous page; anything else starts from the newest run. */
-const parseListRuns = (raw: RawInput): Result<{ after: Cursor | null }, FieldErrors> => {
-  const after = typeof raw.after === 'string' && raw.after !== '' ? (raw.after as Cursor) : null
-  return ok({ after })
+/** One signed-in device. `current` marks the session making the request, which the page shows without a sign-out button. */
+export type SessionView = { id: string; label: string; current: boolean; createdAt: Instant; lastSeenAt: Instant }
+
+/** `after` is a cursor from the previous page; absent or empty starts from the newest run, and anything else is refused. */
+const parseListRuns = (raw: RawInput): Result<{ after: RunCursor | null }, FieldErrors> => {
+  if (typeof raw.after !== 'string' || raw.after === '') return ok({ after: null })
+  const cursor = parseRunCursor(raw.after)
+  return cursor.ok ? ok({ after: cursor.value }) : err({ after: 'That page link is not valid. Start again from the newest runs.' })
 }
 
 const logRunInput = (raw: RawInput) => parseManualEntry(raw, todayIn(CLUB_TIME_ZONE))
@@ -136,10 +180,12 @@ export const OPERATIONS = {
     path: '/auth/verify',
     access: 'anyone',
     parse: parseSignInVerify,
-    fields: phantom<{ email: string; code: string }>(),
+    fields: phantom<{ email: string; code: string; device?: string }>(),
     output: phantom<IssuedSession>(),
   }),
   signOut: op({ method: 'POST', path: '/auth/sign-out', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<{ signedOut: true }>() }),
+  listSessions: op({ method: 'GET', path: '/me/sessions', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<OwnerOnly<{ items: readonly SessionView[] }>>() }),
+  revokeSession: op({ method: 'POST', path: '/me/sessions/revoke', access: 'member', parse: parseRevokeSession, fields: phantom<{ session: string }>(), output: phantom<OwnerOnly<{ revoked: true }>>() }),
   dashboard: op({ method: 'GET', path: '/me/dashboard', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<Dashboard>() }),
   logRun: op({ method: 'POST', path: '/me/runs', access: 'member', parse: logRunInput, fields: phantom<ManualRunFields>(), output: phantom<OwnerOnly<RunView>>() }),
   listRuns: op({ method: 'GET', path: '/me/runs', access: 'member', parse: parseListRuns, fields: phantom<{ after?: string }>(), output: phantom<OwnerOnly<Page<RunView>>>() }),

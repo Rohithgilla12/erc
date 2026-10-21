@@ -1,5 +1,5 @@
 import { collect, email as emailField, firstOf, type FieldErrors } from './form-fields'
-import { err, ok, type Brand, type Email, type Id, type Instant, type Result } from './primitives'
+import { err, isUuid, ok, type Brand, type Email, type Id, type Instant, type Result } from './primitives'
 
 export type MemberId = Id<'members'>
 
@@ -23,8 +23,13 @@ export const SIGN_IN_CODE_MAX_TRIES = 5
 export const SIGN_IN_CODE_RESEND_AFTER_MS = 60 * 1000
 /** Codes to one address in an hour, so the form cannot be used to pester someone. */
 export const SIGN_IN_CODES_PER_ADDRESS_PER_HOUR = 3
-/** Code requests from one network in an hour. */
-export const SIGN_IN_CODES_PER_SENDER_PER_HOUR = 10
+/** Code requests from one network in an hour. Well under the hourly share, so one network cannot use it all up. */
+export const SIGN_IN_CODES_PER_SENDER_PER_HOUR = 3
+/**
+ * Wrong codes typed for one address in a day, across every code sent to it. Past this the address gets no new code
+ * until the window passes, so guessing is bounded per address rather than only per code.
+ */
+export const SIGN_IN_FAILURES_PER_ADDRESS_PER_DAY = 15
 
 /** Members are adults. Under-18 data needs verifiable parental consent under India's DPDP Act, which the club cannot run. */
 export const MIN_MEMBER_AGE = 18
@@ -42,10 +47,19 @@ export const codeFromRandom = (random: number): SignInCode => String(random % 1_
 /** The newest code stored for an address, as the shell reads it. A code is closed once it is used or a newer one is sent. */
 export type StoredSignInCode = { sentAt: Instant; expiresAt: Instant; tries: number; closedAt: Instant | null }
 
-/** What a code request does, decided before any email is spent. `none` means the code sent a moment ago still stands. */
-export type CodeRequestStep = 'send' | 'none'
+/** What the shell has counted for this request: codes in the last hour, and wrong tries for the address in the last day. */
+export type CodeRequestCounts = { toAddressInHour: number; bySenderInHour: number; failuresForAddressInDay: number }
 
-export const planCodeRequest = (latest: StoredSignInCode | null, now: Date): CodeRequestStep => {
+/**
+ * What a code request does, decided before any email is spent. `none` means the code sent a moment ago still stands;
+ * the other three are refusals, named for the limit that was hit.
+ */
+export type CodeRequestStep = 'send' | 'none' | 'per_sender' | 'per_address' | 'too_many_failures'
+
+export const planCodeRequest = (latest: StoredSignInCode | null, counts: CodeRequestCounts, now: Date): CodeRequestStep => {
+  if (counts.bySenderInHour >= SIGN_IN_CODES_PER_SENDER_PER_HOUR) return 'per_sender'
+  if (counts.toAddressInHour >= SIGN_IN_CODES_PER_ADDRESS_PER_HOUR) return 'per_address'
+  if (counts.failuresForAddressInDay >= SIGN_IN_FAILURES_PER_ADDRESS_PER_DAY) return 'too_many_failures'
   if (!latest || latest.closedAt !== null) return 'send'
   const live = Date.parse(latest.expiresAt) > now.getTime() && latest.tries < SIGN_IN_CODE_MAX_TRIES
   return live && now.getTime() - Date.parse(latest.sentAt) < SIGN_IN_CODE_RESEND_AFTER_MS ? 'none' : 'send'
@@ -68,11 +82,30 @@ export const checkSignInCode = (stored: StoredSignInCode | null, matches: boolea
   return triesLeft > 0 ? { kind: 'wrong', triesLeft } : { kind: 'locked' }
 }
 
+/** How a session token reaches the server. A token is bound to the carrier that issued it, so a cookie never works as a bearer or the reverse. */
+export type Carrier = 'cookie' | 'bearer'
+
+/** What a session is listed as on the devices page when the client declares no name. */
+export const DEFAULT_DEVICE_LABELS: Readonly<Record<Carrier, string>> = { cookie: 'Web browser', bearer: 'App' }
+export const DEVICE_LABEL_MAX = 40
+const DEVICE_LABEL = /^[\p{L}\p{N} .'()+-]+$/u
+
+/** A short name an app declares for itself, such as "Asha's phone"; anything unusable falls back to the carrier's label. */
+export const deviceLabelOf = (declared: string | null, carrier: Carrier): string => {
+  const text = (declared ?? '').replace(/\s+/g, ' ').trim()
+  return text !== '' && text.length <= DEVICE_LABEL_MAX && DEVICE_LABEL.test(text) ? text : DEFAULT_DEVICE_LABELS[carrier]
+}
+
 /** Sliding: a session seen within this many days stays alive. */
 export const SESSION_IDLE_DAYS = 90
 /** `lastSeenAt` is written at most this often, so reads do not become writes. */
 export const SESSION_TOUCH_AFTER_MS = 24 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
+/**
+ * The cookie's own lifetime is the browser's cap of 400 days, so the stored row's `expiresAt`, which slides, is the
+ * only thing that decides whether a session is live. A cookie expiry fixed at sign-in would end a session the row kept.
+ */
+export const SESSION_COOKIE_MAX_AGE_S = 400 * 24 * 60 * 60
 
 export const sessionExpiryFrom = (now: Date): Instant => new Date(now.getTime() + SESSION_IDLE_DAYS * DAY_MS).toISOString() as Instant
 
@@ -105,9 +138,19 @@ export type SignInStart = { email: Email; over18: true }
 export const parseSignInStart = (fields: RawInput): Result<SignInStart, FieldErrors> =>
   collect({ email: lowerEmail(fields.email), over18: declaration(fields.over18) })
 
-export type SignInVerify = { email: Email; code: SignInCode }
+/** `device` is what an app calls itself; the web form sends none and the shell labels the session by its carrier. */
+export type SignInVerify = { email: Email; code: SignInCode; device: string | null }
 
 export const parseSignInVerify = (fields: RawInput): Result<SignInVerify, FieldErrors> => {
   const code = parseSignInCode(fields.code)
-  return collect({ email: lowerEmail(fields.email), code: code.ok ? code : err('Enter the six-digit code from the email.') })
+  const device = firstOf(fields.device)
+  return collect({ email: lowerEmail(fields.email), code: code.ok ? code : err('Enter the six-digit code from the email.'), device: ok(device === '' ? null : device) })
+}
+
+export type RevokeSession = { session: string }
+
+/** The session row to end, by id. Which member it belongs to is the shell's to check against the caller. */
+export const parseRevokeSession = (fields: RawInput): Result<RevokeSession, FieldErrors> => {
+  const session = firstOf(fields.session)
+  return collect({ session: isUuid(session) ? ok(session.toLowerCase()) : err('That device is not in your list.') })
 }

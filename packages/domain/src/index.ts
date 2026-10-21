@@ -9,6 +9,7 @@ export {
   addDays,
   daysBetween,
   err,
+  isUuid,
   ok,
   parseEmail,
   parseLocalDate,
