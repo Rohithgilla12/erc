@@ -84,7 +84,8 @@ const visibilityOf = (doc: AthleteDoc): AthleteVisibility => ({ profile: doc.vis
 const moderationOf = (doc: AthleteDoc): ProfileModeration =>
   doc.moderation.state === 'rejected' ? { state: 'rejected', reason: doc.moderation.reason ?? '' } : { state: doc.moderation.state }
 
-const changeValue = (doc: ProfileChangeDoc): string => (doc.field === 'photo' ? (typeof doc.photo === 'object' && doc.photo ? (mediaUrl(doc.photo) ?? '') : '') : (doc.text ?? ''))
+// A refused photo has been deleted, so it has no address left to show.
+const changeValue = (doc: ProfileChangeDoc): string => (doc.field === 'photo' ? (mediaUrl(doc.photo) ?? '') : (doc.text ?? ''))
 
 /** The newest change per field, while it waits or was refused; an approved one is already the live value. */
 async function changesOf(payload: Payload, athlete: AthleteDoc): Promise<ChangeView[]> {
@@ -139,8 +140,9 @@ export async function searchClaimable(payload: Payload, q: string): Promise<Clai
 }
 
 /** A started profile staff rejected is never public, so making way for a new link deletes it outright. */
-const removeRejected = (payload: Payload, current: Mine) =>
-  current.athlete?.moderation.state === 'rejected' ? payload.delete({ collection: 'athletes', id: current.athlete.id, overrideAccess: true }) : Promise.resolve()
+async function removeRejected(payload: Payload, current: Mine, replaceRejected: boolean) {
+  if (replaceRejected && current.athlete) await payload.delete({ collection: 'athletes', id: current.athlete.id, overrideAccess: true })
+}
 
 /**
  * Claims and profile changes are written in SQL so the partial unique indexes decide a race: a second open claim, or
@@ -162,7 +164,7 @@ export async function claimAthlete(payload: Payload, session: MemberSession, req
     VALUES (${session.member}, ${request.athlete}, ${request.note}, 'submitted', now())
     ON CONFLICT DO NOTHING RETURNING id`)
   if (inserted.rows.length === 0) return err('busy')
-  await removeRejected(payload, current)
+  await removeRejected(payload, current, link.value.replaceRejected)
   return ok(await myAthlete(payload, session))
 }
 
@@ -179,7 +181,7 @@ export async function startAthlete(payload: Payload, session: MemberSession, pro
   const current = await mine(payload, session)
   const link = planLink(standingOf(current))
   if (!link.ok) return link
-  await removeRejected(payload, current)
+  await removeRejected(payload, current, link.value.replaceRejected)
   try {
     await payload.create({
       collection: 'athletes',

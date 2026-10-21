@@ -402,6 +402,28 @@ try {
   const afterLate = await row<{ moderation_state: string }>(sql`SELECT moderation_state FROM claims WHERE id = ${xenaClaim}`)
   expect('approving a claim on a profile linked meanwhile is refused and rolled back', [lateApproval, afterLate?.moderation_state, (await athleteRow(quinn.id))?.member_id], [409, 'submitted', yuri.id])
 
+  await decide('claims', xenaClaim, 'reject', 'We could not match you to this profile.')
+  expect('a rejected claim leaves the member with no profile and the reason, over the API and on /me', [await athleteOf(xena), text(await html('/me', xena.cookie)).includes(`Your claim on ${names.quinn} was not approved: We could not match you to this profile.`)], [
+    { kind: 'none', rejectedClaim: { athleteName: names.quinn, reason: 'We could not match you to this profile.' } },
+    true,
+  ])
+
+  const dev = await newMember('dev')
+  ourMembers.push(dev)
+  await api('/me/athlete/start', dev, { name: `${token} Dev`, state: 'IN-GA' })
+  const devFirst = await profileOf(dev)
+  ourAthletes.push(devFirst.id)
+  await decide('athletes', devFirst.id, 'reject', 'Please use your full name.')
+  expect('a rejected started profile shows its reason', [(await profileOf(dev)).moderation, text(await html('/me/athlete', dev.cookie)).includes('The profile you started was not approved: Please use your full name.')], [
+    { state: 'rejected', reason: 'Please use your full name.' },
+    true,
+  ])
+  expect('and takes no edits', codeOf(await api('/me/athlete/profile', dev, { city: 'Panaji' })), [409, 'conflict'])
+  await api('/me/athlete/start', dev, { name: `${token} Dev Kumar`, state: 'IN-GA' })
+  const devSecond = await profileOf(dev)
+  ourAthletes.push(devSecond.id)
+  expect('starting again replaces the rejected profile', [await athleteRow(devFirst.id), devSecond.moderation.state, devSecond.values.name], [null, 'submitted', `${token} Dev Kumar`])
+
   const chloeDoc = await payload.findByID({ collection: 'athletes', id: chloeProfile.id, depth: 0, overrideAccess: true })
   await payload.delete({ collection: 'members', id: chloe.id, overrideAccess: true })
   const released = await athleteRow(chloeDoc.id)

@@ -160,9 +160,10 @@ async function FindOrStart({ q, caller, athlete }: { q: string; caller: Awaited<
         </p>
       ) : null}
       {athlete.kind === 'profile' && athlete.profile.moderation.state === 'rejected' ? (
-        <p className="member-alert" role="alert">
-          The profile you started was not approved: {athlete.profile.moderation.reason}. You can claim a profile or start again below.
-        </p>
+        <div className="member-alert" role="alert">
+          <p>The profile you started was not approved: {athlete.profile.moderation.reason}</p>
+          <p>You can claim a profile or start again below.</p>
+        </div>
       ) : null}
 
       <section aria-labelledby="find">
