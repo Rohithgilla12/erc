@@ -10,7 +10,7 @@ import {
 import { unstable_cache } from 'next/cache'
 import { getPayload, type Payload } from 'payload'
 
-import { SITE_SECTIONS } from '@/app/(frontend)/site-nav'
+import { PRIVACY_NOTICE, SITE_SECTIONS } from '@/app/(frontend)/site-nav'
 import { collectionTag } from '@/cms/revalidate'
 import { EDITORIAL_SLUGS } from '@/cms/slugs'
 
@@ -144,6 +144,7 @@ async function readSitemap(today: LocalDate): Promise<SitemapEntry[]> {
       return slug ? editorial.sitePage(slug, href) : [{ path: href, lastModified: sectionDates[href] ?? null }]
     }),
     { path: '/resources', lastModified: latest(resources.map((resource) => resource.updatedAt)) },
+    { path: PRIVACY_NOTICE.href, lastModified: new Date(PRIVACY_NOTICE.updated).toISOString() as Instant },
     ...races.entries,
     ...editorial.entries,
     ...indexedPlans.map((plan) => ({ path: `/plans/${plan.slug}`, lastModified: plan.updatedAt })),

@@ -7,7 +7,7 @@ import { siteConfig } from '@/site-config'
 import { Analytics } from './analytics'
 import { NewsletterSignup } from './newsletter/_components/newsletter-signup'
 import { FEED_PATH, FEED_TITLE } from './learn/_components/feed'
-import { CLUB, SITE_SECTIONS } from './site-nav'
+import { CLUB, PRIVACY_NOTICE, SITE_SECTIONS } from './site-nav'
 import { SiteNavLinks } from './site-nav-links'
 import './styles.css'
 
@@ -67,6 +67,7 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
               <a href={CLUB.instagramUrl} rel="me noopener">
                 Instagram
               </a>
+              <a href={PRIVACY_NOTICE.href}>Privacy</a>
             </nav>
             <p>{CLUB.name}</p>
           </div>

@@ -11,7 +11,7 @@ const STATUS_LABELS: Record<SubscriberStatus, string> = { pending: 'Pending conf
 const SOURCE_LABELS: Record<SignupSource, string> = { 'site-footer': 'Site footer form' }
 
 /** Throws when the relay refuses, so the caller can log it against the signup without saying so to the visitor. */
-export async function sendConfirmationEmail(payload: Payload, to: string, links: { confirm: URL; unsubscribe: URL }) {
+export async function sendConfirmationEmail(payload: Payload, to: string, links: { confirm: URL; unsubscribe: URL; privacy: URL }) {
   await payload.sendEmail({
     to,
     subject: `Confirm your ${CLUB_NAME} newsletter signup`,
@@ -25,6 +25,8 @@ export async function sendConfirmationEmail(payload: Payload, to: string, links:
       'If that was not you, ignore this email and we will not write again.',
       '',
       `To cancel or unsubscribe at any time: ${links.unsubscribe.href}`,
+      '',
+      `How we use and keep your address: ${links.privacy.href}`,
     ].join('\n'),
   })
 }

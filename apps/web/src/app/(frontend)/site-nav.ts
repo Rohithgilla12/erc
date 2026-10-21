@@ -20,4 +20,7 @@ export const CLUB = {
   instagramUrl: 'https://www.instagram.com/endurancerunclubindia/',
 } as const
 
+/** Linked from the footer, both forms, and the confirmation email. Change `updated` whenever the notice's text changes. */
+export const PRIVACY_NOTICE = { href: '/privacy', updated: '2026-10-21T00:00:00+05:30' } as const
+
 export const isCurrentSection = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`)

@@ -7,7 +7,7 @@ import { submitEnquiry } from '@/content/enquiry-action'
 import { HONEYPOT_FIELD, TOKEN_FIELD } from '@/content/form-fields'
 import type { EnquiryFormState, EnquiryRefusal } from '@/content/enquiries'
 
-import { CLUB } from '../site-nav'
+import { CLUB, PRIVACY_NOTICE } from '../site-nav'
 
 const REFUSALS: Record<EnquiryRefusal, ReactNode> = {
   too_fast: 'That was quicker than we expect from a person. Check your message and send it again.',
@@ -145,6 +145,9 @@ export function EnquiryForm({ initial }: { initial: EnquiryFormState }) {
           <span>You may contact me by email or phone about this message.</span>
         </label>
         <FieldError errors={errors} field="consent" />
+        <p className="enquiry-note">
+          Our <a href={PRIVACY_NOTICE.href}>privacy notice</a> says how we keep and use your message.
+        </p>
       </div>
 
       <button className="button enquiry-submit" type="submit" disabled={pending}>

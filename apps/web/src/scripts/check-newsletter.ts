@@ -116,7 +116,8 @@ const linksIn = async (mail: MailSummary) => {
   const confirm = /(\S+\/newsletter\/confirm\?token=\S+)/.exec(message.Text)?.[1]
   const unsubscribe = /(\S+\/newsletter\/unsubscribe\?token=\S+)/.exec(message.Text)?.[1]
   if (!confirm || !unsubscribe) throw new Error(`No links in the email: ${message.Text}`)
-  return { subject: message.Subject, confirm: new URL(confirm), unsubscribe: new URL(unsubscribe) }
+  const privacy = /(\S+\/privacy)\s/.exec(message.Text)?.[1] ?? null
+  return { subject: message.Subject, confirm: new URL(confirm), unsubscribe: new URL(unsubscribe), privacy }
 }
 
 /** Opens a link from an email and presses its button, as a person without JavaScript would. */
@@ -286,6 +287,19 @@ try {
   const form = await footerForm(sender)
   expect('the footer form posts to /newsletter when JavaScript is off', form.action, '/newsletter#newsletter')
 
+  const home = await (await get('/', sender)).text()
+  const newsletterForm = /<form class="newsletter-form"[\s\S]*?<\/form>/.exec(home)?.[0] ?? ''
+  const footerNav = /<nav aria-label="Footer">[\s\S]*?<\/nav>/.exec(home)?.[0] ?? ''
+  const contactForm = /<form class="enquiry-form"[\s\S]*?<\/form>/.exec(await (await get('/contact', sender)).text())?.[0] ?? ''
+  expect('the newsletter form, the footer and the contact form link the privacy notice', [newsletterForm, footerNav, contactForm].map((html) => html.includes('href="/privacy"')), [
+    true,
+    true,
+    true,
+  ])
+  const privacy = await get('/privacy', sender)
+  expect('the privacy notice is served', [privacy.status, heading(await privacy.text())], [200, 'Privacy notice'])
+  expect('and listed in the sitemap', (await (await get('/sitemap.xml', sender)).text()).includes(new URL('/privacy', process.env.ERC_SITE_URL ?? site).href), true)
+
   const asha = address('asha')
   expect('a signup is accepted', await signUp(form, asha.toUpperCase(), sender), 'sent')
   const pending = await subscriberRow(asha)
@@ -298,6 +312,7 @@ try {
   const links = await linksIn(mail)
   expect('the email asks to confirm', links.subject, 'Confirm your Endurance Run Club newsletter signup')
   expect('the emailed link carries a token, never the address', links.confirm.href.includes('example.com'), false)
+  expect('the email links the privacy notice', links.privacy, new URL('/privacy', process.env.ERC_SITE_URL ?? site).href)
 
   const opened = await (await get(links.confirm, sender)).text()
   expect('opening the confirmation link only shows a button', heading(opened), 'Confirm your subscription')

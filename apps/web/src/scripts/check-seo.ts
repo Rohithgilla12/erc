@@ -109,7 +109,7 @@ async function sitemapCases() {
   expect('no filtered or paginated view is listed', paths.filter((path) => path.includes('?')), [])
   expect(
     'the static sections and site pages are listed',
-    ['/', '/races', '/learn', '/videos', '/plans', '/athletes', '/coaching', '/about', '/contact', '/resources'].filter((path) => !listed.has(path)),
+    ['/', '/races', '/learn', '/videos', '/plans', '/athletes', '/coaching', '/about', '/contact', '/resources', '/privacy'].filter((path) => !listed.has(path)),
     [],
   )
   expect('the published post is listed', listed.has(`/learn/${slugs.live}`), true)

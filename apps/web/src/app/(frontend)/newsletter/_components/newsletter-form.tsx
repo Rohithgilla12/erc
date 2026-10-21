@@ -6,6 +6,8 @@ import { HONEYPOT_FIELD, TOKEN_FIELD } from '@/content/form-fields'
 import { submitSignup } from '@/content/newsletter-action'
 import type { SignupFormState, SignupRefusal } from '@/content/newsletter'
 
+import { PRIVACY_NOTICE } from '../../site-nav'
+
 const REFUSALS: Record<SignupRefusal, string> = {
   too_fast: 'That was quicker than we expect from a person. Please send it again.',
   expired: 'This form was open for a long time, so we refreshed it. Please send it again.',
@@ -63,7 +65,9 @@ export function NewsletterForm({ initial }: { initial: SignupFormState }) {
           <input name={HONEYPOT_FIELD} type="text" tabIndex={-1} autoComplete="off" defaultValue="" />
         </label>
       </div>
-      <p className="newsletter-fineprint">We email you once to confirm. Unsubscribe any time.</p>
+      <p className="newsletter-fineprint">
+        We email you once to confirm. Unsubscribe any time. <a href={PRIVACY_NOTICE.href}>How we use your address</a>.
+      </p>
     </form>
   )
 }

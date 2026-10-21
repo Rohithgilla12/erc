@@ -64,6 +64,10 @@ Signup only, with double opt-in. Sending issues comes later with listmonk.
 - Nobody can create or edit a subscriber through the admin or REST API, so every subscriber went through double opt-in. Staff can delete a subscriber to erase them.
 - Admins download confirmed subscribers as CSV from the Subscribers list in the admin, or from `GET /api/subscribers/export.csv` while signed in. Editors, authors and anonymous requests get 403, and only admins see the button.
 
+## Privacy notice
+
+`/privacy` is the club's notice under section 5 of the Digital Personal Data Protection Act, 2023: what the site collects, why, how long it is kept, who processes it, and how to ask for access, correction, or erasure through `/contact`. The footer, the newsletter form, the contact form, and the confirmation email link to it, and the sitemap lists it. Its retention periods are read from the same constants the code uses. When the notice's text changes, change `PRIVACY_NOTICE.updated` in `site-nav.ts`.
+
 Check the whole flow, and both forms' hourly email caps, against a running site whose SMTP points at a local Mailpit and which shares `ENQUIRY_NOTIFY_TO` with the check:
 
 ```sh

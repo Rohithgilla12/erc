@@ -15,6 +15,7 @@ import {
 import { after } from 'next/server'
 import { getPayload, type Payload, type PayloadRequest } from 'payload'
 
+import { PRIVACY_NOTICE } from '@/app/(frontend)/site-nav'
 import { sendConfirmationEmail } from '@/cms/collections/subscribers'
 import { emailConfigured } from '@/cms/email'
 import { absoluteUrl } from '@/site-config'
@@ -78,6 +79,7 @@ async function emailConfirmation(payload: Payload, subscriber: { id: number; ema
     await sendConfirmationEmail(payload, subscriber.email, {
       confirm: linkTo('/newsletter/confirm', token),
       unsubscribe: linkTo('/newsletter/unsubscribe', unsubscribeTokenFor(subscriber.id)),
+      privacy: new URL(absoluteUrl(PRIVACY_NOTICE.href)),
     })
   } catch (error) {
     payload.logger.error({ err: error, subscriber: subscriber.id }, 'Could not send a newsletter confirmation email')
