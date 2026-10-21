@@ -206,9 +206,13 @@ const base64url = (text: string) => Buffer.from(text).toString('base64url')
 /** Moves this run's code rows out of the current hour, so a limit case starts from a known count. */
 const clearHour = () => payload.db.drizzle.execute(sql`UPDATE sign_in_codes SET sent_at = sent_at - interval '2 hours' WHERE email LIKE ${`member-check-${run}-%`}`)
 
+// Each API sign-in comes from its own network, so the per-sender limit of three an hour never decides these checks.
+let apiSenders = 0
+const freshSender = () => `192.0.2.${(apiSenders += 1)}`
+
 /** Signs in over the API, from the code request to the bearer token. */
 const apiSignIn = async (email: string, nth: number, device?: string) => {
-  const started = await api('/auth/code', { body: { email, over18: true } })
+  const started = await api('/auth/code', { body: { email, over18: true }, sender: freshSender() })
   if (!started.body?.ok) throw new Error(`The API refused a code for ${email}: ${JSON.stringify(started.body)}`)
   const { code } = await codeFrom(email, nth)
   const verified = await api('/auth/verify', { body: { email, code, ...(device ? { device } : {}) } })
@@ -255,7 +259,9 @@ try {
   expect('the right code redirects to /me', [signedIn.status, signedIn.headers.get('location')], [303, '/me'])
   const cookie = browser.lastSetCookie
   expect('and sets a __Host- HttpOnly Secure SameSite=Lax cookie', [cookie?.value.startsWith('erc_'), cookie?.value.length, cookie?.attributes.filter((a) => /^(Path=\/|HttpOnly|Secure|SameSite=lax)$/i.test(a)).length], [true, 47, 4])
-  expect('whose own lifetime is the 400-day browser cap, so the sliding row alone decides', [cookie?.attributes.includes(`Max-Age=${SESSION_COOKIE_MAX_AGE_S}`), cookie?.attributes.some((a) => /^Expires=/i.test(a))], [true, false])
+  // Next writes an Expires beside Max-Age; browsers use Max-Age, so both must say 400 days, not the row's 90.
+  const cookieExpires = cookie?.attributes.find((a) => /^Expires=/i.test(a))?.slice('Expires='.length)
+  expect('whose own lifetime is the 400-day browser cap, so the sliding row alone decides', [cookie?.attributes.includes(`Max-Age=${SESSION_COOKIE_MAX_AGE_S}`), Math.round((Date.parse(cookieExpires ?? '') - Date.now()) / 86_400_000)], [true, 400])
   const member = await memberRow(asha)
   expect('an account is created, active, with the age declaration timestamped', [member?.status, member?.age_declared_at instanceof Date || typeof member?.age_declared_at === 'string'], ['active', true])
   expect('the code is used up', (await latestCode(asha))?.closed_at !== null, true)
@@ -344,7 +350,7 @@ try {
   const staleBearer = 'erc_' + 'A'.repeat(43)
   const forged = await api('/me/dashboard', { token: staleBearer })
   expect('a forged bearer token is refused', [forged.status, forged.body?.ok === false && forged.body.error.message], [401, 'That token is not valid. Sign in again.'])
-  const staleStart = await api('/auth/code', { token: staleBearer, body: { email: address('stale'), over18: true } })
+  const staleStart = await api('/auth/code', { token: staleBearer, body: { email: address('stale'), over18: true }, sender: freshSender() })
   expect('but an app holding a stale token can still start signing in', [staleStart.status, staleStart.body], [200, { ok: true, data: { sent: true } }])
   const missing = await api('/nothing/here')
   expect('an unknown v1 path answers in the v1 error shape, not Payload\'s', [missing.status, missing.body?.ok === false && missing.body.error.code], [404, 'not_found'])
@@ -362,8 +368,9 @@ try {
   }
   expect('a member cookie does not open /admin', await adminList({ cookie: `${SESSION_COOKIE}=${token}` }), { status: 200, showsMember: false })
 
+  await clearHour()
   const ben = address('ben')
-  const apiStart = await api('/auth/code', { body: { email: ben, over18: true } })
+  const apiStart = await api('/auth/code', { body: { email: ben, over18: true }, sender: freshSender() })
   expect('the API sends a code', [apiStart.status, apiStart.body], [200, { ok: true, data: { sent: true } }])
   const benCode = await codeFrom(ben, 1)
   const apiVerify = await api('/auth/verify', { body: { email: ben, code: benCode.code, device: "  Ben's   phone <b>" } })
@@ -425,13 +432,15 @@ try {
   const dayLater = await api('/auth/code', { body: { email: chloe, over18: true }, sender: '198.51.100.209' })
   expect('and a code is sent again once the day has passed', [dayLater.status, (await waitForMails(chloe, 4)).length], [200, 4])
 
+  await clearHour()
   const probe = new Browser('198.51.100.202')
   const unknown = address('nobody')
   const forMember = text(await askForCode(probe, asha)).replace(asha, '<address>')
   const forUnknown = text(await askForCode(probe, unknown)).replace(unknown, '<address>')
   expect('the reply to a code request is the same for a member and an unknown address', forMember === forUnknown, true)
-  const memberWrong = text(await (await typeCode(probe, await askForCode(probe, asha), wrongCode)).text()).replace(asha, '<address>')
-  const unknownWrong = text(await (await typeCode(probe, await askForCode(probe, unknown), wrongCode)).text()).replace(unknown, '<address>')
+  const probe2 = new Browser('198.51.100.212')
+  const memberWrong = text(await (await typeCode(probe2, await askForCode(probe2, asha), wrongCode)).text()).replace(asha, '<address>')
+  const unknownWrong = text(await (await typeCode(probe2, await askForCode(probe2, unknown), wrongCode)).text()).replace(unknown, '<address>')
   const neverAsked = await api('/auth/verify', { body: { email: address('never'), code: '123456' } })
   const memberWrongApi = await api('/auth/verify', { body: { email: asha, code: wrongCode } })
   expect('and so is the reply to a wrong code, on the web and over the API, even for an address that never asked', [memberWrong === unknownWrong, neverAsked.body, memberWrongApi.body], [
@@ -443,10 +452,10 @@ try {
 
   await clearHour()
   const dev = address('dev')
-  const devBrowser = new Browser('198.51.100.203')
   const perAddress: boolean[] = []
+  // A different network each time, so only the address limit can be what refuses the fourth code.
   for (let n = 0; n <= SIGN_IN_CODES_PER_ADDRESS_PER_HOUR; n += 1) {
-    perAddress.push(text(await askForCode(devBrowser, dev)).includes('We have sent several codes to this address'))
+    perAddress.push(text(await askForCode(new Browser(`198.51.100.${220 + n}`), dev)).includes('We have sent several codes to this address'))
     await payload.db.drizzle.execute(sql`UPDATE sign_in_codes SET sent_at = sent_at - interval '2 minutes' WHERE email = ${dev}`)
   }
   expect('an address gets three codes an hour, then is told so', perAddress, [false, false, false, true])
@@ -472,7 +481,7 @@ try {
   }
   const pastShare = text(await askForCode(new Browser('198.51.100.205'), address('past-share')))
   expect('past the hourly share nobody is sent a code, and the reply says to try later', [pastShare.includes('We cannot send sign-in codes just now'), (await mailsTo(address('past-share'))).length], [true, 0])
-  const pastShareApi = await api('/auth/code', { body: { email: address('past-share-api'), over18: true } })
+  const pastShareApi = await api('/auth/code', { body: { email: address('past-share-api'), over18: true }, sender: freshSender() })
   expect('the API says the same with 503', [pastShareApi.status, pastShareApi.body?.ok === false && pastShareApi.body.error.code], [503, 'unavailable'])
   await clearHour()
 
@@ -492,7 +501,7 @@ try {
 
   const ashaMails = async () => (await mailsTo(asha)).length
   let sent = await ashaMails()
-  const again2 = await api('/auth/code', { body: { email: asha, over18: true } })
+  const again2 = await api('/auth/code', { body: { email: asha, over18: true }, sender: freshSender() })
   expect('the member signs in again over the API', again2.body, { ok: true, data: { sent: true } })
   const ashaAgain = await codeFrom(asha, (sent += 1))
   const reissued = (await api('/auth/verify', { body: { email: asha, code: ashaAgain.code } })).body
@@ -504,8 +513,9 @@ try {
 
   await payload.db.drizzle.execute(sql`UPDATE sign_in_codes SET sent_at = sent_at - interval '2 minutes' WHERE email = ${asha}`)
   const earlierCookie = webAgain.cookie!
-  const replacePage = await askForCode(webAgain, asha)
-  await typeCode(webAgain, replacePage, (await codeFrom(asha, (sent += 1))).code)
+  // A signed-in browser posting the email step is sent on to /me once the code is out, so the code is typed into the earlier code form.
+  await askForCode(webAgain, asha)
+  await typeCode(webAgain, webAgainPage, (await codeFrom(asha, (sent += 1))).code)
   expect('signing in again from a browser that still holds a session replaces it rather than adding one', [webAgain.cookie !== earlierCookie, await sessionsOf(asha), (await new Browser(browser.sender).withCookie(earlierCookie).get('/me')).headers.get('location')], [true, 2, '/sign-in'])
 
   const login = await fetch(new URL('/api/staff/login', site), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: staff.email, password: `pw-${run}-check` }) })
@@ -522,7 +532,9 @@ try {
   const suspended = await fetch(new URL(`/api/members/${memberId}`, site), { method: 'PATCH', headers: asStaff, body: JSON.stringify({ status: 'suspended' }) })
   expect('staff can suspend a member', [suspended.status, (await memberRow(asha))?.status], [200, 'suspended'])
   expect('which ends both sessions', [await sessionsOf(asha), (await webAgain.get('/me')).headers.get('location'), (await dashboard(bearerAgain)).status], [0, '/sign-in', 401])
-  await api('/auth/code', { body: { email: asha, over18: true } })
+  // The three sign-ins above used up this address's hour.
+  await payload.db.drizzle.execute(sql`UPDATE sign_in_codes SET sent_at = sent_at - interval '2 hours' WHERE email = ${asha}`)
+  await api('/auth/code', { body: { email: asha, over18: true }, sender: freshSender() })
   const suspendedVerify = await api('/auth/verify', { body: { email: asha, code: (await codeFrom(asha, (sent += 1))).code } })
   expect('and refuses the suspended member a new session even with the right code', [suspendedVerify.status, suspendedVerify.body?.ok === false && suspendedVerify.body.error.message], [
     403,
