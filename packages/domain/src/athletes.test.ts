@@ -104,7 +104,7 @@ describe('deriveAchievements ultra finishes', () => {
 
 const visibility = (results: Athlete['visibility']['results']): Pick<Athlete, 'id' | 'visibility'> => ({
   id: 1 as Id<'athletes'>,
-  visibility: { profile: 'public', results },
+  visibility: { profile: 'public', results, mileage: 'hidden' },
 })
 
 describe('athleteRecordOf', () => {

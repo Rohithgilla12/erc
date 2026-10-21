@@ -31,6 +31,7 @@ export {
   type YouTubeId,
 } from './primitives'
 export * from './plans'
+export * from './profiles'
 export * from './races'
 export * from './running'
 export * from './subdivisions'

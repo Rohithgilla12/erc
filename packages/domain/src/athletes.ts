@@ -1,5 +1,6 @@
 import type { Moderation } from './moderation'
 import { err, ok, type HttpsUrl, type Id, type LocalDate, type Metres, type Result, type Seconds, type Slug } from './primitives'
+import type { AthleteVisibility } from './profiles'
 import { categoriseDistance, DISTANCE_CATEGORIES, type DistanceCategory } from './running'
 import type { Subdivision } from './subdivisions'
 
@@ -11,9 +12,7 @@ export type Athlete = {
   bio: string
   home: { city: string | null; subdivision: Subdivision }
   runningSince: number | null
-  /** Phase 2 sets this when a member's claim on the profile is approved. Phase 1 rows keep it null. */
-  member: null
-  visibility: { profile: 'public' | 'hidden'; results: 'public' | 'hidden' }
+  visibility: AthleteVisibility
 }
 
 export type ResultProvenance =
