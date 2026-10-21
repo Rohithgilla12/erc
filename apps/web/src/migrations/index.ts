@@ -10,6 +10,7 @@ import * as migration_20261020_032538_newsletter_subscribers from './20261020_03
 import * as migration_20261020_033438_home_blocks from './20261020_033438_home_blocks';
 import * as migration_20261021_085649_subscriber_prior_consent from './20261021_085649_subscriber_prior_consent';
 import * as migration_20261021_105447_members from './20261021_105447_members';
+import * as migration_20261021_160546_athlete_claims from './20261021_160546_athlete_claims';
 
 export const migrations = [
   {
@@ -70,6 +71,11 @@ export const migrations = [
   {
     up: migration_20261021_105447_members.up,
     down: migration_20261021_105447_members.down,
-    name: '20261021_105447_members'
+    name: '20261021_105447_members',
+  },
+  {
+    up: migration_20261021_160546_athlete_claims.up,
+    down: migration_20261021_160546_athlete_claims.down,
+    name: '20261021_160546_athlete_claims'
   },
 ];

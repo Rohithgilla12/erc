@@ -1,4 +1,4 @@
-import type { UploadConfig } from 'payload'
+import type { Payload, PayloadRequest, UploadConfig } from 'payload'
 
 import { defineRecord } from '../kinds'
 
@@ -10,6 +10,19 @@ type UploadHandler = NonNullable<UploadConfig['handlers']>[number]
  */
 const plainFilenamesOnly: UploadHandler = (_req, { params }) => {
   if (/[/\\]/.test(params.filename)) return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } })
+}
+
+/** Photos members upload carry this prefix, so the code replacing or removing one knows the file is theirs to delete. */
+export const MEMBER_PHOTO_PREFIX = 'member-photo-'
+
+/**
+ * Deletes a photo a member uploaded once nothing shows it any more: an uploaded file can be opened by anyone who has
+ * its address, and the member took it down. Photos staff uploaded stay in the library for staff to manage.
+ */
+export async function deleteMemberPhoto(payload: Payload, id: number | null, req?: PayloadRequest): Promise<void> {
+  if (id === null) return
+  const media = await payload.findByID({ collection: 'media', id, depth: 0, overrideAccess: true, disableErrors: true, ...(req ? { req } : {}) })
+  if (media?.filename?.startsWith(MEMBER_PHOTO_PREFIX)) await payload.delete({ collection: 'media', id, overrideAccess: true, ...(req ? { req } : {}) })
 }
 
 export const Media = defineRecord({

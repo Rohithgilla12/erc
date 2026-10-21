@@ -82,6 +82,8 @@ export interface Config {
     resources: Resource;
     trainingPlans: TrainingPlan;
     members: Member;
+    claims: Claim;
+    profileChanges: ProfileChange;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -104,6 +106,8 @@ export interface Config {
     resources: ResourcesSelect<false> | ResourcesSelect<true>;
     trainingPlans: TrainingPlansSelect<false> | TrainingPlansSelect<true>;
     members: MembersSelect<false> | MembersSelect<true>;
+    claims: ClaimsSelect<false> | ClaimsSelect<true>;
+    profileChanges: ProfileChangesSelect<false> | ProfileChangesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -370,6 +374,10 @@ export interface Athlete {
   name: string;
   slug: string;
   /**
+   * The member who controls this profile, set when staff approve their claim or when they start it themselves.
+   */
+  member?: (number | null) | Member;
+  /**
    * An uploaded image can be opened by anyone who has its address, even while this profile is hidden. Add a photo only once the athlete agrees.
    */
   photo?: (number | null) | Media;
@@ -415,13 +423,19 @@ export interface Athlete {
       | 'IN-WB';
   };
   runningSince?: number | null;
+  birthYear?: number | null;
   /**
-   * The athlete decides. Both stay hidden until they agree to show them.
+   * The athlete decides. Everything stays hidden until they agree to show it, and once a member is linked only they can change it.
    */
   visibility: {
     profile: 'hidden' | 'public';
     results: 'hidden' | 'public';
+    mileage: 'hidden' | 'public';
   };
+  /**
+   * Withheld keeps this athlete off every leaderboard, whatever they choose to show.
+   */
+  leaderboards: 'included' | 'withheld';
   moderation: {
     state: 'submitted' | 'approved' | 'rejected';
     /**
@@ -441,6 +455,27 @@ export interface Athlete {
    */
   moderationDecision?: ('approve' | 'reject') | null;
   rejectionReason?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * People who sign in to the site. Accounts are created by signing in, never here. Suspend a member to sign them out everywhere and refuse new sign-ins.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "members".
+ */
+export interface Member {
+  id: number;
+  email: string;
+  /**
+   * Suspended members are signed out and cannot sign in again until reactivated.
+   */
+  status: 'active' | 'suspended';
+  /**
+   * When they confirmed they are 18 or over, on their first sign-in.
+   */
+  ageDeclaredAt: string;
+  lastSignInAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1163,23 +1198,73 @@ export interface TrainingPlan {
   _status?: ('draft' | 'published') | null;
 }
 /**
- * People who sign in to the site. Accounts are created by signing in, never here. Suspend a member to sign them out everywhere and refuse new sign-ins.
+ * Members asking to take over an athlete profile a coach entered. Approve to link them: from then on they control the profile and what it shows.
  *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "members".
+ * via the `definition` "claims".
  */
-export interface Member {
+export interface Claim {
   id: number;
-  email: string;
+  member: number | Member;
+  athlete: number | Athlete;
   /**
-   * Suspended members are signed out and cannot sign in again until reactivated.
+   * What the member told us to show the profile is theirs.
    */
-  status: 'active' | 'suspended';
+  note: string;
+  moderation: {
+    state: 'submitted' | 'approved' | 'rejected';
+    /**
+     * Who sent a public submission. Empty when staff added the record.
+     */
+    submitter?: {
+      name?: string | null;
+      email?: string | null;
+    };
+    submittedAt?: string | null;
+    decidedBy?: (number | null) | Staff;
+    decidedAt?: string | null;
+    reason?: string | null;
+  };
   /**
-   * When they confirmed they are 18 or over, on their first sign-in.
+   * Applied when you save.
    */
-  ageDeclaredAt: string;
-  lastSignInAt?: string | null;
+  moderationDecision?: ('approve' | 'reject') | null;
+  rejectionReason?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Names, bios and photos members want on their public profile. Approve to show the new value; the profile keeps the old one until then.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "profileChanges".
+ */
+export interface ProfileChange {
+  id: number;
+  member: number | Member;
+  athlete: number | Athlete;
+  field: 'name' | 'bio' | 'photo';
+  text?: string | null;
+  photo?: (number | null) | Media;
+  moderation: {
+    state: 'submitted' | 'approved' | 'rejected';
+    /**
+     * Who sent a public submission. Empty when staff added the record.
+     */
+    submitter?: {
+      name?: string | null;
+      email?: string | null;
+    };
+    submittedAt?: string | null;
+    decidedBy?: (number | null) | Staff;
+    decidedAt?: string | null;
+    reason?: string | null;
+  };
+  /**
+   * Applied when you save.
+   */
+  moderationDecision?: ('approve' | 'reject') | null;
+  rejectionReason?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1266,6 +1351,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'members';
         value: number | Member;
+      } | null)
+    | ({
+        relationTo: 'claims';
+        value: number | Claim;
+      } | null)
+    | ({
+        relationTo: 'profileChanges';
+        value: number | ProfileChange;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1455,6 +1548,7 @@ export interface RacesSelect<T extends boolean = true> {
 export interface AthletesSelect<T extends boolean = true> {
   name?: T;
   slug?: T;
+  member?: T;
   photo?: T;
   bio?: T;
   home?:
@@ -1464,12 +1558,15 @@ export interface AthletesSelect<T extends boolean = true> {
         subdivision?: T;
       };
   runningSince?: T;
+  birthYear?: T;
   visibility?:
     | T
     | {
         profile?: T;
         results?: T;
+        mileage?: T;
       };
+  leaderboards?: T;
   moderation?:
     | T
     | {
@@ -1867,6 +1964,64 @@ export interface MembersSelect<T extends boolean = true> {
   status?: T;
   ageDeclaredAt?: T;
   lastSignInAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "claims_select".
+ */
+export interface ClaimsSelect<T extends boolean = true> {
+  member?: T;
+  athlete?: T;
+  note?: T;
+  moderation?:
+    | T
+    | {
+        state?: T;
+        submitter?:
+          | T
+          | {
+              name?: T;
+              email?: T;
+            };
+        submittedAt?: T;
+        decidedBy?: T;
+        decidedAt?: T;
+        reason?: T;
+      };
+  moderationDecision?: T;
+  rejectionReason?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "profileChanges_select".
+ */
+export interface ProfileChangesSelect<T extends boolean = true> {
+  member?: T;
+  athlete?: T;
+  field?: T;
+  text?: T;
+  photo?: T;
+  moderation?:
+    | T
+    | {
+        state?: T;
+        submitter?:
+          | T
+          | {
+              name?: T;
+              email?: T;
+            };
+        submittedAt?: T;
+        decidedBy?: T;
+        decidedAt?: T;
+        reason?: T;
+      };
+  moderationDecision?: T;
+  rejectionReason?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -57,6 +57,7 @@ const createAthlete = async (key: string, visibility: AthleteData['visibility'],
     data: {
       name: `Check Athlete ${key} ${run}`,
       slug: `check-athlete-${key}-${run}`,
+      leaderboards: 'included',
       home: { city: 'Hyderabad', subdivision: 'IN-TS' },
       visibility,
       moderation: { state: 'submitted' },
@@ -87,10 +88,10 @@ const createResult = (athlete: number, data: Partial<ResultData>, approve = true
 const ids = (docs: readonly { id: number }[]) => docs.map((doc) => doc.id).sort((a, b) => a - b)
 
 try {
-  const shown = await createAthlete('shown', { profile: 'public', results: 'public' })
-  const quiet = await createAthlete('quiet', { profile: 'public', results: 'hidden' })
-  const hidden = await createAthlete('hidden', { profile: 'hidden', results: 'public' })
-  const pending = await createAthlete('pending', { profile: 'public', results: 'public' }, false)
+  const shown = await createAthlete('shown', { profile: 'public', results: 'public', mileage: 'hidden' })
+  const quiet = await createAthlete('quiet', { profile: 'public', results: 'hidden', mileage: 'hidden' })
+  const hidden = await createAthlete('hidden', { profile: 'hidden', results: 'public', mileage: 'hidden' })
+  const pending = await createAthlete('pending', { profile: 'public', results: 'public', mileage: 'hidden' }, false)
 
   const official10k = await createResult(shown.id, { finishTime: '0:40:00', eventName: `Shown official 10K ${run}` })
   const self10k = await createResult(shown.id, {
@@ -276,12 +277,12 @@ async function overHttp(f: Record<'shown' | 'quiet' | 'hidden' | 'pending', Doc>
   // The pages above are now cached; hiding must expire them, not wait out the cache.
   const shownResultNames = [`Renamed ${run}`, `Shown 50K ${run}`]
   expect('the cached profile showed those results before', shownResultNames.map((name) => shownPage.body.includes(name)), [true, true])
-  await payload.update({ collection: 'athletes', id: f.shown.id, ...asStaff, data: { visibility: { profile: 'public', results: 'hidden' } } })
+  await payload.update({ collection: 'athletes', id: f.shown.id, ...asStaff, data: { visibility: { profile: 'public', results: 'hidden', mileage: 'hidden' } } })
   const nowQuiet = await get(`/athletes/${f.shown.slug}`)
   expect('hiding results takes them off the cached profile', [nowQuiet.status, shownResultNames.some((name) => nowQuiet.body.includes(name))], [200, false])
   const resultsAfter = JSON.parse((await api(`/api/results?where[athlete][equals]=${f.shown.id}`)).body) as { totalDocs: number }
   expect('hiding results takes them off REST', resultsAfter.totalDocs, 0)
-  await payload.update({ collection: 'athletes', id: f.shown.id, ...asStaff, data: { visibility: { profile: 'hidden', results: 'hidden' } } })
+  await payload.update({ collection: 'athletes', id: f.shown.id, ...asStaff, data: { visibility: { profile: 'hidden', results: 'hidden', mileage: 'hidden' } } })
   expect('hiding the profile 404s the cached page', (await get(`/athletes/${f.shown.slug}`)).status, 404)
   expect('hiding the profile takes it off the cached directory', (await get('/athletes')).body.includes(f.shown.name ?? ''), false)
 }

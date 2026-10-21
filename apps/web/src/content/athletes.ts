@@ -150,8 +150,7 @@ export const parseAthleteDoc = (doc: AthleteDoc): Result<Athlete, string> =>
       bio: doc.bio?.trim() ?? '',
       home: { city: doc.home.city?.trim() || null, subdivision: doc.home.subdivision },
       runningSince: doc.runningSince ?? null,
-      member: null,
-      visibility: { profile: 'public', results: doc.visibility.results },
+      visibility: { profile: 'public', results: doc.visibility.results, mileage: doc.visibility.mileage },
     }
   })
 

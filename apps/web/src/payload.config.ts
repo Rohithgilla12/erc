@@ -5,11 +5,13 @@ import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
 import { Athletes } from './cms/collections/athletes'
+import { Claims, memberRequestIndexes } from './cms/collections/claims'
 import { Coaches } from './cms/collections/coaches'
 import { Enquiries } from './cms/collections/enquiries'
 import { Media } from './cms/collections/media'
 import { Members } from './cms/collections/members'
 import { Pages } from './cms/collections/pages'
+import { ProfileChanges } from './cms/collections/profile-changes'
 import { raceCalendarIndexes, Races } from './cms/collections/races'
 import { Results } from './cms/collections/results'
 import { Staff } from './cms/collections/staff'
@@ -41,7 +43,7 @@ export default buildErcConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, Pages, Enquiries, Subscribers, Resources, TrainingPlans, Members],
+  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, Pages, Enquiries, Subscribers, Resources, TrainingPlans, Members, Claims, ProfileChanges],
   endpoints: [revalidateEndpoint],
   editor: lexicalEditor(),
   // Pages read through the Local API and the admin through REST, so GraphQL would only be one more public surface.
@@ -61,7 +63,7 @@ export default buildErcConfig({
     push: false,
     migrationDir: path.resolve(dirname, 'migrations'),
     prodMigrations: migrations,
-    afterSchemaInit: [raceCalendarIndexes],
+    afterSchemaInit: [raceCalendarIndexes, memberRequestIndexes],
   }),
   sharp,
   plugins: [mediaStorage()],

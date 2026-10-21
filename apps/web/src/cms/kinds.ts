@@ -43,10 +43,11 @@ type SpecBase = Pick<CollectionConfig, 'hooks' | 'indexes' | 'labels' | 'default
 export type EditorialSpec = SpecBase & Pick<CollectionConfig, 'upload'> & { slug: EditorialSlug }
 
 /**
- * `moderated` rows are public once approved, `public` rows always, `private` rows never.
- * Only `moderated` carries the moderation group: staff accounts and media have nothing to approve.
+ * `moderated` rows are public once approved, `public` rows always, `private` rows never. `request` rows are what a
+ * member asks staff to decide, such as a profile claim: moderated like a submission, but read only by staff.
+ * Only `moderated` and `request` carry the moderation group: staff accounts and media have nothing to approve.
  */
-export type RecordVisibility = 'moderated' | 'public' | 'private'
+export type RecordVisibility = 'moderated' | 'public' | 'private' | 'request'
 
 export type RecordSpec = SpecBase &
   Pick<CollectionConfig, 'auth' | 'upload'> & { slug: RecordSlug } & (
@@ -55,7 +56,7 @@ export type RecordSpec = SpecBase &
         /** Narrows what the public reads beyond "approved", such as an athlete's own visibility choice. Staff read every row. */
         publicWhere?: Where
       }
-    | { visibility: 'public' | 'private'; publicWhere?: never }
+    | { visibility: 'public' | 'private' | 'request'; publicWhere?: never }
   )
 
 const staffWrites: WriteAccess = { create: isStaff, update: isStaff, delete: isStaff }
@@ -89,10 +90,11 @@ export const defineEditorial = ({ slug, fields, admin, access, hooks, ...rest }:
     },
   })
 
-const readByVisibility = { moderated: approvedUnlessStaff, public: () => true, private: isStaff } as const
+const readByVisibility = { moderated: approvedUnlessStaff, public: () => true, private: isStaff, request: isStaff } as const satisfies Record<RecordVisibility, unknown>
 
-export const defineRecord = ({ slug, fields, admin, access, visibility, publicWhere, hooks, ...rest }: RecordSpec): ErcCollection =>
-  brand({
+export const defineRecord = ({ slug, fields, admin, access, visibility, publicWhere, hooks, ...rest }: RecordSpec): ErcCollection => {
+  const moderated = visibility === 'moderated' || visibility === 'request'
+  return brand({
     kind: 'record',
     slug,
     config: {
@@ -101,17 +103,15 @@ export const defineRecord = ({ slug, fields, admin, access, visibility, publicWh
       admin: { ...admin, group: 'Records' },
       access: {
         ...staffWrites,
-        ...(visibility === 'moderated' ? { delete: moderatedDelete } : {}),
+        ...(moderated ? { delete: moderatedDelete } : {}),
         ...access,
         read: publicWhere ? approvedMatchingUnlessStaff(publicWhere) : readByVisibility[visibility],
       },
-      hooks: withRevalidation(
-        slug,
-        visibility === 'moderated' ? { ...hooks, beforeChange: [...(hooks?.beforeChange ?? []), applyModeration] } : hooks,
-      ),
-      fields: visibility === 'moderated' ? [...fields, moderationField, ...decisionFields] : fields,
+      hooks: withRevalidation(slug, moderated ? { ...hooks, beforeChange: [...(hooks?.beforeChange ?? []), applyModeration] } : hooks),
+      fields: moderated ? [...fields, moderationField, ...decisionFields] : fields,
     },
   })
+}
 
 export const buildErcConfig = ({ collections, ...config }: Omit<Config, 'collections'> & { collections: ErcCollection[] }) =>
   buildConfig({ ...config, collections: collections.map((collection) => collection.config) })

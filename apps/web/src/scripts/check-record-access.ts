@@ -94,8 +94,9 @@ try {
     data: {
       name: `Access Check ${run}`,
       slug: `access-check-athlete-${run}`,
+      leaderboards: 'included',
       home: { city: 'Hyderabad', subdivision: 'IN-TS' },
-      visibility: { profile: 'public', results: 'public' },
+      visibility: { profile: 'public', results: 'public', mileage: 'hidden' },
       moderation: { state: 'submitted', submitter },
       moderationDecision: 'approve',
     },

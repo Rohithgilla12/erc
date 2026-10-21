@@ -36,11 +36,12 @@ const placeholder = (n: number, home: { city: string; subdivision: Subdivision }
     home,
     runningSince,
     visibility,
+    leaderboards: 'included',
     moderation: { state: 'submitted' },
     moderationDecision: 'approve',
   }) satisfies AthleteData
 
-const PUBLIC: Visibility = { profile: 'public', results: 'public' }
+const PUBLIC: Visibility = { profile: 'public', results: 'public', mileage: 'hidden' }
 
 const ATHLETES: readonly (readonly [AthleteData, readonly SeedResult[]])[] = [
   [
@@ -66,14 +67,14 @@ const ATHLETES: readonly (readonly [AthleteData, readonly SeedResult[]])[] = [
     ],
   ],
   [
-    placeholder(3, { city: 'Warangal', subdivision: 'IN-TS' }, { profile: 'public', results: 'hidden' }, 'Prefers to keep race times private. Placeholder profile for development.', 2021),
+    placeholder(3, { city: 'Warangal', subdivision: 'IN-TS' }, { profile: 'public', results: 'hidden', mileage: 'hidden' }, 'Prefers to keep race times private. Placeholder profile for development.', 2021),
     [
       { eventName: 'Placeholder Private 10K', date: '2026-02-01', distance: 10_000, finishTime: '0:52:00' },
       { eventName: 'Placeholder Private Half', date: '2025-10-05', distance: 21_097, finishTime: '2:01:30' },
     ],
   ],
   [
-    placeholder(4, { city: 'Guntur', subdivision: 'IN-AP' }, { profile: 'hidden', results: 'public' }, 'Hidden profile. Placeholder for development.', null),
+    placeholder(4, { city: 'Guntur', subdivision: 'IN-AP' }, { profile: 'hidden', results: 'public', mileage: 'hidden' }, 'Hidden profile. Placeholder for development.', null),
     [{ eventName: 'Placeholder Hidden Marathon', date: '2025-12-14', distance: 42_195, finishTime: '4:10:00' }],
   ],
   [
