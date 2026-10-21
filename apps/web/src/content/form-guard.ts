@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto'
 
 /**
  * The bot checks every public form shares: a signed time token, a per-sender key for rate limits, and the honeypot
@@ -12,13 +12,18 @@ export type FormTiming = 'ok' | 'too_fast' | 'expired' | 'invalid'
 const MIN_FILL_MS = 3_000
 const MAX_TOKEN_AGE_MS = 24 * 60 * 60 * 1000
 
-const secret = () => {
-  const value = process.env.PAYLOAD_SECRET
-  if (!value) throw new Error('PAYLOAD_SECRET is required to sign public forms')
-  return value
+let signingKey: Buffer | undefined
+
+/** A key for this purpose alone, derived from `PAYLOAD_SECRET`, which Payload also derives its session signing key from. */
+const key = () => {
+  if (signingKey) return signingKey
+  const secret = process.env.PAYLOAD_SECRET
+  if (!secret) throw new Error('PAYLOAD_SECRET is required to sign public forms')
+  signingKey = Buffer.from(hkdfSync('sha256', secret, '', 'erc public form and newsletter link signing', 32))
+  return signingKey
 }
 
-export const mac = (purpose: string, value: string) => createHmac('sha256', secret()).update(`${purpose}:${value}`).digest('base64url')
+export const mac = (purpose: string, value: string) => createHmac('sha256', key()).update(`${purpose}:${value}`).digest('base64url')
 
 export const sameMac = (given: string, expected: string) => {
   const a = Buffer.from(given)
