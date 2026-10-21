@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres/drizzle'
 import {
+  confirmationSent,
   confirmExpiryFrom,
   confirmLinkState,
   parseSubscriberEmail,
@@ -131,33 +132,40 @@ export async function receiveSignup(fields: Readonly<Record<string, string>>, he
       })
       if (totalDocs >= SIGNUPS_PER_SENDER_PER_HOUR) return { kind: 'refused', token, email, reason: 'rate_limited' }
 
-      // `consentedAt` is set exactly when a confirmation email is planned, so it counts the hour's emails.
-      const confirmations = await payload.count({ collection: 'subscribers', where: { consentedAt: { greater_than: windowStart } }, req })
-      if (confirmations.totalDocs >= NEWSLETTER_CONFIRMATIONS_PER_HOUR) {
+      // A confirmation email is planned exactly when `consentedAt` is set, and the one before moves to
+      // `priorConsentedAt`. An address gets at most two a day, so the two columns hold every email of the hour.
+      const sentSince = async (field: 'consentedAt' | 'priorConsentedAt') =>
+        (await payload.count({ collection: 'subscribers', where: { [field]: { greater_than: windowStart } }, req })).totalDocs
+      if ((await sentSince('consentedAt')) + (await sentSince('priorConsentedAt')) >= NEWSLETTER_CONFIRMATIONS_PER_HOUR) {
         payload.logger.warn({ cap: NEWSLETTER_CONFIRMATIONS_PER_HOUR }, 'Refused a newsletter signup: the hourly confirmation email cap is reached')
         return { kind: 'refused', token, email, reason: 'unavailable' }
       }
 
-      const stored = await findByEmail(payload, parsed.value, req)
-      const step = planSignup(stored && { status: stored.status, consentedAt: stored.consentedAt as Instant }, now)
+      const found = await findByEmail(payload, parsed.value, req)
+      const stored = found && {
+        status: found.status,
+        consentedAt: found.consentedAt as Instant,
+        priorConsentedAt: (found.priorConsentedAt ?? null) as Instant | null,
+      }
+      const step = planSignup(stored, now)
       // Every accepted request marks its address, whatever the step, so the limit costs the same for a listed address
       // as for a new one and cannot be used to probe the list.
       const request = { senderKey, requestedAt: now.toISOString() }
-      if (step === 'none' && stored) {
-        await payload.update({ collection: 'subscribers', id: stored.id, data: request, context, req })
+      if (step === 'none' && found) {
+        await payload.update({ collection: 'subscribers', id: found.id, data: request, context, req })
         return { kind: 'sent' }
       }
 
       const confirmToken = randomBytes(32).toString('base64url')
       const data = {
         ...request,
+        ...confirmationSent(stored, now),
         status: 'pending' as const,
-        consentedAt: now.toISOString(),
         confirmTokenHash: hashOf(confirmToken),
         confirmExpiresAt: confirmExpiryFrom(now),
       }
-      const subscriber = stored
-        ? await payload.update({ collection: 'subscribers', id: stored.id, data, context, req })
+      const subscriber = found
+        ? await payload.update({ collection: 'subscribers', id: found.id, data, context, req })
         : await payload.create({ collection: 'subscribers', data: { ...data, email: parsed.value, source: 'site-footer' }, context, req })
       return { kind: 'confirm', subscriber, confirmToken }
     })

@@ -179,7 +179,9 @@ async function enquiryCapCases() {
 
 /** Fills the hour with planned confirmations up to the cap; then nobody, listed or not, is mailed or told it worked. */
 async function newsletterCapCases(listed: string) {
-  const { rows } = await payload.db.drizzle.execute(sql`SELECT count(*)::int AS n FROM subscribers WHERE consented_at > now() - interval '1 hour'`)
+  const { rows } = await payload.db.drizzle.execute(sql`
+    SELECT (count(*) FILTER (WHERE consented_at > now() - interval '1 hour') + count(*) FILTER (WHERE prior_consented_at > now() - interval '1 hour'))::int AS n
+    FROM subscribers`)
   const filler = NEWSLETTER_CONFIRMATIONS_PER_HOUR - (rows[0] as { n: number }).n
   for (let n = 0; n < filler; n += 1) {
     await payload.db.drizzle.execute(
@@ -221,8 +223,12 @@ const BURST = 60
  * room under the cap. The hour is emptied of this run's earlier rows first, so the room is known.
  */
 async function newsletterBurstCases() {
-  await payload.db.drizzle.execute(sql`UPDATE subscribers SET consented_at = consented_at - interval '2 hours' WHERE email LIKE ${`newsletter-check-${run}-%`}`)
-  const { rows } = await payload.db.drizzle.execute(sql`SELECT count(*)::int AS n FROM subscribers WHERE consented_at > now() - interval '1 hour'`)
+  await payload.db.drizzle.execute(sql`
+    UPDATE subscribers SET consented_at = consented_at - interval '2 hours', prior_consented_at = prior_consented_at - interval '2 hours'
+    WHERE email LIKE ${`newsletter-check-${run}-%`}`)
+  const { rows } = await payload.db.drizzle.execute(sql`
+    SELECT (count(*) FILTER (WHERE consented_at > now() - interval '1 hour') + count(*) FILTER (WHERE prior_consented_at > now() - interval '1 hour'))::int AS n
+    FROM subscribers`)
   const room = NEWSLETTER_CONFIRMATIONS_PER_HOUR - (rows[0] as { n: number }).n
   if (room <= 0) throw new Error('Other signups fill this hour, so the burst check cannot measure the cap; run it again later')
   const form = await footerForm('198.51.100.9')
@@ -332,6 +338,13 @@ try {
   expect('a repeat inside the resend window gives the same reply', await signUp(again, asha, sender), 'sent')
   await sleep(1_000)
   expect('but sends no third email', (await mailsTo(asha)).length, 2)
+  await payload.db.drizzle.execute(sql`UPDATE subscribers SET consented_at = consented_at - interval '20 minutes' WHERE email = ${asha}`)
+  expect('past the resend window, a third request in a day gives the same reply', await signUp(again, asha, sender), 'sent')
+  await sleep(1_000)
+  expect('but an address gets no more than two confirmation emails a day', (await mailsTo(asha)).length, 2)
+  await payload.db.drizzle.execute(sql`UPDATE subscribers SET prior_consented_at = prior_consented_at - interval '1 day' WHERE email = ${asha}`)
+  expect('once the earlier email is a day old', await signUp(again, asha, sender), 'sent')
+  expect('a fresh link goes out', (await waitForMails(asha, 3)).length, 3)
 
   const ben = address('ben')
   expect('a second address signs up', await signUp(again, ben, sender), 'sent')

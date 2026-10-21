@@ -953,6 +953,7 @@ export interface Subscriber {
    * When they last sent the signup form and we emailed them a confirmation link.
    */
   consentedAt: string;
+  priorConsentedAt?: string | null;
   confirmedAt?: string | null;
   confirmTokenHash?: string | null;
   confirmExpiresAt?: string | null;
@@ -1723,6 +1724,7 @@ export interface SubscribersSelect<T extends boolean = true> {
   status?: T;
   source?: T;
   consentedAt?: T;
+  priorConsentedAt?: T;
   confirmedAt?: T;
   confirmTokenHash?: T;
   confirmExpiresAt?: T;

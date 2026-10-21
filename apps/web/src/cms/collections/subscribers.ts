@@ -92,6 +92,8 @@ const fields: Field[] = [
     required: true,
     admin: { ...dayAndTime, description: 'When they last sent the signup form and we emailed them a confirmation link.' },
   },
+  // The confirmation email before the latest, for the limit of two a day per address.
+  { name: 'priorConsentedAt', type: 'date', admin: hidden },
   { name: 'confirmedAt', label: 'Confirmed', type: 'date', admin: dayAndTime },
   // A SHA-256 of the emailed link's token. Confirming clears it, so a link works once.
   { name: 'confirmTokenHash', type: 'text', index: true, admin: hidden },
