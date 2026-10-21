@@ -6,6 +6,7 @@ import {
   parseAthleteSearch,
   parseClaim,
   parseNewProfile,
+  parsePhoto,
   parseProfileEdit,
   parseVisibilityEdit,
   planLink,
@@ -138,6 +139,24 @@ describe('claim and search input', () => {
     expect(parseVisibilityEdit({ mileage: 'public' })).toEqual({ ok: true, value: { mileage: 'public' } })
     expect(parseVisibilityEdit({ profile: 'shown' }).ok).toBe(false)
     expect(parseVisibilityEdit({}).ok).toBe(false)
+  })
+})
+
+describe('parsePhoto', () => {
+  const file = (type: string, size: number) => ({ type, size, arrayBuffer: async () => new ArrayBuffer(size) })
+
+  it('takes a JPEG, PNG or WebP image up to 5 MB, or `none` to remove the photo', () => {
+    const photo = file('image/png', 1_000)
+    expect(parsePhoto({ photo })).toEqual({ ok: true, value: { photo } })
+    expect(parsePhoto({ photo: 'none' })).toEqual({ ok: true, value: { photo: null } })
+  })
+
+  it('refuses other types, empty and oversized files, and anything that is not a file', () => {
+    expect(parsePhoto({ photo: file('image/svg+xml', 100) }).ok).toBe(false)
+    expect(parsePhoto({ photo: file('image/jpeg', 0) }).ok).toBe(false)
+    expect(parsePhoto({ photo: file('image/jpeg', 5 * 1024 * 1024 + 1) }).ok).toBe(false)
+    expect(parsePhoto({ photo: 'https://example.com/me.jpg' }).ok).toBe(false)
+    expect(parsePhoto({ photo: 12 }).ok).toBe(false)
   })
 })
 

@@ -3,6 +3,8 @@ import type { Instant, LocalDate, SourceRef } from '@erc/domain'
 import { API_BASE, createClient, encodeRunCursor, OPERATION_NAMES, OPERATIONS, operationFor, parseRunCursor, STATUS, type FetchLike, type SessionToken } from './index'
 
 declare const btoa: (text: string) => string
+declare const Blob: new (parts: string[], options: { type: string }) => { size: number; type: string }
+declare const FormData: new () => { get(name: string): unknown }
 
 type Call = Parameters<FetchLike>
 
@@ -23,6 +25,16 @@ describe('OPERATIONS', () => {
     }
     expect(operationFor('GET', '/auth/code')).toBeNull()
     expect(operationFor('DELETE', '/me/runs')).toBeNull()
+  })
+
+  it('lets only a signed-in member near athlete profiles', () => {
+    const athleteOps = OPERATION_NAMES.filter((name) => OPERATIONS[name].path.startsWith('/me/athlete'))
+    expect(athleteOps).toEqual(['myAthlete', 'searchAthletes', 'claimAthlete', 'startAthlete', 'updateProfile', 'setPhoto', 'setVisibility'])
+    expect(athleteOps.map((name) => OPERATIONS[name].access)).toEqual(athleteOps.map(() => 'member'))
+  })
+
+  it('takes profile edits through the domain table, so a member cannot name the link, consent, or a photo here', () => {
+    expect(OPERATIONS.updateProfile.parse({ city: 'Pune', member: 4, visibility: { profile: 'public' }, photo: 3 })).toEqual({ ok: true, value: { city: 'Pune' } })
   })
 
   it('has a status for every error code', () => {
@@ -72,7 +84,19 @@ describe('createClient', () => {
     expect(url).toBe(`https://erc.example${API_BASE}/auth/code`)
     expect(init.method).toBe('POST')
     expect(init.headers).toMatchObject({ authorization: 'Bearer erc_abc', 'content-type': 'application/json' })
-    expect(JSON.parse(init.body ?? '')).toEqual({ email: 'asha@example.com', over18: true })
+    expect(JSON.parse(typeof init.body === 'string' ? init.body : '')).toEqual({ email: 'asha@example.com', over18: true })
+  })
+
+  it('sends a photo as multipart and leaves the content type to fetch, which writes the boundary', async () => {
+    const { calls, fetch } = recordingFetch({ ok: true, data: { kind: 'none', rejectedClaim: null } })
+    const client = createClient({ baseUrl: 'https://erc.example', token: async () => 'erc_abc' as SessionToken, fetch })
+    const photo = new Blob(['png'], { type: 'image/png' })
+    await client.setPhoto({ photo })
+    const [url, init] = calls[0]!
+    expect(url).toBe(`https://erc.example${API_BASE}/me/athlete/photo`)
+    expect('content-type' in init.headers).toBe(false)
+    expect(init.body).toBeInstanceOf(FormData)
+    expect((init.body as unknown as InstanceType<typeof FormData>).get('photo')).toBeInstanceOf(Blob)
   })
 
   it('sends GET input as a query string, leaving out empty values, and no authorization header without a token', async () => {

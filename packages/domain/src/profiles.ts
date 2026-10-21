@@ -216,6 +216,28 @@ export const parseVisibilityEdit = (raw: RawInput): Result<VisibilityEdit, Field
   return collect(Object.fromEntries(present.map((key) => [key, visibilityOf(raw[key])]))) as Result<VisibilityEdit, FieldErrors>
 }
 
+/** An uploaded file as a form post or a multipart body carries it. Only the shape the parser needs, so no DOM types. */
+export type UploadedFile = { readonly size: number; readonly type: string; arrayBuffer(): Promise<ArrayBuffer> }
+
+export const PHOTO_MAX_BYTES = 5 * 1024 * 1024
+export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+
+const isUpload = (raw: unknown): raw is UploadedFile =>
+  typeof raw === 'object' &&
+  raw !== null &&
+  typeof (raw as UploadedFile).size === 'number' &&
+  typeof (raw as UploadedFile).type === 'string' &&
+  typeof (raw as UploadedFile).arrayBuffer === 'function'
+
+/** A new photo, or `null` to take the current one off. `photo=none` asks for removal, since a form cannot send null. */
+export const parsePhoto = (raw: RawInput): Result<{ photo: UploadedFile | null }, FieldErrors> => {
+  if (raw.photo === 'none') return ok({ photo: null })
+  const file = raw.photo
+  if (!isUpload(file) || file.size === 0) return err({ photo: 'Choose a photo to upload.' })
+  if (!(PHOTO_TYPES as readonly string[]).includes(file.type)) return err({ photo: 'Upload a JPEG, PNG or WebP image.' })
+  return file.size > PHOTO_MAX_BYTES ? err({ photo: `Upload an image under ${PHOTO_MAX_BYTES / 1024 / 1024} MB.` }) : ok({ photo: file })
+}
+
 /** A URL slug from a name: accents dropped, anything else that is not a letter or digit joined by hyphens. */
 export const slugFromName = (name: string): Slug => {
   const words = name

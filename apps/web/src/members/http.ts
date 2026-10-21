@@ -1,5 +1,5 @@
 import config from '@payload-config'
-import { API_BASE, operationFor, type ApiError, type Envelope } from '@erc/contract'
+import { API_BASE, OPERATIONS, operationFor, type ApiError, type Envelope } from '@erc/contract'
 import type { RawInput } from '@erc/domain'
 import { getPayload } from 'payload'
 
@@ -12,6 +12,17 @@ const refuse = (error: ApiError) => reply({ ok: false, error })
 
 const isJson = (request: Request) => /^application\/json\s*(?:;|$)/i.test(request.headers.get('content-type') ?? '')
 
+const isMultipart = (request: Request) => /^multipart\/form-data\s*;/i.test(request.headers.get('content-type') ?? '')
+
+/** The first value of each part, files included, the way `fieldsOf` reads a web form. */
+const formObject = async (request: Request): Promise<RawInput | null> => {
+  const form = await request.formData().catch(() => null)
+  if (!form) return null
+  const fields: Record<string, FormDataEntryValue> = {}
+  for (const [key, value] of form) if (!(key in fields)) fields[key] = value
+  return fields
+}
+
 const jsonObject = async (request: Request): Promise<RawInput | null> => {
   const body: unknown = await request.json().catch(() => null)
   return typeof body === 'object' && body !== null && !Array.isArray(body) ? (body as RawInput) : null
@@ -20,18 +31,24 @@ const jsonObject = async (request: Request): Promise<RawInput | null> => {
 /**
  * Routes `/api/v1/<path>` to the operation with that method and path, authenticates with the bearer token alone, and
  * answers with the envelope. Pages and the API therefore run the same `run`, and the only difference is how the
- * caller and the input arrived. A POST must say it is JSON: a browser can send `text/plain` cross-origin without a
- * preflight, so refusing anything else keeps other people's browsers from spending this site's limits.
+ * caller and the input arrived. A POST must say it is JSON, or multipart where the operation takes a file: a browser
+ * can send `text/plain` cross-origin without a preflight, so refusing anything else keeps other people's browsers from
+ * spending this site's limits.
  */
 export async function handleV1(request: Request, segments: readonly string[]): Promise<Response> {
   const path = `/${segments.join('/')}`
   const name = operationFor(request.method, path)
   if (!name) return refuse({ code: 'not_found', message: `No ${request.method} ${API_BASE}${path} in this API.` })
-  if (request.method === 'POST' && !isJson(request)) return refuse({ code: 'unsupported_media_type', message: 'Send the body as application/json.' })
+  // A file-carrying operation is member-only, and a bearer token cannot cross origins without a preflight, so taking
+  // multipart there spends nothing on another site's behalf.
+  const multipart = 'body' in OPERATIONS[name] && OPERATIONS[name].body === 'multipart'
+  if (request.method === 'POST' && !(multipart ? isMultipart(request) : isJson(request))) {
+    return refuse({ code: 'unsupported_media_type', message: multipart ? 'Send the body as multipart/form-data.' : 'Send the body as application/json.' })
+  }
   try {
     const caller = await bearerCaller(request)
-    const raw = request.method === 'GET' ? Object.fromEntries(new URL(request.url).searchParams) : await jsonObject(request)
-    if (!raw) return refuse({ code: 'invalid', message: 'Send a JSON object.' })
+    const raw = request.method === 'GET' ? Object.fromEntries(new URL(request.url).searchParams) : multipart ? await formObject(request) : await jsonObject(request)
+    if (!raw) return refuse({ code: 'invalid', message: multipart ? 'Send a multipart form.' : 'Send a JSON object.' })
     return reply(await run(name, caller, raw))
   } catch (error) {
     ;(await getPayload({ config })).logger.error({ err: error, operation: name }, 'A v1 operation failed')

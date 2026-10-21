@@ -2,25 +2,37 @@ import {
   CLUB_TIME_ZONE,
   err,
   ok,
+  parseAthleteSearch,
+  parseClaim,
   parseLocalDate,
   parseManualEntry,
+  parseNewProfile,
+  parsePhoto,
+  parseProfileEdit,
   parseRevokeSession,
+  parseVisibilityEdit,
   parseSignInStart,
   parseSignInVerify,
   parseSourceRef,
   todayIn,
   type Activity,
+  type AthleteVisibility,
   type Brand,
   type Email,
   type FieldErrors,
+  type Id,
   type Instant,
   type LocalDate,
   type MemberId,
   type Period,
+  type ProfileValues,
   type PublicSource,
   type RawInput,
   type Result,
+  type ReviewedField,
+  type Slug,
   type SourceRef,
+  type Subdivision,
   type Totals,
 } from '@erc/domain'
 
@@ -53,6 +65,10 @@ export type RunCursor = { on: LocalDate; loggedAt: Instant; ref: SourceRef }
 // Both Node and browsers have these; declared here because the package compiles with no DOM or Node lib.
 declare const btoa: (text: string) => string
 declare const atob: (text: string) => string
+/** A file to send. React Native, browsers and Node all give fetch a Blob for a file part. */
+export type Blob = { readonly size: number; readonly type: string }
+type MultipartBody = { append(name: string, value: string | Blob): void }
+declare const FormData: new () => MultipartBody
 
 // The three parts are a date, an ISO instant and a ref, all ASCII, so base64 of the text itself is enough.
 const toBase64Url = (text: string) => btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -114,8 +130,10 @@ export type PublicSafe<A extends Access, O> = A extends 'anyone' ? (HasOwnerOnly
 
 export type Operation<A extends Access, F extends RawInput, I, O> = {
   method: Method
-  /** Relative to API_BASE. GET input travels as the query string, POST input as a JSON body. */
+  /** Relative to API_BASE. GET input travels as the query string, POST input as a JSON body unless `body` says otherwise. */
   path: `/${string}`
+  /** A POST that carries a file sends `multipart/form-data` instead of JSON. */
+  body?: 'multipart'
   access: A
   /** A domain parser. The web form, the HTTP body and an app's own form validation all run this one function. */
   parse: (raw: RawInput) => Result<I, FieldErrors>
@@ -146,7 +164,38 @@ export { runView }
 
 export type PeriodTotals = Period & { totals: Totals }
 
-export type Dashboard = OwnerOnly<{ member: { email: Email }; today: string; week: PeriodTotals; month: PeriodTotals }>
+/** What a member searching to claim a profile may learn of it: nothing beyond who it is and where. */
+export type ClaimableAthlete = { id: Id<'athletes'>; name: string; state: Subdivision }
+
+/**
+ * A reviewed change as its member sees it. `value` is the proposed text, or the address of the proposed photo. Only
+ * changes still waiting, and refusals not yet superseded, are listed; an approved change is the live value.
+ */
+export type ChangeView = { field: ReviewedField; value: string; submittedAt: Instant } & ({ state: 'submitted' } | { state: 'rejected'; reason: string })
+
+export type ProfileModeration = { state: 'submitted' } | { state: 'approved' } | { state: 'rejected'; reason: string }
+
+/** The member's own profile, private fields included. `publicPath` is set while anyone can open the profile. */
+export type OwnProfile = {
+  id: Id<'athletes'>
+  slug: Slug
+  moderation: ProfileModeration
+  values: Omit<ProfileValues, 'photo'> & { photoUrl: string | null }
+  visibility: AthleteVisibility
+  publicPath: string | null
+  changes: readonly ChangeView[]
+}
+
+/**
+ * Where the member stands with their athlete profile. `none` carries the reason for the latest refused claim, so the
+ * member learns why before trying again; a profile they started that staff refused is a `profile` with its reason.
+ */
+export type MyAthlete =
+  | { kind: 'none'; rejectedClaim: { athleteName: string; reason: string } | null }
+  | { kind: 'claim_pending'; athlete: ClaimableAthlete; note: string }
+  | { kind: 'profile'; profile: OwnProfile }
+
+export type Dashboard = OwnerOnly<{ member: { email: Email }; today: string; week: PeriodTotals; month: PeriodTotals; athlete: MyAthlete }>
 
 /** One signed-in device. `current` marks the session making the request, which the page shows without a sign-out button. */
 export type SessionView = { id: string; label: string; current: boolean; createdAt: Instant; lastSeenAt: Instant }
@@ -161,6 +210,13 @@ const parseListRuns = (raw: RawInput): Result<{ after: RunCursor | null }, Field
 const logRunInput = (raw: RawInput) => parseManualEntry(raw, todayIn(CLUB_TIME_ZONE))
 
 type ManualRunFields = { ref?: string; date?: string; distanceKm: string; duration: string }
+
+type Year = string | number | null
+type ProfileFields = { name?: string; bio?: string; city?: string | null; state?: string; runningSince?: Year; birthYear?: Year }
+type VisibilityFields = Partial<Record<keyof AthleteVisibility, 'public' | 'hidden'>>
+
+const profileEditInput = (raw: RawInput) => parseProfileEdit(raw, todayIn(CLUB_TIME_ZONE))
+const newProfileInput = (raw: RawInput) => parseNewProfile(raw, todayIn(CLUB_TIME_ZONE))
 
 /**
  * The one list of everything a member can do. The server implements every entry (a total map), the web dashboard
@@ -190,6 +246,28 @@ export const OPERATIONS = {
   dashboard: op({ method: 'GET', path: '/me/dashboard', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<Dashboard>() }),
   logRun: op({ method: 'POST', path: '/me/runs', access: 'member', parse: logRunInput, fields: phantom<ManualRunFields>(), output: phantom<OwnerOnly<RunView>>() }),
   listRuns: op({ method: 'GET', path: '/me/runs', access: 'member', parse: parseListRuns, fields: phantom<{ after?: string }>(), output: phantom<OwnerOnly<Page<RunView>>>() }),
+  myAthlete: op({ method: 'GET', path: '/me/athlete', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<OwnerOnly<MyAthlete>>() }),
+  searchAthletes: op({
+    method: 'GET',
+    path: '/me/athlete/search',
+    access: 'member',
+    parse: parseAthleteSearch,
+    fields: phantom<{ q: string }>(),
+    output: phantom<{ items: readonly ClaimableAthlete[] }>(),
+  }),
+  claimAthlete: op({ method: 'POST', path: '/me/athlete/claim', access: 'member', parse: parseClaim, fields: phantom<{ athlete: string | number; note: string }>(), output: phantom<OwnerOnly<MyAthlete>>() }),
+  startAthlete: op({ method: 'POST', path: '/me/athlete/start', access: 'member', parse: newProfileInput, fields: phantom<ProfileFields & { name: string; state: string }>(), output: phantom<OwnerOnly<MyAthlete>>() }),
+  updateProfile: op({ method: 'POST', path: '/me/athlete/profile', access: 'member', parse: profileEditInput, fields: phantom<ProfileFields>(), output: phantom<OwnerOnly<MyAthlete>>() }),
+  setPhoto: op({
+    method: 'POST',
+    path: '/me/athlete/photo',
+    body: 'multipart',
+    access: 'member',
+    parse: parsePhoto,
+    fields: phantom<{ photo: Blob | 'none' }>(),
+    output: phantom<OwnerOnly<MyAthlete>>(),
+  }),
+  setVisibility: op({ method: 'POST', path: '/me/athlete/visibility', access: 'member', parse: parseVisibilityEdit, fields: phantom<VisibilityFields>(), output: phantom<OwnerOnly<MyAthlete>>() }),
 } as const
 
 export type Operations = typeof OPERATIONS
@@ -206,13 +284,20 @@ export const operationFor = (method: string, path: string): OperationName | null
   OPERATION_NAMES.find((name) => OPERATIONS[name].method === method && OPERATIONS[name].path === path) ?? null
 
 /** Minimal fetch shape, so the package needs no DOM lib. */
-export type FetchLike = (url: string, init: { method: Method; headers: Record<string, string>; body?: string }) => Promise<{ status: number; json(): Promise<unknown> }>
+export type FetchLike = (url: string, init: { method: Method; headers: Record<string, string>; body?: string | MultipartBody }) => Promise<{ status: number; json(): Promise<unknown> }>
 
 export type Client = { readonly [K in OperationName]: (fields: FieldsOf<K>) => Promise<Envelope<OutputOf<K>>> }
 
 const queryOf = (fields: RawInput) => {
   const pairs = Object.entries(fields).filter((pair): pair is [string, string] => typeof pair[1] === 'string' && pair[1] !== '')
   return pairs.length === 0 ? '' : `?${pairs.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}`
+}
+
+// fetch writes the multipart content type itself, with the boundary it chose.
+const multipartOf = (fields: Record<string, string | Blob>) => {
+  const body = new FormData()
+  for (const [name, value] of Object.entries(fields)) body.append(name, value)
+  return body
 }
 
 const isEnvelope = (body: unknown): body is Envelope<unknown> => typeof body === 'object' && body !== null && 'ok' in body
@@ -227,7 +312,12 @@ export const createClient = (options: { baseUrl: string; token: () => Promise<Se
     const token = await options.token()
     const headers: Record<string, string> = { accept: 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }
     const url = `${options.baseUrl}${API_BASE}${spec.path}${spec.method === 'GET' ? queryOf(fields) : ''}`
-    const init = spec.method === 'GET' ? { method: spec.method, headers } : { method: spec.method, headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(fields) }
+    const init =
+      spec.method === 'GET'
+        ? { method: spec.method, headers }
+        : 'body' in spec && spec.body === 'multipart'
+          ? { method: spec.method, headers, body: multipartOf(fields as Record<string, string | Blob>) }
+          : { method: spec.method, headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(fields) }
     const response = await options.fetch(url, init)
     const body: unknown = await response.json().catch(() => null)
     if (isEnvelope(body)) return body as Envelope<OutputOf<K>>

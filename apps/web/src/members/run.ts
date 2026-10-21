@@ -11,6 +11,7 @@ import {
   type InputOf,
   type OperationName,
   type OutputOf,
+  type OwnerOnly,
 } from '@erc/contract'
 import { CLUB_TIME_ZONE, err, monthOf, ok, todayIn, totalsOf, weekOf, type Carrier, type RawInput, type Result } from '@erc/domain'
 import { cookies, headers } from 'next/headers'
@@ -21,6 +22,7 @@ import { cache } from 'react'
 import { senderKeyOf } from '@/content/form-guard'
 
 import { listRuns, recordManual, runsIn } from './activities'
+import { claimAthlete, myAthlete, searchClaimable, setPhoto, setVisibility, startAthlete, updateProfile, type AthleteRefusal } from './athlete'
 import { startSignIn, verifySignIn, type StartRefusal, type VerifyRefusal } from './sign-in'
 import { listSessions, resolveSession, revokeOwnSession, revokeSession, SESSION_COOKIE, type MemberSession } from './session'
 
@@ -61,6 +63,20 @@ const VERIFY_REFUSALS: Record<VerifyRefusal, OpFailure> = {
   suspended: { code: 'forbidden', message: 'This account is suspended. Contact the club if you think that is a mistake.' },
 }
 
+const ATHLETE_REFUSALS: Record<AthleteRefusal, OpFailure> = {
+  claim_pending: { code: 'conflict', message: 'Your claim is waiting for a coach to review it. You can change the profile once it is approved.' },
+  has_profile: { code: 'conflict', message: 'You already have an athlete profile.' },
+  not_claimable: { code: 'not_found', message: 'That profile cannot be claimed. Search again, or start your own.' },
+  claim_open: { code: 'conflict', message: 'Someone has already asked to claim that profile. If it is yours, contact the club.' },
+  no_profile: { code: 'not_found', message: 'You have no athlete profile yet. Claim yours or start one.' },
+  profile_rejected: { code: 'conflict', message: 'This profile was not approved. Claim your profile or start a new one.' },
+  not_an_image: { code: 'unsupported_media_type', message: 'That file could not be read as an image. Upload a JPEG, PNG or WebP photo.' },
+  busy: { code: 'conflict', message: 'Something changed while you were saving. Check your profile and try again.' },
+}
+
+const athleteResult = <T>(result: Result<T, AthleteRefusal>, member: MemberSession['member']): Result<OwnerOnly<T>, OpFailure> =>
+  result.ok ? ok(ownedBy(member, result.value)) : err(ATHLETE_REFUSALS[result.error])
+
 const IMPLEMENTATIONS: Implementations = {
   signInStart: async ({ caller }, input) => {
     const payload = await getPayload({ config })
@@ -88,12 +104,13 @@ const IMPLEMENTATIONS: Implementations = {
     const payload = await getPayload({ config })
     const today = todayIn(CLUB_TIME_ZONE)
     const [week, month] = [weekOf(today), monthOf(today)]
-    const [weekRuns, monthRuns] = await Promise.all([runsIn(payload, session, week), runsIn(payload, session, month)])
+    const [weekRuns, monthRuns, athlete] = await Promise.all([runsIn(payload, session, week), runsIn(payload, session, month), myAthlete(payload, session)])
     const dashboard: Dashboard = ownedBy(session.member, {
       member: { email: session.email },
       today,
       week: { ...week, totals: totalsOf(weekRuns) },
       month: { ...month, totals: totalsOf(monthRuns) },
+      athlete,
     })
     return ok(dashboard)
   },
@@ -105,6 +122,13 @@ const IMPLEMENTATIONS: Implementations = {
     const page = await listRuns(await getPayload({ config }), session, input.after)
     return ok(ownedBy(session.member, { items: page.items.map(runView), next: page.next }))
   },
+  myAthlete: async ({ session }) => ok(ownedBy(session.member, await myAthlete(await getPayload({ config }), session))),
+  searchAthletes: async (_context, input) => ok({ items: await searchClaimable(await getPayload({ config }), input.q) }),
+  claimAthlete: async ({ session }, input) => athleteResult(await claimAthlete(await getPayload({ config }), session, input), session.member),
+  startAthlete: async ({ session }, input) => athleteResult(await startAthlete(await getPayload({ config }), session, input), session.member),
+  updateProfile: async ({ session }, input) => athleteResult(await updateProfile(await getPayload({ config }), session, input), session.member),
+  setPhoto: async ({ session }, input) => athleteResult(await setPhoto(await getPayload({ config }), session, input.photo), session.member),
+  setVisibility: async ({ session }, input) => athleteResult(await setVisibility(await getPayload({ config }), session, input), session.member),
 }
 
 /**
