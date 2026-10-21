@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: monorepoRoot,
   transpilePackages: ['@erc/contract', '@erc/domain'],
+  // A member's photo is posted through a server action; the domain refuses anything over 5 MB with a message.
+  experimental: { serverActions: { bodySizeLimit: '6mb' } },
   images: {
     localPatterns: [
       {

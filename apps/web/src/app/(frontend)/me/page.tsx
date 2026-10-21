@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { PeriodTotals } from '@erc/contract'
+import type { MyAthlete, PeriodTotals } from '@erc/contract'
 import { formatDuration, formatKm, type LocalDate, type Metres, type Seconds } from '@erc/domain'
 import type { Metadata } from 'next'
 import React from 'react'
@@ -44,6 +44,35 @@ function Stat({ title, period }: { title: string; period: PeriodTotals }) {
   )
 }
 
+/** One line on where the member stands, with the way to the page that changes it. */
+function AthleteSummary({ athlete }: { athlete: MyAthlete }) {
+  const line =
+    athlete.kind === 'claim_pending'
+      ? `Your claim on ${athlete.athlete.name} is waiting for a coach to review it.`
+      : athlete.kind === 'none'
+        ? athlete.rejectedClaim
+          ? `Your claim on ${athlete.rejectedClaim.athleteName} was not approved: ${athlete.rejectedClaim.reason}`
+          : 'Claim the profile a coach made for you, or start one, to show your racing on the site.'
+        : athlete.profile.moderation.state === 'submitted'
+          ? `Your profile, ${athlete.profile.values.name}, is waiting for a coach to review it.`
+          : athlete.profile.moderation.state === 'rejected'
+            ? `Your profile was not approved: ${athlete.profile.moderation.reason}`
+            : athlete.profile.publicPath
+              ? `Your profile, ${athlete.profile.values.name}, is public.`
+              : `Your profile, ${athlete.profile.values.name}, is hidden.`
+  const pending = athlete.kind === 'profile' ? athlete.profile.changes.filter((change) => change.state === 'submitted').length : 0
+  return (
+    <section aria-labelledby="athlete">
+      <h2 id="athlete">Athlete profile</h2>
+      <p>
+        {line}
+        {pending > 0 ? ` ${pending === 1 ? 'One change is' : `${pending} changes are`} waiting for review.` : ''}{' '}
+        <a href="/me/athlete">{athlete.kind === 'profile' ? 'Manage your profile' : 'Find or start your profile'}</a>
+      </p>
+    </section>
+  )
+}
+
 export default async function MePage({ searchParams }: Props) {
   const caller = await requireMember()
   const after = first((await searchParams).after)
@@ -76,6 +105,8 @@ export default async function MePage({ searchParams }: Props) {
         <Stat title="This week" period={week} />
         <Stat title="This month" period={month} />
       </div>
+
+      <AthleteSummary athlete={dashboard.data.athlete} />
 
       <section aria-labelledby="log-run">
         <h2 id="log-run">Log a run</h2>

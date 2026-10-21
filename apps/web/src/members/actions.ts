@@ -89,3 +89,51 @@ export async function logRun(previous: RunFormState, form: FormData): Promise<Ru
   revalidatePath('/me')
   return { ref: randomUUID(), values: { date: values.date, distanceKm: '', duration: '' }, saved: logged.data }
 }
+
+/** Every athlete form on /me/athlete: what was typed, so a refusal shows it again, and the outcome. */
+export type ProfileFormState = { values: Readonly<Record<string, string>>; errors?: FieldErrors; notice?: string; saved?: string }
+
+type ProfileOperation = 'claimAthlete' | 'startAthlete' | 'updateProfile' | 'setPhoto' | 'setVisibility'
+
+const SAVED: Record<ProfileOperation, string> = {
+  claimAthlete: 'Claim sent. A coach will review it.',
+  startAthlete: 'Profile sent for review.',
+  updateProfile: 'Saved.',
+  setPhoto: 'Saved.',
+  setVisibility: 'Saved. The public pages now show exactly this.',
+}
+
+async function profileAction(name: ProfileOperation, form: FormData): Promise<ProfileFormState> {
+  // The typed text comes back with a refusal; an uploaded file goes to the operation only.
+  const values = fieldsOf(form)
+  const files = Object.fromEntries([...form].filter(([key, value]) => typeof value !== 'string' && !(key in values)))
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  const done = await run(name, caller, { ...files, ...values })
+  if (!done.ok) {
+    const { error } = done
+    return error.code === 'invalid' ? { values, ...(error.fields ? { errors: error.fields } : {}) } : { values, notice: error.message }
+  }
+  revalidatePath('/me', 'layout')
+  return { values, saved: SAVED[name] }
+}
+
+export async function claimProfile(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
+  return profileAction('claimAthlete', form)
+}
+
+export async function startProfile(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
+  return profileAction('startAthlete', form)
+}
+
+export async function saveProfile(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
+  return profileAction('updateProfile', form)
+}
+
+export async function savePhoto(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
+  return profileAction('setPhoto', form)
+}
+
+export async function saveVisibility(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
+  return profileAction('setVisibility', form)
+}
