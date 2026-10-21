@@ -8,9 +8,22 @@
  */
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
-import type { Envelope } from '@erc/contract'
-import { CLUB_TIME_ZONE, EMAIL_SHARES, SIGN_IN_CODE_MAX_TRIES, SIGN_IN_CODES_PER_ADDRESS_PER_HOUR, SIGN_IN_CODES_PER_SENDER_PER_HOUR, todayIn } from '@erc/domain'
+import type { Envelope, SessionView } from '@erc/contract'
+import {
+  CLUB_TIME_ZONE,
+  EMAIL_SHARES,
+  RUNS_LOGGED_PER_HOUR,
+  SESSION_COOKIE_MAX_AGE_S,
+  SIGN_IN_CODE_MAX_TRIES,
+  SIGN_IN_CODES_PER_ADDRESS_PER_HOUR,
+  SIGN_IN_CODES_PER_SENDER_PER_HOUR,
+  SIGN_IN_FAILURES_PER_ADDRESS_PER_DAY,
+  todayIn,
+} from '@erc/domain'
 import { getPayload } from 'payload'
+
+import { TOKEN_FIELD } from '@/content/form-fields'
+import { issueFormToken } from '@/content/form-guard'
 
 const payload = await getPayload({ config })
 const site = process.env.ERC_CHECK_URL
@@ -132,12 +145,19 @@ const codeFrom = async (email: string, nth: number) => {
 const SIGN_IN_FORM = 'name="email"'
 const CODE_FORM = 'name="code"'
 
-/** Step one of the form: ask for a code. Returns the page that came back. */
-const askForCode = async (browser: Browser, email: string, extra: Record<string, string> = {}) => {
-  const form = formWith(await (await browser.get('/sign-in')).text(), SIGN_IN_FORM)
+/** A form token signed as if the page had been open a few seconds, so the checks need not wait out the minimum fill time. */
+const settledToken = () => issueFormToken('sign-in', Date.now() - 5_000)
+
+/** The sign-in page's email form, fetched by a browser with no session so the page is not a redirect to /me. */
+const signInForm = async () => {
+  const form = formWith(await (await new Browser('198.51.100.1').get('/sign-in')).text(), SIGN_IN_FORM)
   if (!form) throw new Error('The sign-in page has no email form; is SMTP configured on the site?')
-  return (await browser.post(form, '/sign-in', { step: 'email', email, over18: 'on', website: '', ...extra })).text()
+  return form
 }
+
+/** Step one of the form: ask for a code. Returns the page that came back. */
+const askForCode = async (browser: Browser, email: string, extra: Record<string, string> = {}) =>
+  (await browser.post(await signInForm(), '/sign-in', { step: 'email', email, over18: 'on', website: '', [TOKEN_FIELD]: settledToken(), ...extra })).text()
 
 /** Step two: type a code into the page step one returned. */
 const typeCode = async (browser: Browser, codePage: string, code: string) => {
@@ -146,11 +166,11 @@ const typeCode = async (browser: Browser, codePage: string, code: string) => {
   return browser.post(form, '/sign-in', { step: 'code', code })
 }
 
-const api = async (path: string, init: { method?: string; token?: string | null; cookie?: string; body?: unknown } = {}) => {
-  const headers: Record<string, string> = { 'cf-connecting-ip': '198.51.100.77' }
+const api = async (path: string, init: { method?: string; token?: string | null; cookie?: string; body?: unknown; contentType?: string | null; sender?: string } = {}) => {
+  const headers: Record<string, string> = { 'cf-connecting-ip': init.sender ?? '198.51.100.77' }
   if (init.token) headers.authorization = `Bearer ${init.token}`
   if (init.cookie) headers.cookie = `${SESSION_COOKIE}=${init.cookie}`
-  if (init.body !== undefined) headers['content-type'] = 'application/json'
+  if (init.body !== undefined && init.contentType !== null) headers['content-type'] = init.contentType ?? 'application/json'
   const response = await fetch(new URL(`/api/v1${path}`, site), {
     method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
     headers,
@@ -176,9 +196,24 @@ const memberRow = (email: string) => row<{ id: number; status: string; age_decla
 const runsOf = (email: string) => count(sql`SELECT count(*)::int AS n FROM activities a JOIN members m ON m.id = a.member_id WHERE m.email = ${email}`)
 const sessionsOf = (email: string) => count(sql`SELECT count(*)::int AS n FROM member_sessions s JOIN members m ON m.id = s.member_id WHERE m.email = ${email}`)
 const latestCode = (email: string) => row<{ tries: number; closed_at: Date | null }>(sql`SELECT tries, closed_at FROM sign_in_codes WHERE email = ${email} ORDER BY sent_at DESC, id DESC LIMIT 1`)
+const sessionIdsOf = async (email: string) => {
+  const { rows } = await payload.db.drizzle.execute(sql`SELECT s.id FROM member_sessions s JOIN members m ON m.id = s.member_id WHERE m.email = ${email} ORDER BY s.created_at`)
+  return (rows as { id: string }[]).map((r) => r.id)
+}
+const wrongFor = (code: string) => String((Number(code) + 1) % 1_000_000).padStart(6, '0')
+const base64url = (text: string) => Buffer.from(text).toString('base64url')
 
 /** Moves this run's code rows out of the current hour, so a limit case starts from a known count. */
 const clearHour = () => payload.db.drizzle.execute(sql`UPDATE sign_in_codes SET sent_at = sent_at - interval '2 hours' WHERE email LIKE ${`member-check-${run}-%`}`)
+
+/** Signs in over the API, from the code request to the bearer token. */
+const apiSignIn = async (email: string, nth: number, device?: string) => {
+  const started = await api('/auth/code', { body: { email, over18: true } })
+  if (!started.body?.ok) throw new Error(`The API refused a code for ${email}: ${JSON.stringify(started.body)}`)
+  const { code } = await codeFrom(email, nth)
+  const verified = await api('/auth/verify', { body: { email, code, ...(device ? { device } : {}) } })
+  return { status: verified.status, issued: verified.body?.ok ? (verified.body.data as { token: string; expiresAt: string }) : null }
+}
 
 const staff = await payload.create({ collection: 'staff', data: { email: `member-check-${run}-editor@erc.invalid`, password: `pw-${run}-check`, role: 'editor' } })
 
@@ -191,9 +226,17 @@ try {
   const signInPage = await (await browser.get('/sign-in')).text()
   expect('the sign-in page asks for an email and the age declaration', [heading(signInPage), signInPage.includes('name="over18"')], ['Sign in', true])
 
-  const noDeclaration = await (await browser.post(formWith(signInPage, SIGN_IN_FORM)!, '/sign-in', { step: 'email', email: asha, over18: '', website: '' })).text()
+  const freshForm = formWith(signInPage, SIGN_IN_FORM)!
+  const noDeclaration = await (await browser.post(freshForm, '/sign-in', { step: 'email', email: asha, over18: '', website: '', [TOKEN_FIELD]: settledToken() })).text()
   expect('the age declaration is required', text(noDeclaration).includes('Tick the box to confirm you are 18 or over.'), true)
   expect('and nothing is stored or sent without it', [await latestCode(asha), (await mailsTo(asha)).length], [null, 0])
+
+  expect('the form carries a signed time token like the Phase 1 forms', /^\d{13}\.[A-Za-z0-9_-]{43}$/.test(freshForm.hidden[TOKEN_FIELD] ?? ''), true)
+  const tooFast = await (await browser.post(freshForm, '/sign-in', { step: 'email', email: asha, over18: 'on', website: '' })).text()
+  expect('posting within three seconds of the page being shown is refused', text(tooFast).includes('That was quicker than we expect from a person.'), true)
+  const forgedToken = await (await browser.post(freshForm, '/sign-in', { step: 'email', email: asha, over18: 'on', website: '', [TOKEN_FIELD]: `${Date.now() - 9_000}.forged` })).text()
+  expect('and so is a forged token, with a refreshed form', [text(forgedToken).includes('so we refreshed it'), formWith(forgedToken, SIGN_IN_FORM)?.hidden[TOKEN_FIELD] !== freshForm.hidden[TOKEN_FIELD]], [true, true])
+  expect('and neither stored a code nor sent an email', [await latestCode(asha), (await mailsTo(asha)).length], [null, 0])
 
   const codePage = await askForCode(browser, asha.toUpperCase())
   expect('asking for a code shows the code step for the lower-cased address', text(codePage).includes(`We have emailed a six-digit code to ${asha}`), true)
@@ -203,7 +246,7 @@ try {
   expect('only a keyed hash of the code is stored', [stored?.code_hash.includes(first.code), stored?.code_hash.length], [false, 43])
   expect('no account exists until the code is typed', await memberRow(asha), null)
 
-  const wrongCode = String((Number(first.code) + 1) % 1_000_000).padStart(6, '0')
+  const wrongCode = wrongFor(first.code)
   const wrong = await (await typeCode(browser, codePage, wrongCode)).text()
   expect('a wrong code is refused and the code form stays', [text(wrong).includes('That code is not right, or it has expired.'), formWith(wrong, CODE_FORM) !== null], [true, true])
   expect('and counts a try', (await latestCode(asha))?.tries, 1)
@@ -212,6 +255,7 @@ try {
   expect('the right code redirects to /me', [signedIn.status, signedIn.headers.get('location')], [303, '/me'])
   const cookie = browser.lastSetCookie
   expect('and sets a __Host- HttpOnly Secure SameSite=Lax cookie', [cookie?.value.startsWith('erc_'), cookie?.value.length, cookie?.attributes.filter((a) => /^(Path=\/|HttpOnly|Secure|SameSite=lax)$/i.test(a)).length], [true, 47, 4])
+  expect('whose own lifetime is the 400-day browser cap, so the sliding row alone decides', [cookie?.attributes.includes(`Max-Age=${SESSION_COOKIE_MAX_AGE_S}`), cookie?.attributes.some((a) => /^Expires=/i.test(a))], [true, false])
   const member = await memberRow(asha)
   expect('an account is created, active, with the age declaration timestamped', [member?.status, member?.age_declared_at instanceof Date || typeof member?.age_declared_at === 'string'], ['active', true])
   expect('the code is used up', (await latestCode(asha))?.closed_at !== null, true)
@@ -240,10 +284,17 @@ try {
   expect('a pace faster than 2:30 per km is refused', await refused({ date: today, distanceKm: '10', duration: '24:59' }), 'That pace is faster than 2:30 per km. Check the distance and time.')
   expect('over 250 km is refused', await refused({ date: today, distanceKm: '251', duration: '30:00:00' }), 'That is over 250 km. Check the distance.')
   expect('a future date is refused', await refused({ date: '2099-01-01', distanceKm: '5', duration: '30:00' }), 'That date is still to come.')
+  expect('a date before 2000 is refused', await refused({ date: '1999-12-31', distanceKm: '5', duration: '30:00' }), 'That date is before 2000. Check the year.')
+  expect('as is year 0000, which Postgres would reject', await refused({ date: '0000-01-01', distanceKm: '5', duration: '30:00' }), 'That date is before 2000. Check the year.')
   expect('none of those were stored', await runsOf(asha), 1)
 
-  const token = cookie!.value
-  expect('the cookie token works as a bearer token on /api/v1', await dashboard(token), { status: 200, week: { distance: 6200, moving: 2290, runs: 1 }, month: { distance: 6200, moving: 2290, runs: 1 } })
+  const cookieToken = cookie!.value
+  const asBearer = await api('/me/dashboard', { token: cookieToken })
+  expect('the cookie token is refused as a bearer token: a session is bound to its carrier', [asBearer.status, asBearer.body?.ok === false && asBearer.body.error.message], [401, 'That token is not valid. Sign in again.'])
+  const { issued: ashaBearer } = await apiSignIn(asha, 2)
+  const token = ashaBearer!.token
+  expect('and a bearer token is refused as a cookie', (await new Browser(browser.sender).withCookie(token).get('/me')).headers.get('location'), '/sign-in')
+  expect('while the bearer works on /api/v1', await dashboard(token), { status: 200, week: { distance: 6200, moving: 2290, runs: 1 }, month: { distance: 6200, moving: 2290, runs: 1 } })
   const apiRun = await api('/me/runs', { token, body: { date: today, distanceKm: '10', duration: '50:00' } })
   expect('logging a run over the API', [apiRun.status, apiRun.body?.ok, apiRun.cacheControl], [200, true, 'private, no-store'])
   expect('adds to the week total on /me', /This week.*?16\.2 km.*?2 runs/.test(text(await (await browser.get('/me')).text())), true)
@@ -251,8 +302,22 @@ try {
   expect('an invalid run over the API gets 422 with field errors', [badRun.status, badRun.body?.ok === false && badRun.body.error.code, badRun.body?.ok === false && Object.keys(badRun.body.error.fields ?? {})], [422, 'invalid', ['duration']])
   const notJson = await api('/me/runs', { token, body: 'not json' })
   expect('a body that is not a JSON object gets 422', [notJson.status, notJson.body?.ok === false && notJson.body.error.code], [422, 'invalid'])
+  const textPlain = await api('/auth/code', { body: { email: address('text-plain'), over18: true }, contentType: 'text/plain' })
+  const noType = await api('/auth/code', { body: { email: address('text-plain'), over18: true }, contentType: null })
+  expect('a POST that is not application/json gets 415 in the error shape, so a no-cors browser POST spends nothing', [textPlain.status, textPlain.body, noType.status], [
+    415,
+    { ok: false, error: { code: 'unsupported_media_type', message: 'Send the body as application/json.' } },
+    415,
+  ])
+  expect('and stored no code', await latestCode(address('text-plain')), null)
 
   const memberId = member!.id
+  for (let n = 0; n < RUNS_LOGGED_PER_HOUR; n += 1) {
+    await payload.db.drizzle.execute(sql`INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s) VALUES (${memberId}, 'manual', ${crypto.randomUUID()}, '2000-01-01', 5000, 1800)`)
+  }
+  const overLimit = await api('/me/runs', { token, body: { date: today, distanceKm: '3', duration: '20:00' } })
+  expect(`a member who has logged ${RUNS_LOGGED_PER_HOUR} runs in an hour is refused the next, with 429`, [overLimit.status, overLimit.body?.ok === false && overLimit.body.error.code, await runsOf(asha)], [429, 'rate_limited', RUNS_LOGGED_PER_HOUR + 2])
+  await payload.db.drizzle.execute(sql`DELETE FROM activities WHERE member_id = ${memberId} AND on_date = '2000-01-01'`)
   for (let n = 0; n < 25; n += 1) {
     await payload.db.drizzle.execute(sql`
       INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s, logged_at)
@@ -266,13 +331,21 @@ try {
   expect('runs page by cursor, 20 then the rest, with no repeats', [one?.items.length, two?.items.length, two?.next, new Set(refs).size], [20, 7, null, 27])
   const older = await (await browser.get(`/me?after=${encodeURIComponent(one!.next!)}`)).text()
   expect('/me follows the same cursor to older runs', [text(older).includes('Older runs'), (older.match(/class="member-run"/g) ?? []).length], [true, 7])
+  const crafted = [base64url('2026-01-01|1|x'), base64url('2026-13-01|2026-10-20T12:34:56.789Z|3f2a1c4e-9b7d-4e1a-8c2b-5d6e7f8a9b0c'), 'not-base64!']
+  const craftedReplies = await Promise.all(crafted.map((after) => api(`/me/runs?after=${encodeURIComponent(after)}`, { token })))
+  expect('a crafted cursor is refused as a field error on `after`, never a bare 500', craftedReplies.map((r) => [r.status, r.body?.ok === false && r.body.error.code, r.body?.ok === false && Object.keys(r.body.error.fields ?? {})]), crafted.map(() => [422, 'invalid', ['after']]))
+  const craftedPage = await browser.get(`/me?after=${encodeURIComponent(crafted[0]!)}`)
+  expect('and /me with the same cursor explains rather than failing', [craftedPage.status, text(await craftedPage.text()).includes('That page link is not valid.')], [200, true])
 
   const anonymous = await api('/me/dashboard')
   expect('the API refuses a member operation without a bearer token, in the error shape', [anonymous.status, anonymous.body], [401, { ok: false, error: { code: 'unauthenticated', message: 'Sign in to continue.' } }])
   const cookieOnly = await api('/me/dashboard', { cookie: token })
   expect('the API ignores the session cookie', [cookieOnly.status, cookieOnly.body?.ok === false && cookieOnly.body.error.code], [401, 'unauthenticated'])
-  const forged = await api('/me/dashboard', { token: 'erc_' + 'A'.repeat(43) })
+  const staleBearer = 'erc_' + 'A'.repeat(43)
+  const forged = await api('/me/dashboard', { token: staleBearer })
   expect('a forged bearer token is refused', [forged.status, forged.body?.ok === false && forged.body.error.message], [401, 'That token is not valid. Sign in again.'])
+  const staleStart = await api('/auth/code', { token: staleBearer, body: { email: address('stale'), over18: true } })
+  expect('but an app holding a stale token can still start signing in', [staleStart.status, staleStart.body], [200, { ok: true, data: { sent: true } }])
   const missing = await api('/nothing/here')
   expect('an unknown v1 path answers in the v1 error shape, not Payload\'s', [missing.status, missing.body?.ok === false && missing.body.error.code], [404, 'not_found'])
   const payloadShape = await fetch(new URL('/api/nothing/here', site), { headers: { cookie: 'payload-token=forged' } })
@@ -293,12 +366,26 @@ try {
   const apiStart = await api('/auth/code', { body: { email: ben, over18: true } })
   expect('the API sends a code', [apiStart.status, apiStart.body], [200, { ok: true, data: { sent: true } }])
   const benCode = await codeFrom(ben, 1)
-  const apiVerify = await api('/auth/verify', { body: { email: ben, code: benCode.code } })
+  const apiVerify = await api('/auth/verify', { body: { email: ben, code: benCode.code, device: "  Ben's   phone <b>" } })
   const issued = apiVerify.body?.ok ? (apiVerify.body.data as { token: string; expiresAt: string }) : null
   expect('and verifies it into a bearer session that slides 90 days', [apiVerify.status, issued?.token.startsWith('erc_'), Math.round((Date.parse(issued?.expiresAt ?? '') - Date.now()) / 86_400_000)], [200, true, 90])
   expect('which the dashboard accepts', (await dashboard(issued!.token)).status, 200)
-  const benSession = await row<{ carrier: string }>(sql`SELECT carrier FROM member_sessions s JOIN members m ON m.id = s.member_id WHERE m.email = ${ben}`)
-  expect('recorded against the bearer carrier', benSession?.carrier, 'bearer')
+  const benSession = await row<{ carrier: string; label: string }>(sql`SELECT carrier, label FROM member_sessions s JOIN members m ON m.id = s.member_id WHERE m.email = ${ben}`)
+  expect('recorded against the bearer carrier, labelled by the carrier when the declared name is unusable', [benSession?.carrier, benSession?.label], ['bearer', 'App'])
+  const { issued: benPhone } = await apiSignIn(ben, 2, "Ben's phone")
+  const benDevices = await api('/me/sessions', { token: benPhone!.token })
+  const benItems = benDevices.body?.ok ? (benDevices.body.data as { items: SessionView[] }).items : []
+  expect('an app that declares a name is listed by it, newest first, with the asking session marked current', benItems.map((d) => [d.label, d.current]), [["Ben's phone", true], ['App', false]])
+  expect('and a session lists only a label and two dates', Object.keys(benItems[0] ?? {}).sort(), ['createdAt', 'current', 'id', 'label', 'lastSeenAt'])
+
+  const [benFirstSession] = await sessionIdsOf(ben)
+  const crossRevoke = await api('/me/sessions/revoke', { token, body: { session: benFirstSession } })
+  expect("a member cannot revoke another member's session, and is told nothing more than not found", [crossRevoke.status, crossRevoke.body?.ok === false && crossRevoke.body.error.code, (await sessionIdsOf(ben)).length], [404, 'not_found', 2])
+  const ashaDevices = await api('/me/sessions', { token })
+  const ashaItems = ashaDevices.body?.ok ? (ashaDevices.body.data as { items: SessionView[] }).items : []
+  expect("nor see them: a member's list holds only their own sessions", [ashaItems.length, ashaItems.map((d) => [d.label, d.current])], [2, [['App', true], ['Web browser', false]]])
+  const badId = await api('/me/sessions/revoke', { token, body: { session: '1 OR 1=1' } })
+  expect('a session id that is not a UUID is a field error', [badId.status, badId.body?.ok === false && Object.keys(badId.body.error.fields ?? {})], [422, ['session']])
 
   const chloe = address('chloe')
   const chloeBrowser = new Browser('198.51.100.201')
@@ -306,14 +393,37 @@ try {
   const chloeCode = await codeFrom(chloe, 1)
   const attempts: string[] = []
   for (let n = 0; n < SIGN_IN_CODE_MAX_TRIES; n += 1) {
-    const html = text(await (await typeCode(chloeBrowser, chloePage, wrongCode)).text())
+    const html = text(await (await typeCode(chloeBrowser, chloePage, wrongFor(chloeCode.code))).text())
     attempts.push(html.includes('too many wrong tries') ? 'locked' : html.includes('That code is not right') ? 'wrong' : 'other')
   }
   expect('four wrong codes are wrong, the fifth locks the code', attempts, ['wrong', 'wrong', 'wrong', 'wrong', 'locked'])
   const afterLock = text(await (await typeCode(chloeBrowser, chloePage, chloeCode.code)).text())
   expect('the right code is refused once locked, and no account was created', [afterLock.includes('too many wrong tries'), await memberRow(chloe), (await latestCode(chloe))?.tries], [true, null, 5])
   const renewed = await askForCode(chloeBrowser, chloe)
-  expect('asking again inside a minute resends nothing, and the locked code stays locked', [formWith(renewed, CODE_FORM) !== null, (await mailsTo(chloe)).length], [true, 1])
+  const chloeSecond = await codeFrom(chloe, 2)
+  expect('asking again after a lock sends a fresh code at once, and the locked one stays closed', [formWith(renewed, CODE_FORM) !== null, chloeSecond.code !== chloeCode.code, await count(sql`SELECT count(*)::int AS n FROM sign_in_codes WHERE email = ${chloe} AND closed_at IS NOT NULL`)], [true, true, 1])
+
+  // Two more codes, each guessed wrong five times, bring the address to a day's worth of failures.
+  for (let n = 0; n < SIGN_IN_CODE_MAX_TRIES; n += 1) await api('/auth/verify', { body: { email: chloe, code: wrongFor(chloeSecond.code) } })
+  await payload.db.drizzle.execute(sql`UPDATE sign_in_codes SET sent_at = sent_at - interval '2 minutes' WHERE email = ${chloe}`)
+  const chloeThird = await (async () => {
+    await api('/auth/code', { body: { email: chloe, over18: true }, sender: '198.51.100.206' })
+    return codeFrom(chloe, 3)
+  })()
+  for (let n = 0; n < SIGN_IN_CODE_MAX_TRIES; n += 1) await api('/auth/verify', { body: { email: chloe, code: wrongFor(chloeThird.code) } })
+  expect(`three locked codes are ${SIGN_IN_FAILURES_PER_ADDRESS_PER_DAY} failures for the address`, await count(sql`SELECT coalesce(sum(tries), 0)::int AS n FROM sign_in_codes WHERE email = ${chloe}`), SIGN_IN_FAILURES_PER_ADDRESS_PER_DAY)
+  await payload.db.drizzle.execute(sql`UPDATE sign_in_codes SET sent_at = sent_at - interval '2 hours' WHERE email = ${chloe}`)
+  const capped = await api('/auth/code', { body: { email: chloe, over18: true }, sender: '198.51.100.207' })
+  const cappedWeb = text(await askForCode(new Browser('198.51.100.208'), chloe))
+  expect('after which the address gets no new code for a day, even once the hourly limits have passed, on the API and the web', [capped.status, capped.body, cappedWeb.includes('Too many wrong codes have been entered for this address today.'), (await mailsTo(chloe)).length], [
+    429,
+    { ok: false, error: { code: 'rate_limited', message: 'Too many wrong codes have been entered for this address today. Please try again tomorrow.' } },
+    true,
+    3,
+  ])
+  await payload.db.drizzle.execute(sql`UPDATE sign_in_codes SET sent_at = sent_at - interval '23 hours' WHERE email = ${chloe}`)
+  const dayLater = await api('/auth/code', { body: { email: chloe, over18: true }, sender: '198.51.100.209' })
+  expect('and a code is sent again once the day has passed', [dayLater.status, (await waitForMails(chloe, 4)).length], [200, 4])
 
   const probe = new Browser('198.51.100.202')
   const unknown = address('nobody')
@@ -349,6 +459,8 @@ try {
     perSender.push(text(await askForCode(busy, address(`busy-${n}`))).includes('several sign-in requests from your connection'))
   }
   expect(`a sender gets ${SIGN_IN_CODES_PER_SENDER_PER_HOUR} code requests an hour, then is refused`, perSender, [...Array<boolean>(SIGN_IN_CODES_PER_SENDER_PER_HOUR).fill(false), true])
+  const another = address('another-sender')
+  expect('which leaves the hourly share for other senders: at least three networks fit, and the next one is sent a code', [SIGN_IN_CODES_PER_SENDER_PER_HOUR * 3 <= EMAIL_SHARES.sign_in_code, formWith(await askForCode(new Browser('198.51.100.210'), another), CODE_FORM) !== null, (await waitForMails(another, 1)).length], [true, true, 1])
 
   await clearHour()
   const share = EMAIL_SHARES.sign_in_code - (await count(sql`SELECT count(*)::int AS n FROM sign_in_codes WHERE sent_at > now() - interval '1 hour'`))
@@ -364,13 +476,19 @@ try {
   expect('the API says the same with 503', [pastShareApi.status, pastShareApi.body?.ok === false && pastShareApi.body.error.code], [503, 'unavailable'])
   await clearHour()
 
+  const mePage = await (await browser.get('/me')).text()
+  const deviceForm = formWith(mePage, 'name="session"')
+  const [, ashaBearerSession] = await sessionIdsOf(asha)
+  expect('/me lists the signed-in devices, marks this one, and offers to sign out the other', [text(mePage).includes('Signed-in devices'), (mePage.match(/class="member-device"/g) ?? []).length, text(mePage).includes('Web browser (this device)'), deviceForm?.hidden.session], [true, 2, true, ashaBearerSession])
+  const deviceOut = await browser.post(deviceForm!, '/me', {})
+  expect('signing out the app from the web ends its session and nothing else', [deviceOut.status, deviceOut.headers.get('location'), (await dashboard(token)).status, await sessionsOf(asha), (await browser.get('/me')).status], [303, '/me#devices', 401, 1, 200])
+
   const signOutForm = formWith(await (await browser.get('/me')).text(), 'class="member-signout"')
   if (!signOutForm) throw new Error('/me has no sign-out form')
   const signedOut = await browser.post(signOutForm, '/me', {})
   expect('signing out redirects home and clears the cookie', [signedOut.status, signedOut.headers.get('location'), browser.lastSetCookie?.value, browser.lastSetCookie?.attributes.some((a) => /^Expires=Thu, 01 Jan 1970/.test(a))], [303, '/', '', true])
-  expect('the old cookie no longer opens /me', (await new Browser(browser.sender).withCookie(token).get('/me')).headers.get('location'), '/sign-in')
-  expect('and the same token is refused as a bearer', (await dashboard(token)).status, 401)
-  expect('because the session row is gone', await sessionsOf(asha), 0)
+  expect('the old cookie no longer opens /me', (await new Browser(browser.sender).withCookie(cookieToken).get('/me')).headers.get('location'), '/sign-in')
+  expect('and the member has no session left', await sessionsOf(asha), 0)
 
   const ashaMails = async () => (await mailsTo(asha)).length
   let sent = await ashaMails()
@@ -383,6 +501,12 @@ try {
   const webAgainPage = await askForCode(webAgain, asha)
   await typeCode(webAgain, webAgainPage, (await codeFrom(asha, (sent += 1))).code)
   expect('and on the web, holding two sessions', [bearerAgain.startsWith('erc_'), webAgain.cookie?.startsWith('erc_'), await sessionsOf(asha)], [true, true, 2])
+
+  await payload.db.drizzle.execute(sql`UPDATE sign_in_codes SET sent_at = sent_at - interval '2 minutes' WHERE email = ${asha}`)
+  const earlierCookie = webAgain.cookie!
+  const replacePage = await askForCode(webAgain, asha)
+  await typeCode(webAgain, replacePage, (await codeFrom(asha, (sent += 1))).code)
+  expect('signing in again from a browser that still holds a session replaces it rather than adding one', [webAgain.cookie !== earlierCookie, await sessionsOf(asha), (await new Browser(browser.sender).withCookie(earlierCookie).get('/me')).headers.get('location')], [true, 2, '/sign-in'])
 
   const login = await fetch(new URL('/api/staff/login', site), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: staff.email, password: `pw-${run}-check` }) })
   const { token: jwt } = (await login.json()) as { token: string }
