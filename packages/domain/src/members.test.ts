@@ -1,0 +1,155 @@
+import { describe, expect, it } from 'vitest'
+import {
+  checkSession,
+  checkSignInCode,
+  codeExpiryFrom,
+  codeFromRandom,
+  EMAIL_SHARES,
+  parseSignInCode,
+  parseSignInStart,
+  parseSignInVerify,
+  planCodeRequest,
+  RELAY_DAILY_LIMIT,
+  SESSION_IDLE_DAYS,
+  SESSION_TOUCH_AFTER_MS,
+  sessionExpiryFrom,
+  SIGN_IN_CODE_MAX_TRIES,
+  SIGN_IN_CODE_RESEND_AFTER_MS,
+  SIGN_IN_CODE_TTL_MS,
+  type Instant,
+  type StoredSession,
+  type StoredSignInCode,
+} from './index'
+
+const now = new Date('2026-10-21T06:00:00.000Z')
+const ago = (ms: number) => new Date(now.getTime() - ms).toISOString() as Instant
+const ahead = (ms: number) => new Date(now.getTime() + ms).toISOString() as Instant
+const MINUTE = 60 * 1000
+const DAY = 24 * 60 * MINUTE
+
+const code = (overrides: Partial<StoredSignInCode> = {}): StoredSignInCode => ({
+  sentAt: ago(MINUTE),
+  expiresAt: ahead(SIGN_IN_CODE_TTL_MS - MINUTE),
+  tries: 0,
+  consumedAt: null,
+  ...overrides,
+})
+
+describe('EMAIL_SHARES', () => {
+  it('spend under the relay limit of about 500 a day even if every form is flooded all day', () => {
+    const perHour = Object.values(EMAIL_SHARES).reduce((sum, share) => sum + share, 0)
+    expect(perHour * 24).toBeLessThan(RELAY_DAILY_LIMIT)
+  })
+
+  it('names every purpose that sends email', () => {
+    expect(Object.keys(EMAIL_SHARES).sort()).toEqual(['enquiry_staff_notice', 'newsletter_confirmation', 'sign_in_code'])
+  })
+})
+
+describe('parseSignInCode', () => {
+  it('accepts six digits, with the spaces people type between groups', () => {
+    expect(parseSignInCode('123 456')).toEqual({ ok: true, value: '123456' })
+  })
+
+  it.each(['12345', '1234567', 'abcdef', '', ['12345a']])('refuses %j', (raw) => {
+    expect(parseSignInCode(raw)).toEqual({ ok: false, error: 'not_a_code' })
+  })
+
+  it('pads a small random number to six digits', () => {
+    expect(codeFromRandom(42)).toBe('000042')
+    expect(codeFromRandom(4_000_000_123)).toBe('000123')
+  })
+})
+
+describe('planCodeRequest', () => {
+  it('sends when nothing is stored, or the stored code was used', () => {
+    expect(planCodeRequest(null, now)).toBe('send')
+    expect(planCodeRequest(code({ consumedAt: ago(MINUTE) }), now)).toBe('send')
+  })
+
+  it('resends nothing within a minute of a live code', () => {
+    expect(planCodeRequest(code({ sentAt: ago(SIGN_IN_CODE_RESEND_AFTER_MS - 1) }), now)).toBe('none')
+    expect(planCodeRequest(code({ sentAt: ago(SIGN_IN_CODE_RESEND_AFTER_MS) }), now)).toBe('send')
+  })
+
+  it('sends a fresh code at once when the live one is locked or expired', () => {
+    expect(planCodeRequest(code({ sentAt: ago(1), tries: SIGN_IN_CODE_MAX_TRIES }), now)).toBe('send')
+    expect(planCodeRequest(code({ sentAt: ago(1), expiresAt: ago(1) }), now)).toBe('send')
+  })
+})
+
+describe('checkSignInCode', () => {
+  it('accepts a matching live code', () => {
+    expect(checkSignInCode(code(), true, now)).toEqual({ kind: 'accepted' })
+  })
+
+  it('reads a missing or used code as unknown, whatever was typed', () => {
+    expect(checkSignInCode(null, true, now)).toEqual({ kind: 'unknown' })
+    expect(checkSignInCode(code({ consumedAt: ago(1) }), true, now)).toEqual({ kind: 'unknown' })
+  })
+
+  it('expires at ten minutes exactly', () => {
+    const expiresAt = codeExpiryFrom(now)
+    expect(Date.parse(expiresAt) - now.getTime()).toBe(SIGN_IN_CODE_TTL_MS)
+    expect(checkSignInCode(code({ expiresAt }), true, new Date(Date.parse(expiresAt) - 1))).toEqual({ kind: 'accepted' })
+    expect(checkSignInCode(code({ expiresAt }), true, new Date(Date.parse(expiresAt)))).toEqual({ kind: 'expired' })
+  })
+
+  it('counts down the tries and locks on the fifth wrong one, after which even the right code is refused', () => {
+    expect(checkSignInCode(code({ tries: 0 }), false, now)).toEqual({ kind: 'wrong', triesLeft: 4 })
+    expect(checkSignInCode(code({ tries: 3 }), false, now)).toEqual({ kind: 'wrong', triesLeft: 1 })
+    expect(checkSignInCode(code({ tries: 4 }), false, now)).toEqual({ kind: 'locked' })
+    expect(checkSignInCode(code({ tries: 5 }), true, now)).toEqual({ kind: 'locked' })
+  })
+})
+
+describe('checkSession', () => {
+  const session = (overrides: Partial<StoredSession> = {}): StoredSession => ({
+    expiresAt: ahead(30 * DAY),
+    lastSeenAt: ago(MINUTE),
+    memberStatus: 'active',
+    ...overrides,
+  })
+
+  it('slides for 90 days from now', () => {
+    expect(Date.parse(sessionExpiryFrom(now)) - now.getTime()).toBe(SESSION_IDLE_DAYS * DAY)
+  })
+
+  it('is live until it expires', () => {
+    expect(checkSession(session(), now)).toBe('live')
+    expect(checkSession(session({ expiresAt: ago(0) }), now)).toBe('expired')
+  })
+
+  it('asks for a touch once a day, not on every read', () => {
+    expect(checkSession(session({ lastSeenAt: ago(SESSION_TOUCH_AFTER_MS - 1) }), now)).toBe('live')
+    expect(checkSession(session({ lastSeenAt: ago(SESSION_TOUCH_AFTER_MS) }), now)).toBe('live_touch')
+  })
+
+  it('refuses a suspended member even with a live session', () => {
+    expect(checkSession(session({ memberStatus: 'suspended' }), now)).toBe('suspended')
+  })
+})
+
+describe('parseSignInStart', () => {
+  it('lower-cases the address and needs the age declaration', () => {
+    expect(parseSignInStart({ email: 'Asha@Example.com', over18: 'on' })).toEqual({ ok: true, value: { email: 'asha@example.com', over18: true } })
+  })
+
+  it('refuses a missing declaration with a field error, whatever the address', () => {
+    expect(parseSignInStart({ email: 'asha@example.com' })).toEqual({ ok: false, error: { over18: 'Tick the box to confirm you are 18 or over.' } })
+  })
+
+  it('refuses a bad address', () => {
+    expect(parseSignInStart({ email: 'asha', over18: 'on' })).toEqual({ ok: false, error: { email: 'Enter an email address such as name@example.com.' } })
+  })
+})
+
+describe('parseSignInVerify', () => {
+  it('takes the address and the code', () => {
+    expect(parseSignInVerify({ email: 'asha@example.com', code: '123 456' })).toEqual({ ok: true, value: { email: 'asha@example.com', code: '123456' } })
+  })
+
+  it('explains a bad code', () => {
+    expect(parseSignInVerify({ email: 'asha@example.com', code: '12' })).toEqual({ ok: false, error: { code: 'Enter the six-digit code from the email.' } })
+  })
+})
