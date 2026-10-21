@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres/drizzle'
 import {
+  CONFIRM_LIMIT_WINDOW_MS,
   confirmationSent,
   confirmExpiryFrom,
   confirmLinkState,
@@ -43,7 +44,8 @@ export const SIGNUPS_PER_SENDER_PER_HOUR = 5
  */
 export const NEWSLETTER_CONFIRMATIONS_PER_HOUR = 15
 // Long past the 48-hour link, so an address someone else typed in does not stay on file.
-const UNCONFIRMED_KEPT_MS = 30 * 24 * 60 * 60 * 1000
+export const UNCONFIRMED_KEPT_MS = 30 * 24 * 60 * 60 * 1000
+const PURGE_EVERY_MS = 60 * 60 * 1000
 
 /**
  * The form is offered only when a confirmation email can go out. A signup that can never be confirmed would collect
@@ -117,12 +119,6 @@ export async function receiveSignup(fields: Readonly<Record<string, string>>, he
   // Nothing public reads subscribers, so there is no cached page to expire.
   const context = { skipRevalidation: true }
   try {
-    await payload.delete({
-      collection: 'subscribers',
-      where: { and: [{ status: { equals: 'pending' } }, { consentedAt: { less_than: new Date(now.getTime() - UNCONFIRMED_KEPT_MS).toISOString() } }] },
-      context,
-    })
-
     const windowStart = new Date(now.getTime() - RATE_WINDOW_MS).toISOString()
     const outcome = await withCapLock(payload, 'newsletter-confirmations', async (req): Promise<SignupFormState | Confirmation> => {
       const { totalDocs } = await payload.count({
@@ -230,4 +226,38 @@ export async function unsubscribe(token: string): Promise<boolean> {
     context: { skipRevalidation: true },
   })
   return true
+}
+
+/**
+ * Deletes unconfirmed signups after 30 days, and unsubscribed addresses once their last confirmation email is a day
+ * old, when the daily limit no longer needs the row. Neither row can still count towards the hourly cap.
+ */
+export async function purgeSubscribers(payload: Payload, now: Date = new Date()) {
+  const before = (ms: number) => ({ less_than: new Date(now.getTime() - ms).toISOString() })
+  const { docs } = await payload.delete({
+    collection: 'subscribers',
+    where: {
+      or: [
+        { and: [{ status: { equals: 'pending' } }, { consentedAt: before(UNCONFIRMED_KEPT_MS) }] },
+        { and: [{ status: { equals: 'unsubscribed' } }, { consentedAt: before(CONFIRM_LIMIT_WINDOW_MS) }] },
+      ],
+    },
+    context: { skipRevalidation: true },
+  })
+  return docs.length
+}
+
+/** Called once as the server starts. Purges then and every hour, so retention holds even when nobody signs up. */
+export function schedulePurge() {
+  const purge = async () => {
+    try {
+      const payload = await getPayload({ config })
+      const deleted = await purgeSubscribers(payload)
+      if (deleted > 0) payload.logger.info({ deleted }, 'Deleted expired newsletter signups')
+    } catch (error) {
+      console.error('Could not delete expired newsletter signups', error)
+    }
+  }
+  void purge()
+  setInterval(purge, PURGE_EVERY_MS).unref()
 }

@@ -10,7 +10,7 @@ import { sql } from '@payloadcms/db-postgres'
 import { getPayload } from 'payload'
 
 import { STAFF_EMAILS_PER_HOUR } from '@/content/enquiries'
-import { NEWSLETTER_CONFIRMATIONS_PER_HOUR } from '@/content/newsletter'
+import { NEWSLETTER_CONFIRMATIONS_PER_HOUR, purgeSubscribers } from '@/content/newsletter'
 
 import { FORGED_SESSION } from './fixtures/forged-session'
 
@@ -391,17 +391,23 @@ try {
     'We have had several signups from your connection in the last hour. Please try again later.',
   ])
 
-  const stale = address('stale')
-  const kept = address('kept')
+  const aged = { stale: address('stale'), young: address('young'), kept: address('kept'), gone: address('gone'), recent: address('recent') }
   await payload.db.drizzle.execute(sql`
     INSERT INTO subscribers (email, status, source, consented_at, confirmed_at)
-    VALUES (${stale}, 'pending', 'site-footer', now() - interval '31 days', NULL),
-           (${kept}, 'confirmed', 'site-footer', now() - interval '31 days', now() - interval '31 days')`)
-  expect('another signup goes through', await signUp(again, address('trigger'), sender), 'sent')
-  expect('an address left unconfirmed for 30 days is deleted, a confirmed one is kept', [await subscriberRow(stale), (await subscriberRow(kept))?.status], [
-    null,
-    'confirmed',
-  ])
+    VALUES (${aged.stale}, 'pending', 'site-footer', now() - interval '31 days', NULL),
+           (${aged.young}, 'pending', 'site-footer', now() - interval '29 days', NULL),
+           (${aged.kept}, 'confirmed', 'site-footer', now() - interval '31 days', now() - interval '31 days'),
+           (${aged.gone}, 'unsubscribed', 'site-footer', now() - interval '25 hours', NULL),
+           (${aged.recent}, 'unsubscribed', 'site-footer', now() - interval '23 hours', NULL)`)
+  await purgeSubscribers(payload)
+  const survivors = await Promise.all(Object.entries(aged).map(async ([name, email]) => [name, (await subscriberRow(email))?.status ?? 'deleted']))
+  expect('the purge deletes signups unconfirmed for 30 days and unsubscribed addresses a day after their last email', Object.fromEntries(survivors), {
+    stale: 'deleted',
+    young: 'pending',
+    kept: 'confirmed',
+    gone: 'deleted',
+    recent: 'unsubscribed',
+  })
 
   await newsletterCapCases(ben)
   await enquiryCapCases()
@@ -430,7 +436,7 @@ try {
   const csv = await exportAs(adminToken)
   const lines = (await csv.text()).trim().split('\r\n')
   expect('an admin downloads a CSV', [csv.status, csv.headers.get('content-type'), lines[0]], [200, 'text/csv; charset=utf-8', 'email,confirmed_at,consented_at,source'])
-  expect('it lists confirmed subscribers only', lines.filter((line) => line.includes(`newsletter-check-${run}`)).map((line) => line.split(',')[0]).sort(), [ben, kept].sort())
+  expect('it lists confirmed subscribers only', lines.filter((line) => line.includes(`newsletter-check-${run}`)).map((line) => line.split(',')[0]).sort(), [ben, aged.kept].sort())
   const staffCreate = await fetch(new URL('/api/subscribers', site), {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `JWT ${token}` },
