@@ -92,8 +92,9 @@ export type MemberStatus = (typeof MEMBER_STATUSES)[number]
 
 const lowerEmail = (raw: unknown) => emailField(firstOf(raw).toLowerCase())
 
+// A form sends `on`; a JSON body sends `true`.
 const declaration = (raw: unknown): Result<true, string> =>
-  ['on', 'true', '1'].includes(firstOf(raw)) ? ok(true) : err(`Tick the box to confirm you are ${MIN_MEMBER_AGE} or over.`)
+  raw === true || ['on', 'true', '1'].includes(firstOf(raw)) ? ok(true) : err(`Tick the box to confirm you are ${MIN_MEMBER_AGE} or over.`)
 
 export type SignInStart = { email: Email; over18: true }
 

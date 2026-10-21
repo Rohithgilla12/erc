@@ -131,8 +131,10 @@ describe('checkSession', () => {
 })
 
 describe('parseSignInStart', () => {
-  it('lower-cases the address and needs the age declaration', () => {
+  it('lower-cases the address and needs the age declaration, as a form checkbox or a JSON boolean', () => {
     expect(parseSignInStart({ email: 'Asha@Example.com', over18: 'on' })).toEqual({ ok: true, value: { email: 'asha@example.com', over18: true } })
+    expect(parseSignInStart({ email: 'asha@example.com', over18: true })).toEqual({ ok: true, value: { email: 'asha@example.com', over18: true } })
+    expect(parseSignInStart({ email: 'asha@example.com', over18: false })).toMatchObject({ ok: false })
   })
 
   it('refuses a missing declaration with a field error, whatever the address', () => {
