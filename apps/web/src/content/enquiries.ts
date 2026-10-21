@@ -1,5 +1,5 @@
 import config from '@payload-config'
-import { parseEnquiry, parseEnquiryTopic, type EnquiryErrors, type EnquiryTopic } from '@erc/domain'
+import { EMAIL_SHARES, parseEnquiry, parseEnquiryTopic, type EnquiryErrors, type EnquiryTopic } from '@erc/domain'
 import { after } from 'next/server'
 import { getPayload } from 'payload'
 
@@ -27,12 +27,11 @@ const RATE_WINDOW_MS = 60 * 60 * 1000
 export const ENQUIRIES_PER_SENDER_PER_HOUR = 5
 
 /**
- * Staff emails about new enquiries, site-wide, in any hour. Every accepted enquiry is still stored and listed in the
- * admin; past the cap only the email is skipped, until the hour's count falls below it. A club gets a few enquiries a
- * day, so five in an hour is already unusual, and it leaves the shared relay (about 500 messages a day) room for
- * `NEWSLETTER_CONFIRMATIONS_PER_HOUR`: together they stay under it even if both forms are flooded all day.
+ * Staff emails about new enquiries, site-wide, in any hour: this form's share of the relay in `EMAIL_SHARES`. Every
+ * accepted enquiry is still stored and listed in the admin; past the cap only the email is skipped, until the hour's
+ * count falls below it. A club gets a few enquiries a day, so three in an hour is already unusual.
  */
-export const STAFF_EMAILS_PER_HOUR = 5
+const STAFF_EMAILS_PER_HOUR = EMAIL_SHARES.enquiry_staff_notice
 
 export const blankValues = (topic: string | undefined): EnquiryValues => ({
   name: '',
@@ -81,7 +80,7 @@ export async function receiveEnquiry(fields: Readonly<Record<string, string>>, h
   const senderKey = senderKeyOf('enquiry', headers)
   const windowStart = { greater_than: new Date(Date.now() - RATE_WINDOW_MS).toISOString() }
   try {
-    const stored = await withCapLock(payload, 'enquiry-staff-emails', async (req) => {
+    const stored = await withCapLock(payload, 'enquiry_staff_notice', async (req) => {
       const { totalDocs } = await payload.count({
         collection: 'enquiries',
         where: { and: [{ senderKey: { equals: senderKey } }, { createdAt: windowStart }] },

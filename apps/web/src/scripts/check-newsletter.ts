@@ -7,12 +7,15 @@
  */
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
+import { EMAIL_SHARES } from '@erc/domain'
 import { getPayload } from 'payload'
 
-import { STAFF_EMAILS_PER_HOUR } from '@/content/enquiries'
-import { NEWSLETTER_CONFIRMATIONS_PER_HOUR, purgeSubscribers } from '@/content/newsletter'
+import { purgeSubscribers } from '@/content/newsletter'
 
 import { FORGED_SESSION } from './fixtures/forged-session'
+
+const STAFF_EMAILS_PER_HOUR = EMAIL_SHARES.enquiry_staff_notice
+const NEWSLETTER_CONFIRMATIONS_PER_HOUR = EMAIL_SHARES.newsletter_confirmation
 
 const payload = await getPayload({ config })
 const site = process.env.ERC_CHECK_URL

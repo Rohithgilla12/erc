@@ -1,0 +1,22 @@
+{
+  "name": "@erc/contract",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@erc/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@erc/tsconfig": "workspace:*",
+    "typescript": "5.7.3",
+    "vitest": "4.0.18"
+  }
+}

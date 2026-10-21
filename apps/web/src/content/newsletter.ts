@@ -7,6 +7,7 @@ import {
   confirmationSent,
   confirmExpiryFrom,
   confirmLinkState,
+  EMAIL_SHARES,
   parseSubscriberEmail,
   planSignup,
   type ConfirmLinkState,
@@ -37,13 +38,12 @@ const RATE_WINDOW_MS = 60 * 60 * 1000
 export const SIGNUPS_PER_SENDER_PER_HOUR = 5
 
 /**
- * Confirmation emails, site-wide, in any hour. Past it every signup is refused as "try again later", whatever the
- * address, so the refusal says nothing about who is listed and nobody is left waiting for an email that is not coming.
- * Many senders each under their own limit could otherwise mail any number of strangers through the club's relay
- * (about 500 messages a day). Fifteen an hour covers a burst after an announcement, and with
- * `STAFF_EMAILS_PER_HOUR` stays under the relay's day even if both forms are flooded all day.
+ * Confirmation emails, site-wide, in any hour: this form's share of the relay in `EMAIL_SHARES`. Past it every signup
+ * is refused as "try again later", whatever the address, so the refusal says nothing about who is listed and nobody
+ * is left waiting for an email that is not coming. Many senders each under their own limit could otherwise mail any
+ * number of strangers through the club's relay.
  */
-export const NEWSLETTER_CONFIRMATIONS_PER_HOUR = 15
+const CONFIRMATIONS_PER_HOUR = EMAIL_SHARES.newsletter_confirmation
 // Long past the 48-hour link, so an address someone else typed in does not stay on file.
 export const UNCONFIRMED_KEPT_MS = 30 * 24 * 60 * 60 * 1000
 const PURGE_EVERY_MS = 60 * 60 * 1000
@@ -122,7 +122,7 @@ export async function receiveSignup(fields: Readonly<Record<string, string>>, he
   const context = { skipRevalidation: true }
   try {
     const windowStart = new Date(now.getTime() - RATE_WINDOW_MS).toISOString()
-    const outcome = await withCapLock(payload, 'newsletter-confirmations', async (req): Promise<SignupFormState | Confirmation> => {
+    const outcome = await withCapLock(payload, 'newsletter_confirmation', async (req): Promise<SignupFormState | Confirmation> => {
       const { totalDocs } = await payload.count({
         collection: 'subscribers',
         where: { and: [{ senderKey: { equals: senderKey } }, { requestedAt: { greater_than: windowStart } }] },
@@ -134,8 +134,8 @@ export async function receiveSignup(fields: Readonly<Record<string, string>>, he
       // `priorConsentedAt`. An address gets at most two a day, so the two columns hold every email of the hour.
       const sentSince = async (field: 'consentedAt' | 'priorConsentedAt') =>
         (await payload.count({ collection: 'subscribers', where: { [field]: { greater_than: windowStart } }, req })).totalDocs
-      if ((await sentSince('consentedAt')) + (await sentSince('priorConsentedAt')) >= NEWSLETTER_CONFIRMATIONS_PER_HOUR) {
-        payload.logger.warn({ cap: NEWSLETTER_CONFIRMATIONS_PER_HOUR }, 'Refused a newsletter signup: the hourly confirmation email cap is reached')
+      if ((await sentSince('consentedAt')) + (await sentSince('priorConsentedAt')) >= CONFIRMATIONS_PER_HOUR) {
+        payload.logger.warn({ cap: CONFIRMATIONS_PER_HOUR }, 'Refused a newsletter signup: the hourly confirmation email cap is reached')
         return { kind: 'refused', token, email, reason: 'unavailable' }
       }
 
