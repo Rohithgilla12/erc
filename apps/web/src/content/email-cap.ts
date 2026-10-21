@@ -17,6 +17,8 @@ export async function withCapLock<T>(payload: Payload, cap: EmailCap, work: (req
     // Payload types the session loosely; it is a transaction on the same Drizzle client as `payload.db.drizzle`.
     const transaction = payload.db.sessions?.[transactionID]?.db as typeof payload.db.drizzle | undefined
     if (!transaction) throw new Error('Payload opened no session for the transaction')
+    // A holder that hangs would otherwise queue every later request, and the pool behind them, until a restart.
+    await transaction.execute(sql`SET LOCAL lock_timeout = '5s'`)
     await transaction.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${cap}))`)
     const result = await work({ transactionID })
     await payload.db.commitTransaction(transactionID)

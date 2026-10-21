@@ -53,6 +53,8 @@ export default buildErcConfig({
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
+      // Fail a request rather than queue it forever when every connection is busy.
+      connectionTimeoutMillis: 5000,
     },
     // Migrations are the only schema path in every environment, so hand-written SQL in them is never undone by a dev push.
     push: false,
