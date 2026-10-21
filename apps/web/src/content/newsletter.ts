@@ -11,12 +11,13 @@ import {
   type Instant,
 } from '@erc/domain'
 import { after } from 'next/server'
-import { getPayload, type Payload } from 'payload'
+import { getPayload, type Payload, type PayloadRequest } from 'payload'
 
 import { sendConfirmationEmail } from '@/cms/collections/subscribers'
 import { emailConfigured } from '@/cms/email'
 import { absoluteUrl } from '@/site-config'
 
+import { withCapLock } from './email-cap'
 import { HONEYPOT_FIELD, TOKEN_FIELD } from './form-fields'
 import { checkFormToken, issueFormToken, mac, sameMac, senderKeyOf } from './form-guard'
 
@@ -80,8 +81,11 @@ async function emailConfirmation(payload: Payload, subscriber: { id: number; ema
   }
 }
 
-const findByEmail = async (payload: Payload, email: string) =>
-  (await payload.find({ collection: 'subscribers', where: { email: { equals: email } }, limit: 1, depth: 0, pagination: false })).docs[0] ?? null
+const findByEmail = async (payload: Payload, email: string, req: Partial<PayloadRequest>) =>
+  (await payload.find({ collection: 'subscribers', where: { email: { equals: email } }, limit: 1, depth: 0, pagination: false, req })).docs[0] ?? null
+
+/** A signup that stored a fresh confirmation link, to email once the response is out and the transaction committed. */
+type Confirmation = { kind: 'confirm'; subscriber: { id: number; email: string }; confirmToken: string }
 
 /**
  * The public signup. Every accepted request gets the same reply, `sent`, whatever was stored before, so the form never
@@ -119,45 +123,46 @@ export async function receiveSignup(fields: Readonly<Record<string, string>>, he
     })
 
     const windowStart = new Date(now.getTime() - RATE_WINDOW_MS).toISOString()
-    const { totalDocs } = await payload.count({
-      collection: 'subscribers',
-      where: { and: [{ senderKey: { equals: senderKey } }, { requestedAt: { greater_than: windowStart } }] },
+    const outcome = await withCapLock(payload, 'newsletter-confirmations', async (req): Promise<SignupFormState | Confirmation> => {
+      const { totalDocs } = await payload.count({
+        collection: 'subscribers',
+        where: { and: [{ senderKey: { equals: senderKey } }, { requestedAt: { greater_than: windowStart } }] },
+        req,
+      })
+      if (totalDocs >= SIGNUPS_PER_SENDER_PER_HOUR) return { kind: 'refused', token, email, reason: 'rate_limited' }
+
+      // `consentedAt` is set exactly when a confirmation email is planned, so it counts the hour's emails.
+      const confirmations = await payload.count({ collection: 'subscribers', where: { consentedAt: { greater_than: windowStart } }, req })
+      if (confirmations.totalDocs >= NEWSLETTER_CONFIRMATIONS_PER_HOUR) {
+        payload.logger.warn({ cap: NEWSLETTER_CONFIRMATIONS_PER_HOUR }, 'Refused a newsletter signup: the hourly confirmation email cap is reached')
+        return { kind: 'refused', token, email, reason: 'unavailable' }
+      }
+
+      const stored = await findByEmail(payload, parsed.value, req)
+      const step = planSignup(stored && { status: stored.status, consentedAt: stored.consentedAt as Instant }, now)
+      // Every accepted request marks its address, whatever the step, so the limit costs the same for a listed address
+      // as for a new one and cannot be used to probe the list.
+      const request = { senderKey, requestedAt: now.toISOString() }
+      if (step === 'none' && stored) {
+        await payload.update({ collection: 'subscribers', id: stored.id, data: request, context, req })
+        return { kind: 'sent' }
+      }
+
+      const confirmToken = randomBytes(32).toString('base64url')
+      const data = {
+        ...request,
+        status: 'pending' as const,
+        consentedAt: now.toISOString(),
+        confirmTokenHash: hashOf(confirmToken),
+        confirmExpiresAt: confirmExpiryFrom(now),
+      }
+      const subscriber = stored
+        ? await payload.update({ collection: 'subscribers', id: stored.id, data, context, req })
+        : await payload.create({ collection: 'subscribers', data: { ...data, email: parsed.value, source: 'site-footer' }, context, req })
+      return { kind: 'confirm', subscriber, confirmToken }
     })
-    if (totalDocs >= SIGNUPS_PER_SENDER_PER_HOUR) return { kind: 'refused', token, email, reason: 'rate_limited' }
-
-    // `consentedAt` is set exactly when a confirmation email is planned, so it counts the hour's emails.
-    const confirmations = await payload.count({ collection: 'subscribers', where: { consentedAt: { greater_than: windowStart } } })
-    if (confirmations.totalDocs >= NEWSLETTER_CONFIRMATIONS_PER_HOUR) {
-      payload.logger.warn({ cap: NEWSLETTER_CONFIRMATIONS_PER_HOUR }, 'Refused a newsletter signup: the hourly confirmation email cap is reached')
-      return { kind: 'refused', token, email, reason: 'unavailable' }
-    }
-
-    const stored = await findByEmail(payload, parsed.value)
-    const step = planSignup(stored && { status: stored.status, consentedAt: stored.consentedAt as Instant }, now)
-    // Every accepted request marks its address, whatever the step, so the limit costs the same for a listed address
-    // as for a new one and cannot be used to probe the list.
-    const request = { senderKey, requestedAt: now.toISOString() }
-    if (step === 'none' && stored) {
-      await payload.update({ collection: 'subscribers', id: stored.id, data: request, context })
-      return { kind: 'sent' }
-    }
-
-    const confirmToken = randomBytes(32).toString('base64url')
-    const data = {
-      ...request,
-      status: 'pending' as const,
-      consentedAt: now.toISOString(),
-      confirmTokenHash: hashOf(confirmToken),
-      confirmExpiresAt: confirmExpiryFrom(now),
-    }
-    const subscriber = stored
-      ? await payload.update({ collection: 'subscribers', id: stored.id, data, context })
-      : await payload.create({ collection: 'subscribers', data: { ...data, email: parsed.value, source: 'site-footer' }, context }).catch(async (error: unknown) => {
-          // Two signups for a new address can race; the unique index lets one in, and that one sends the email.
-          if (await findByEmail(payload, parsed.value)) return null
-          throw error
-        })
-    if (subscriber) after(() => emailConfirmation(payload, subscriber, confirmToken))
+    if (outcome.kind !== 'confirm') return outcome
+    after(() => emailConfirmation(payload, outcome.subscriber, outcome.confirmToken))
   } catch (error) {
     payload.logger.error({ err: error }, 'Could not store a newsletter signup')
     return { kind: 'refused', token, email, reason: 'unavailable' }

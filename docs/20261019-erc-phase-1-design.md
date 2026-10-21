@@ -268,6 +268,8 @@ The contact form and the newsletter form share `src/content/form-guard.ts`: a ho
 
 A club gets a few enquiries a day, and 15 confirmations an hour covers a burst after an announcement. Together the caps send at most 480 messages a day, under the relay's roughly 500 **[G]**, even if both forms are flooded all day.
 
+Each request counts the hour's emails and stores its own row inside one transaction that first takes a Postgres advisory lock named for the cap (`src/content/email-cap.ts`). Counting and writing without it let a burst of parallel requests all read a count under the cap and all send: 60 parallel signups from distinct networks sent 49 confirmations against a cap of 15 **[V]**. With the lock the same burst sends exactly the hour's room **[V]**, checked by `check-newsletter.ts`. The lock serialises only these few-millisecond sections, and only at the volume of form posts. Counting again after the write was rejected: under a burst every writer sees the others' rows, so all of them refuse and nobody is emailed.
+
 The sender is read from `cf-connecting-ip`, which Cloudflare sets on every request through the tunnel. Without it the guard falls back to the first `x-forwarded-for` hop, then `x-real-ip`. Those headers are client-controlled, but only traffic that bypasses the tunnel lacks the Cloudflare header, and in production there is none: `erc-web` publishes no host port, so the tunnel is the only way in. Locally the fallback lets checks and development runs work, where the limits protect nothing.
 
 ### Editor workflow

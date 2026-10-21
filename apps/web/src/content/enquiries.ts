@@ -5,6 +5,7 @@ import { getPayload } from 'payload'
 
 import { notifyStaffOfEnquiry } from '@/cms/collections/enquiries'
 
+import { withCapLock } from './email-cap'
 import { HONEYPOT_FIELD, TOKEN_FIELD } from './form-fields'
 import { checkFormToken, issueFormToken, senderKeyOf } from './form-guard'
 
@@ -57,8 +58,7 @@ const valuesOf = (fields: Readonly<Record<string, string>>): EnquiryValues => ({
 
 /**
  * The public intake for enquiries. The rate limit counts this sender's stored enquiries, so it survives restarts and
- * needs no table of its own, and refused attempts cost nothing to count. Two submissions racing past the count can
- * each get through, which a contact form can live with.
+ * needs no table of its own, and refused attempts cost nothing to count.
  */
 export async function receiveEnquiry(fields: Readonly<Record<string, string>>, headers: Headers): Promise<EnquiryFormState> {
   const token = text(fields, TOKEN_FIELD)
@@ -80,20 +80,26 @@ export async function receiveEnquiry(fields: Readonly<Record<string, string>>, h
 
   const senderKey = senderKeyOf('enquiry', headers)
   const windowStart = { greater_than: new Date(Date.now() - RATE_WINDOW_MS).toISOString() }
-  const { totalDocs } = await payload.count({
-    collection: 'enquiries',
-    where: { and: [{ senderKey: { equals: senderKey } }, { createdAt: windowStart }] },
-  })
-  if (totalDocs >= ENQUIRIES_PER_SENDER_PER_HOUR) return { kind: 'refused', token, values, reason: 'rate_limited' }
-
   try {
-    const earlier = (await payload.count({ collection: 'enquiries', where: { createdAt: windowStart } })).totalDocs
-    const enquiry = await payload.create({
-      collection: 'enquiries',
-      data: { ...parsed.value, senderKey, status: 'new' },
-      // Nothing public reads enquiries, so there is no cached page to expire.
-      context: { skipRevalidation: true },
+    const stored = await withCapLock(payload, 'enquiry-staff-emails', async (req) => {
+      const { totalDocs } = await payload.count({
+        collection: 'enquiries',
+        where: { and: [{ senderKey: { equals: senderKey } }, { createdAt: windowStart }] },
+        req,
+      })
+      if (totalDocs >= ENQUIRIES_PER_SENDER_PER_HOUR) return null
+      const earlier = (await payload.count({ collection: 'enquiries', where: { createdAt: windowStart }, req })).totalDocs
+      const enquiry = await payload.create({
+        collection: 'enquiries',
+        data: { ...parsed.value, senderKey, status: 'new' },
+        // Nothing public reads enquiries, so there is no cached page to expire.
+        context: { skipRevalidation: true },
+        req,
+      })
+      return { enquiry, earlier }
     })
+    if (!stored) return { kind: 'refused', token, values, reason: 'rate_limited' }
+    const { enquiry, earlier } = stored
     if (earlier < STAFF_EMAILS_PER_HOUR) {
       after(() => notifyStaffOfEnquiry(payload, enquiry, { lastThisHour: earlier + 1 === STAFF_EMAILS_PER_HOUR }))
     } else {

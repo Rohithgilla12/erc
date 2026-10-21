@@ -196,6 +196,71 @@ async function newsletterCapCases(listed: string) {
   expect('and no confirmation email goes out', [(await mailsTo(fresh)).length, await subscriberRow(fresh)], [0, null])
 }
 
+const allMails = async (): Promise<(MailSummary & { Subject: string })[]> => {
+  const response = await fetch(new URL('/api/v1/messages?limit=5000', mailpit))
+  return ((await response.json()) as { messages: (MailSummary & { Subject: string })[] }).messages
+}
+
+/** Polls until the matching emails stop arriving, since they go out after each response. */
+const settledCount = async (matches: (mail: MailSummary & { Subject: string }) => boolean) => {
+  let last = -1
+  let steady = 0
+  for (let attempt = 0; attempt < 60 && steady < 8; attempt += 1) {
+    const count = (await allMails()).filter(matches).length
+    steady = count === last ? steady + 1 : 0
+    last = count
+    await sleep(250)
+  }
+  return last
+}
+
+const BURST = 60
+
+/**
+ * Many signups at once, each from its own network so no per-sender limit applies, must not mail more than the hour's
+ * room under the cap. The hour is emptied of this run's earlier rows first, so the room is known.
+ */
+async function newsletterBurstCases() {
+  await payload.db.drizzle.execute(sql`UPDATE subscribers SET consented_at = consented_at - interval '2 hours' WHERE email LIKE ${`newsletter-check-${run}-%`}`)
+  const { rows } = await payload.db.drizzle.execute(sql`SELECT count(*)::int AS n FROM subscribers WHERE consented_at > now() - interval '1 hour'`)
+  const room = NEWSLETTER_CONFIRMATIONS_PER_HOUR - (rows[0] as { n: number }).n
+  if (room <= 0) throw new Error('Other signups fill this hour, so the burst check cannot measure the cap; run it again later')
+  const form = await footerForm('198.51.100.9')
+  const emails = Array.from({ length: BURST }, (_, n) => address(`burst-${n}`))
+  const replies = await Promise.all(emails.map((email, n) => signUp(form, email, `192.0.2.${n + 1}`)))
+  const sentReplies = replies.filter((reply) => reply === 'sent').length
+  const mailed = await settledCount((mail) => mail.To.some(({ Address }) => emails.includes(Address)))
+  console.log(`burst: ${BURST} parallel signups, room ${room}, ${sentReplies} told sent, ${mailed} confirmation emails reached the relay`)
+  expect(`${BURST} parallel signups mail exactly the hour's room under the cap`, mailed, room)
+  expect('and only those are told it worked', sentReplies, room)
+}
+
+/** As above for the contact form: every enquiry is stored, but staff get only the hour's room in emails. */
+async function enquiryBurstCases() {
+  const notifyTo = process.env.ENQUIRY_NOTIFY_TO
+  await payload.db.drizzle.execute(
+    sql`UPDATE enquiries SET created_at = created_at - interval '2 hours' WHERE name = ${`Cap filler ${run}`} OR name LIKE ${`Cap check ${run} %`}`,
+  )
+  const room = STAFF_EMAILS_PER_HOUR - (await enquiryCount(`created_at > now() - interval '1 hour'`))
+  if (room <= 0) throw new Error('Other enquiries fill this hour, so the burst check cannot measure the cap; run it again later')
+  const page = await (await get('/contact', '198.51.100.8')).text()
+  const form = formWith(page, 'message')
+  if (!form) throw new Error('The contact page has no enquiry form')
+  await sleep(3_100)
+  const prefix = `Burst ${run}`
+  const replies = await Promise.all(
+    Array.from({ length: BURST }, async (_, n) => {
+      const fields = { name: `${prefix} ${n}`, email: address(`enquiry-burst-${n}`), topic: 'general', message: 'Checking the cap under load.', consent: 'on', website: '' }
+      const html = await (await post(form, '/contact', fields, `192.0.2.${n + 101}`)).text()
+      return html.includes('Thank you, your message is with us')
+    }),
+  )
+  const mailed = await settledCount((mail) => mail.To.some(({ Address }) => Address === notifyTo) && mail.Subject.includes(prefix))
+  console.log(`burst: ${BURST} parallel enquiries, room ${room}, ${mailed} staff emails reached the relay`)
+  expect(`${BURST} parallel enquiries are all accepted and stored`, [replies.every(Boolean), await enquiryCount(`name LIKE '${prefix} %'`)], [true, BURST])
+  expect('but staff get exactly the hour\'s room in emails', mailed, room)
+}
+
 const staffAs = (role: 'admin' | 'editor') =>
   payload.create({ collection: 'staff', data: { email: `newsletter-check-${run}-${role}@erc.invalid`, password: `pw-${run}-check`, role } })
 const staff = await staffAs('editor')
@@ -327,6 +392,8 @@ try {
 
   await newsletterCapCases(ben)
   await enquiryCapCases()
+  await newsletterBurstCases()
+  await enquiryBurstCases()
 
   // Past the API gate as an anonymous reader, so the collection's own access rules answer.
   const anonymous = await Promise.all(
@@ -359,7 +426,9 @@ try {
   expect('staff cannot add a subscriber who never confirmed', staffCreate.status, 403)
 } finally {
   await payload.db.drizzle.execute(sql`DELETE FROM subscribers WHERE email LIKE ${`newsletter-check-${run}-%`}`)
-  await payload.db.drizzle.execute(sql`DELETE FROM enquiries WHERE name IN (${`Cap filler ${run}`}) OR name LIKE ${`Cap check ${run} %`}`)
+  await payload.db.drizzle.execute(
+    sql`DELETE FROM enquiries WHERE name IN (${`Cap filler ${run}`}) OR name LIKE ${`Cap check ${run} %`} OR name LIKE ${`Burst ${run} %`}`,
+  )
   await payload.delete({ collection: 'staff', where: { id: { in: [staff.id, admin.id] } } })
 }
 
