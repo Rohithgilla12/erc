@@ -194,6 +194,8 @@ export const parseClaim = (raw: RawInput): Result<ClaimRequest, FieldErrors> => 
 
 export const SEARCH_MIN_LENGTH = 3
 export const SEARCH_LIMIT = 10
+/** Searches one member may run in an hour: plenty to find a profile, far too few to list every hidden name. */
+export const SEARCHES_PER_HOUR = 30
 
 /** A name search for claiming. Three letters at least, so the list of profiles cannot be read off one letter at a time. */
 export const parseAthleteSearch = (raw: RawInput): Result<{ q: string }, FieldErrors> => {

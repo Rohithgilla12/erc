@@ -10,6 +10,7 @@ import {
   planLink,
   planProfileEdit,
   SEARCH_LIMIT,
+  SEARCHES_PER_HOUR,
   slugFromName,
   VISIBILITY_KEYS,
   type AthleteStanding,
@@ -19,6 +20,7 @@ import {
   type Id,
   type LinkRefusal,
   type MediaId,
+  type MemberId,
   type NewProfile,
   type ProfileValues,
   type Result,
@@ -128,15 +130,30 @@ export async function myAthlete(payload: Payload, session: MemberSession): Promi
   return viewOf(payload, await mine(payload, session))
 }
 
-const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+const escapeLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`)
 
-/** Approved profiles nobody has linked, by name. Only the id, name and state leave the database. */
-export async function searchClaimable(payload: Payload, q: string): Promise<ClaimableAthlete[]> {
+// Kept in memory: the site is one process, and a restart only hands a member a fresh hour.
+const searchesByMember = new Map<MemberId, number[]>()
+
+const spendSearch = (member: MemberId, now: number): boolean => {
+  const recent = (searchesByMember.get(member) ?? []).filter((at) => now - at < 60 * 60 * 1000)
+  if (recent.length >= SEARCHES_PER_HOUR) return false
+  searchesByMember.set(member, [...recent, now])
+  return true
+}
+
+/**
+ * Approved profiles nobody has linked, matched at the start of a word in the name, so a member finds their own profile
+ * but cannot sweep short fragments for every hidden one. Only the id, name and state leave the database.
+ */
+export async function searchClaimable(payload: Payload, session: MemberSession, q: string): Promise<Result<ClaimableAthlete[], 'too_many_searches'>> {
+  if (!spendSearch(session.member, Date.now())) return err('too_many_searches')
+  const word = escapeLike(q)
   const { rows } = await payload.db.drizzle.execute(sql`
     SELECT id, name, home_subdivision FROM athletes
-    WHERE moderation_state = 'approved' AND member_id IS NULL AND name ILIKE ${likePattern(q)}
+    WHERE moderation_state = 'approved' AND member_id IS NULL AND (name ILIKE ${`${word}%`} OR name ILIKE ${`% ${word}%`})
     ORDER BY name, id LIMIT ${SEARCH_LIMIT}`)
-  return (rows as { id: number; name: string; home_subdivision: Subdivision }[]).map((row) => ({ id: row.id as Id<'athletes'>, name: row.name, state: row.home_subdivision }))
+  return ok((rows as { id: number; name: string; home_subdivision: Subdivision }[]).map((row) => ({ id: row.id as Id<'athletes'>, name: row.name, state: row.home_subdivision })))
 }
 
 /** A started profile staff rejected is never public, so making way for a new link deletes it outright. */
@@ -276,9 +293,12 @@ export async function updateProfile(payload: Payload, session: MemberSession, ed
  * Re-encoded rather than stored as sent: the WebP sharp writes carries none of the original's metadata, so a phone's
  * GPS position never reaches the club's media host, and a file that is not really an image fails here.
  */
+const PHOTO_MAX_PIXELS = 30_000_000
+
 const webpOf = async (file: UploadedFile): Promise<Buffer | null> => {
   try {
-    return await sharp(Buffer.from(await file.arrayBuffer()))
+    // A few megabytes of JPEG can declare billions of pixels; decoding one of those would take the server down.
+    return await sharp(Buffer.from(await file.arrayBuffer()), { limitInputPixels: PHOTO_MAX_PIXELS })
       .rotate()
       .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 82 })
@@ -301,7 +321,10 @@ export async function setPhoto(payload: Payload, session: MemberSession, photo: 
     data: { alt: `Photo of ${athlete.value.name}` },
     file: { data: image, mimetype: 'image/webp', name: `${MEMBER_PHOTO_PREFIX}${randomUUID()}.webp`, size: image.length },
   })
-  return updateProfile(payload, session, { photo: media.id as MediaId })
+  const updated = await updateProfile(payload, session, { photo: media.id as MediaId })
+  // Staff may have decided the profile between the check above and this edit; the file must not outlive the refusal.
+  if (!updated.ok) await deleteMemberPhoto(payload, media.id as number)
+  return updated
 }
 
 /** Consent, the member's alone. Hiding writes through Payload, so the public pages and their caches expire at once. */

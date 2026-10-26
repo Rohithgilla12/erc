@@ -123,7 +123,10 @@ const IMPLEMENTATIONS: Implementations = {
     return ok(ownedBy(session.member, { items: page.items.map(runView), next: page.next }))
   },
   myAthlete: async ({ session }) => ok(ownedBy(session.member, await myAthlete(await getPayload({ config }), session))),
-  searchAthletes: async (_context, input) => ok({ items: await searchClaimable(await getPayload({ config }), input.q) }),
+  searchAthletes: async ({ session }, input) => {
+    const found = await searchClaimable(await getPayload({ config }), session, input.q)
+    return found.ok ? ok({ items: found.value }) : err({ code: 'rate_limited', message: 'You have searched a lot in the last hour. Please wait a while before searching again.' })
+  },
   claimAthlete: async ({ session }, input) => athleteResult(await claimAthlete(await getPayload({ config }), session, input), session.member),
   startAthlete: async ({ session }, input) => athleteResult(await startAthlete(await getPayload({ config }), session, input), session.member),
   updateProfile: async ({ session }, input) => athleteResult(await updateProfile(await getPayload({ config }), session, input), session.member),

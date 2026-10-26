@@ -38,7 +38,7 @@ import {
 
 export const API_BASE = '/api/v1'
 
-export type ApiErrorCode = 'unauthenticated' | 'forbidden' | 'not_found' | 'invalid' | 'unsupported_media_type' | 'conflict' | 'rate_limited' | 'unavailable'
+export type ApiErrorCode = 'unauthenticated' | 'forbidden' | 'not_found' | 'invalid' | 'too_large' | 'unsupported_media_type' | 'conflict' | 'rate_limited' | 'unavailable'
 
 /** The only error shape. `fields` is present only for `invalid`, keyed like the input. */
 export type ApiError = { code: ApiErrorCode; message: string; fields?: FieldErrors }
@@ -49,6 +49,7 @@ export const STATUS: Readonly<Record<ApiErrorCode, number>> = {
   forbidden: 403,
   not_found: 404,
   invalid: 422,
+  too_large: 413,
   unsupported_media_type: 415,
   conflict: 409,
   rate_limited: 429,

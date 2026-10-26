@@ -1,6 +1,6 @@
 import config from '@payload-config'
 import { API_BASE, OPERATIONS, operationFor, type ApiError, type Envelope } from '@erc/contract'
-import type { RawInput } from '@erc/domain'
+import { PHOTO_MAX_BYTES, type RawInput } from '@erc/domain'
 import { getPayload } from 'payload'
 
 import { bearerCaller, run, STATUS } from './run'
@@ -13,6 +13,14 @@ const refuse = (error: ApiError) => reply({ ok: false, error })
 const isJson = (request: Request) => /^application\/json\s*(?:;|$)/i.test(request.headers.get('content-type') ?? '')
 
 const isMultipart = (request: Request) => /^multipart\/form-data\s*;/i.test(request.headers.get('content-type') ?? '')
+
+const JSON_MAX_BYTES = 64 * 1024
+
+/** Read before the body is: `formData()` buffers everything it is sent, so a declared length is the only early stop. */
+const withinLimit = (request: Request, multipart: boolean) => {
+  const length = Number(request.headers.get('content-length') ?? NaN)
+  return Number.isFinite(length) && length <= (multipart ? PHOTO_MAX_BYTES + JSON_MAX_BYTES : JSON_MAX_BYTES)
+}
 
 /** The first value of each part, files included, the way `fieldsOf` reads a web form. */
 const formObject = async (request: Request): Promise<RawInput | null> => {
@@ -44,6 +52,9 @@ export async function handleV1(request: Request, segments: readonly string[]): P
   const multipart = 'body' in OPERATIONS[name] && OPERATIONS[name].body === 'multipart'
   if (request.method === 'POST' && !(multipart ? isMultipart(request) : isJson(request))) {
     return refuse({ code: 'unsupported_media_type', message: multipart ? 'Send the body as multipart/form-data.' : 'Send the body as application/json.' })
+  }
+  if (request.method === 'POST' && !withinLimit(request, multipart)) {
+    return refuse({ code: 'too_large', message: multipart ? 'Send a photo under 5 MB, with a Content-Length.' : 'Send a smaller JSON body, with a Content-Length.' })
   }
   try {
     const caller = await bearerCaller(request)

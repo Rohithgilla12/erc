@@ -41,6 +41,7 @@ describe('OPERATIONS', () => {
     expect(STATUS.unauthenticated).toBe(401)
     expect(STATUS.invalid).toBe(422)
     expect(STATUS.unsupported_media_type).toBe(415)
+    expect(STATUS.too_large).toBe(413)
     expect(STATUS.rate_limited).toBe(429)
   })
 })

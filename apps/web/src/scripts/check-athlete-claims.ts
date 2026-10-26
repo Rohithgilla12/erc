@@ -11,7 +11,7 @@ import path from 'node:path'
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
 import type { Envelope, MyAthlete } from '@erc/contract'
-import type { MemberId } from '@erc/domain'
+import { SEARCHES_PER_HOUR, type MemberId } from '@erc/domain'
 import { getPayload, type RequiredDataFromCollectionSlug } from 'payload'
 import sharp from 'sharp'
 
@@ -203,6 +203,8 @@ try {
   expect('and returns only id, name and state', items.map((item) => Object.keys(item).sort()), [['id', 'name', 'state'], ['id', 'name', 'state']])
   expect('a two-letter search is refused', codeOf(await api('/me/athlete/search?q=cl', asha)), [422, 'invalid'])
   expect('search needs a member', (await fetch(new URL(`/api/v1/me/athlete/search?q=${token}`, site))).status, 401)
+  const fragment = await api('/me/athlete/search?q=riya', asha)
+  expect('search matches the start of a word, so a fragment from inside a name does not find it', fragment.body?.ok && (fragment.body.data as { items: { id: number }[] }).items.some((item) => item.id === priya.id), false)
 
   const searchPage = await html(`/me/athlete?q=${encodeURIComponent(token)}`, asha.cookie)
   expect('/me/athlete lists claimable profiles with a claim form each, and not the unapproved one', [searchPage.includes(`id="claim-${priya.id}"`), searchPage.includes(`id="claim-${quinn.id}"`), text(searchPage).includes(names.ravi)], [true, true, false])
@@ -375,6 +377,17 @@ try {
     [415, 'unsupported_media_type'],
     [422, 'invalid'],
   ])
+  const huge = await sharp({ create: { width: 6000, height: 6000, channels: 3, background: '#3030c0' } }).jpeg({ quality: 10 }).toBuffer()
+  const photosBefore = (await memberPhotos()).length
+  const hugeForm = new FormData()
+  hugeForm.append('photo', new Blob([new Uint8Array(huge)], { type: 'image/jpeg' }), 'huge.jpg')
+  expect('a photo of more than 30 million pixels is refused before it is decoded, and nothing is stored', [huge.length < 5 * 1024 * 1024, codeOf(await api('/me/athlete/photo', chloe, hugeForm)), (await memberPhotos()).length], [true, [415, 'unsupported_media_type'], photosBefore])
+  const oversized = new FormData()
+  oversized.append('photo', new Blob([new Uint8Array(6 * 1024 * 1024)], { type: 'image/jpeg' }), 'big.jpg')
+  expect('a body larger than the operation can use is refused from its declared length', [codeOf(await api('/me/athlete/photo', chloe, oversized)), codeOf(await api('/me/athlete/profile', chloe, { city: 'x'.repeat(70 * 1024) }))], [
+    [413, 'too_large'],
+    [413, 'too_large'],
+  ])
   const removed = await submit(chloe, '/me/athlete', 'id="photo-remove"', {})
   expect('removing the photo takes it off at once and deletes the member upload', [removed.includes('Your current photo'), (await athleteRow(chloeProfile.id))?.photo_id, (await get(`/api/media/file/${firstPhoto?.filename}`)).ok, onDisk(firstPhoto?.filename)], [false, null, false, false])
 
@@ -423,6 +436,18 @@ try {
   const devSecond = await profileOf(dev)
   ourAthletes.push(devSecond.id)
   expect('starting again replaces the rejected profile', [await athleteRow(devFirst.id), devSecond.moderation.state, devSecond.values.name], [null, 'submitted', `${token} Dev Kumar`])
+  const devPhotoForm = new FormData()
+  devPhotoForm.append('photo', new Blob([new Uint8Array(png)], { type: 'image/png' }), 'dev.png')
+  await api('/me/athlete/photo', dev, devPhotoForm)
+  const devPhoto = (await memberPhotos()).at(-1)
+  expect('a photo on a profile not yet approved applies at once', (await athleteRow(devSecond.id))?.photo_id, devPhoto?.id)
+  await payload.delete({ collection: 'athletes', id: devSecond.id, overrideAccess: true })
+  expect('deleting an athlete deletes the member photo on it, so its address stops working', [onDisk(devPhoto?.filename), await payload.findByID({ collection: 'media', id: devPhoto!.id, disableErrors: true, overrideAccess: true })], [false, null])
+  let refusedAt = 0
+  for (let n = 1; n <= SEARCHES_PER_HOUR + 1 && refusedAt === 0; n += 1) {
+    if ((await api(`/me/athlete/search?q=${encodeURIComponent(token)}`, dev)).status === 429) refusedAt = n
+  }
+  expect('one member gets a limited number of searches an hour', refusedAt, SEARCHES_PER_HOUR + 1)
 
   const chloeDoc = await payload.findByID({ collection: 'athletes', id: chloeProfile.id, depth: 0, overrideAccess: true })
   await payload.delete({ collection: 'members', id: chloe.id, overrideAccess: true })

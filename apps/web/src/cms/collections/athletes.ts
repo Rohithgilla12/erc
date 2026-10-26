@@ -3,6 +3,7 @@ import type { CollectionBeforeDeleteHook, FieldAccess, NumberFieldSingleValidati
 import { number, text } from 'payload/shared'
 
 import { isStaff } from '../access'
+import { deleteMemberPhoto } from './media'
 import { optionsFrom } from '../fields'
 import { defineRecord } from '../kinds'
 import { subdivisionOptions } from '../subdivisions'
@@ -55,6 +56,12 @@ const runningSince: NumberFieldSingleValidation = (value, args) => {
  * anywhere. Deleting the athlete was already authorised, so they go with it in the same transaction.
  */
 const deleteRecordsWithAthlete: CollectionBeforeDeleteHook = async ({ id, req }) => {
+  // Member photos sit at public addresses; once nothing points at them they must go too.
+  const athlete = await req.payload.findByID({ collection: 'athletes', id, depth: 0, overrideAccess: true, disableErrors: true, req })
+  const { docs: pending } = await req.payload.find({ collection: 'profileChanges', where: { athlete: { equals: id } }, depth: 0, pagination: false, overrideAccess: true, req })
+  for (const photo of [athlete?.photo, ...pending.map((change) => change.photo)]) {
+    if (typeof photo === 'number') await deleteMemberPhoto(req.payload, photo, req)
+  }
   for (const collection of ['results', 'claims', 'profileChanges'] as const) {
     await req.payload.delete({ collection, where: { athlete: { equals: id } }, overrideAccess: true, req })
   }
