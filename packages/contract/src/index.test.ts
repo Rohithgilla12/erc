@@ -76,7 +76,7 @@ describe('OPERATIONS', () => {
   })
 
   it('parses requestCoach input requiring a positive integer coachId', () => {
-    const op = (OPERATIONS as Record<string, { parse: (raw: Record<string, unknown>) => unknown }>).requestCoach!
+    const op = OPERATIONS.requestCoach
     expect(op.parse({ coachId: 12 })).toEqual({ ok: true, value: { coachId: 12 } })
     expect(op.parse({ coachId: '12' })).toEqual({ ok: true, value: { coachId: 12 } })
     expect(op.parse({ coachId: 0 })).toEqual({ ok: false, error: { coachId: 'Select a valid coach.' } })
@@ -86,7 +86,7 @@ describe('OPERATIONS', () => {
   })
 
   it('parses submitCheckIn input validating feeling, niggles, and notes', () => {
-    const op = (OPERATIONS as Record<string, { parse: (raw: Record<string, unknown>) => unknown }>).submitCheckIn!
+    const op = OPERATIONS.submitCheckIn
     expect(op.parse({ feeling: 'good', niggles: 'left calf tight', note: 'Feeling strong' })).toEqual({
       ok: true,
       value: { feeling: 'good', niggles: 'left calf tight', note: 'Feeling strong' },
@@ -98,7 +98,7 @@ describe('OPERATIONS', () => {
   })
 
   it('parses myWeekReview input validating optional weekStart query date', () => {
-    const op = (OPERATIONS as Record<string, { parse: (raw: Record<string, unknown>) => unknown }>).myWeekReview!
+    const op = OPERATIONS.myWeekReview
     expect(op.parse({})).toEqual({ ok: true, value: { weekStart: null } })
     expect(op.parse({ weekStart: '' })).toEqual({ ok: true, value: { weekStart: null } })
     expect(op.parse({ weekStart: '2026-10-19' })).toEqual({ ok: true, value: { weekStart: '2026-10-19' } })
@@ -109,7 +109,7 @@ describe('OPERATIONS', () => {
   })
 
   it('parses decideCoachingRequest input validating uuid linkId and decision', () => {
-    const op = (OPERATIONS as Record<string, { parse: (raw: Record<string, unknown>) => unknown }>).decideCoachingRequest!
+    const op = OPERATIONS.decideCoachingRequest
     const linkId = '3f2a1c4e-9b7d-4e1a-8c2b-5d6e7f8a9b0c'
     expect(op.parse({ linkId, decision: 'accept' })).toEqual({ ok: true, value: { linkId, decision: 'accept' } })
     expect(op.parse({ linkId, decision: 'reject' })).toEqual({ ok: true, value: { linkId, decision: 'reject' } })
@@ -124,7 +124,7 @@ describe('OPERATIONS', () => {
   })
 
   it('parses athleteWeek input validating athleteSlug and optional weekStart', () => {
-    const op = (OPERATIONS as Record<string, { parse: (raw: Record<string, unknown>) => unknown }>).athleteWeek!
+    const op = OPERATIONS.athleteWeek
     expect(op.parse({ athleteSlug: 'asha-dias', weekStart: '2026-10-19' })).toEqual({
       ok: true,
       value: { athleteSlug: 'asha-dias', weekStart: '2026-10-19' },
@@ -140,7 +140,7 @@ describe('OPERATIONS', () => {
   })
 
   it('parses saveWeekReview input validating slug, weekStart, watch items, recos, and note', () => {
-    const op = (OPERATIONS as Record<string, { parse: (raw: Record<string, unknown>) => unknown }>).saveWeekReview!
+    const op = OPERATIONS.saveWeekReview
     expect(
       op.parse({
         athleteSlug: 'asha-dias',
