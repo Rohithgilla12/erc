@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 
 type Props = {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ weekStart?: string; saved?: string }>
+  searchParams: Promise<{ weekStart?: string; saved?: string; error?: string }>
 }
 
 const dayFormat = new Intl.DateTimeFormat('en-GB', {
@@ -81,7 +81,7 @@ export default async function AthleteWeekReviewPage({ params, searchParams }: Pr
   }
 
   const { slug } = await params
-  const { weekStart, saved } = await searchParams
+  const { weekStart, saved, error } = await searchParams
   const res = await run('athleteWeek', caller, {
     athleteSlug: slug,
     ...(weekStart ? { weekStart } : {}),
@@ -164,6 +164,12 @@ export default async function AthleteWeekReviewPage({ params, searchParams }: Pr
           </a>
         </nav>
       </header>
+
+      {error ? (
+        <p className="member-alert" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       {saved === 'true' ? (
         <p className="member-saved" role="status">

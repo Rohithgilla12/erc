@@ -132,10 +132,14 @@ export async function saveWeekReviewAction(formData: FormData): Promise<void> {
   const watch = String(formData.get('watch') ?? '')
   const recommendations = String(formData.get('recommendations') ?? '')
   const note = String(formData.get('note') ?? '')
-  await run('saveWeekReview', caller, { athleteSlug, weekStart, watch, recommendations, note })
+  const res = await run('saveWeekReview', caller, { athleteSlug, weekStart, watch, recommendations, note })
   revalidatePath(`/me/coach/${athleteSlug}`)
   revalidatePath('/me')
-  redirect(`/me/coach/${athleteSlug}?saved=true`)
+  const weekParam = weekStart ? `&weekStart=${encodeURIComponent(weekStart)}` : ''
+  if (!res.ok) {
+    redirect(`/me/coach/${athleteSlug}?error=${encodeURIComponent(res.error.message)}${weekParam}`)
+  }
+  redirect(`/me/coach/${athleteSlug}?saved=true${weekParam}`)
 }
 
 export type CheckInValues = { feeling: string; niggles?: string; note?: string }
