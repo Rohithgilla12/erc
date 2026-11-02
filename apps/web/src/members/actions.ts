@@ -71,14 +71,19 @@ export async function signOutDevice(form: FormData): Promise<void> {
   redirect('/me#devices')
 }
 
-export type RunValues = { date: string; distanceKm: string; duration: string }
+export type RunValues = { date: string; distanceKm: string; duration: string; note?: string }
 
 /** `ref` is minted when the form is shown, so sending the same form twice logs one run. A saved run gets a fresh one. */
 export type RunFormState = { ref: string; values: RunValues; errors?: FieldErrors; notice?: string; saved?: RunView }
 
 export async function logRun(previous: RunFormState, form: FormData): Promise<RunFormState> {
   const fields = fieldsOf(form)
-  const values: RunValues = { date: fields.date ?? '', distanceKm: fields.distanceKm ?? '', duration: fields.duration ?? '' }
+  const values: RunValues = {
+    date: fields.date ?? '',
+    distanceKm: fields.distanceKm ?? '',
+    duration: fields.duration ?? '',
+    ...(fields.note !== undefined ? { note: fields.note } : {}),
+  }
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   const logged = await run('logRun', caller, { ...fields, ref: fields.ref || previous.ref })
@@ -87,7 +92,53 @@ export async function logRun(previous: RunFormState, form: FormData): Promise<Ru
     return error.code === 'invalid' ? { ref: previous.ref, values, ...(error.fields ? { errors: error.fields } : {}) } : { ref: previous.ref, values, notice: error.message }
   }
   revalidatePath('/me')
-  return { ref: randomUUID(), values: { date: values.date, distanceKm: '', duration: '' }, saved: logged.data }
+  return { ref: randomUUID(), values: { date: values.date, distanceKm: '', duration: '', note: '' }, saved: logged.data }
+}
+
+export async function requestCoachAction(formData: FormData): Promise<void> {
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  const fields = fieldsOf(formData)
+  await run('requestCoach', caller, { coachId: Number(fields.coachId) })
+  revalidatePath('/me')
+  redirect('/me/coaching')
+}
+
+export async function endCoachingAction(_formData: FormData): Promise<void> {
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  await run('endCoaching', caller, {})
+  revalidatePath('/me')
+  redirect('/me/coaching')
+}
+
+export type CheckInValues = { feeling: string; niggles?: string; note?: string }
+
+export type CheckInFormState = {
+  values: CheckInValues
+  errors?: FieldErrors
+  notice?: string
+  saved?: boolean
+}
+
+export async function submitCheckInAction(previous: CheckInFormState, formData: FormData): Promise<CheckInFormState> {
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  const fields = fieldsOf(formData)
+  const values: CheckInValues = {
+    feeling: fields.feeling ?? '',
+    niggles: fields.niggles ?? '',
+    note: fields.note ?? '',
+  }
+  const done = await run('submitCheckIn', caller, fields)
+  if (!done.ok) {
+    const { error } = done
+    return error.code === 'invalid'
+      ? { values, ...(error.fields ? { errors: error.fields } : {}) }
+      : { values, notice: error.message }
+  }
+  revalidatePath('/me')
+  redirect('/me')
 }
 
 /** Every athlete form on /me/athlete: what was typed, so a refusal shows it again, and the outcome. */

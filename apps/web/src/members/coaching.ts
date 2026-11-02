@@ -98,6 +98,7 @@ export async function getMyCoaching(
         coach: null,
         availableCoaches,
         currentReview: null,
+        currentCheckIn: null,
       }),
     )
   }
@@ -162,11 +163,39 @@ export async function getMyCoaching(
     }
   }
 
+  let currentCheckIn: AthleteCheckIn | null = null
+  if (linkRow.state === 'active') {
+    const currentWeekStart = weekOf(todayIn(CLUB_TIME_ZONE)).first
+    const checkInRes = await db.execute(sql`
+      SELECT feeling, niggles, note, submitted_at
+      FROM check_ins
+      WHERE member_id = ${memberId} AND week_start_date = ${currentWeekStart}
+      LIMIT 1
+    `)
+    const checkInRow = checkInRes.rows[0] as
+      | {
+          feeling: CheckInFeeling
+          niggles: string | null
+          note: string | null
+          submitted_at: Date | string
+        }
+      | undefined
+    if (checkInRow) {
+      currentCheckIn = {
+        feeling: checkInRow.feeling,
+        niggles: checkInRow.niggles,
+        note: checkInRow.note,
+        submittedAt: instantOf(checkInRow.submitted_at),
+      }
+    }
+  }
+
   return ok(
     ownedBy(memberId, {
       link,
       coach,
       currentReview,
+      currentCheckIn,
     }),
   )
 }

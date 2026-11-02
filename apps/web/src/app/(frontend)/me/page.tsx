@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { MyAthlete, PeriodTotals } from '@erc/contract'
+import type { MyAthlete, MyCoachingView, PeriodTotals } from '@erc/contract'
 import { formatDuration, formatKm, type LocalDate, type Metres, type Seconds } from '@erc/domain'
 import type { Metadata } from 'next'
 import React from 'react'
@@ -73,12 +73,140 @@ function AthleteSummary({ athlete }: { athlete: MyAthlete }) {
   )
 }
 
+function CoachingSection({ coaching }: { coaching: MyCoachingView }) {
+  const { link, coach, currentReview, currentCheckIn } = coaching
+  const hasCoach = coach && link && (link.state === 'active' || link.state === 'requested')
+
+  if (!hasCoach) {
+    return (
+      <section className="coaching-section" aria-labelledby="coaching-heading">
+        <h2 id="coaching-heading">Coaching</h2>
+        <div className="coaching-card coaching-card--empty">
+          <div>
+            <h3 className="coaching-card-title">Work with a club coach</h3>
+            <p className="coaching-card-desc">
+              Connect with an ERC coach to receive weekly reviews, training adjustments, and check-in feedback.
+            </p>
+          </div>
+          <a href="/me/coaching" className="button button-secondary">
+            Find a coach
+          </a>
+        </div>
+      </section>
+    )
+  }
+
+  const isActive = link.state === 'active'
+
+  return (
+    <section className="coaching-section" aria-labelledby="coaching-heading">
+      <div className="coaching-header-row">
+        <h2 id="coaching-heading">Coaching</h2>
+        <a href="/me/coaching" className="coaching-manage-link">
+          Manage coaching
+        </a>
+      </div>
+
+      <div className="coaching-card">
+        <div className="coaching-coach-row">
+          {coach.photoUrl ? (
+            <img src={coach.photoUrl} alt="" className="coaching-coach-photo" />
+          ) : (
+            <div className="coaching-coach-avatar" aria-hidden="true">
+              {coach.name.slice(0, 1)}
+            </div>
+          )}
+          <div className="coaching-coach-info">
+            <div className="coaching-coach-name-row">
+              <h3 className="coaching-coach-name">{coach.name}</h3>
+              <span className={`coaching-status-badge ${isActive ? 'coaching-status-badge--active' : 'coaching-status-badge--pending'}`}>
+                {isActive ? 'Active Coach' : 'Request Pending'}
+              </span>
+            </div>
+            {coach.credentials ? <p className="coaching-coach-credentials">{coach.credentials}</p> : null}
+          </div>
+        </div>
+
+        {isActive ? (
+          <div className="coaching-checkin-status">
+            <div className="coaching-checkin-text">
+              <span className="coaching-subhead">This week&apos;s check-in</span>
+              {currentCheckIn ? (
+                <p className="coaching-checkin-submitted">
+                  Submitted (Feeling: <strong>{currentCheckIn.feeling}</strong>
+                  {currentCheckIn.niggles ? ` • Niggles noted` : ''})
+                </p>
+              ) : (
+                <p className="coaching-checkin-missing">Not submitted yet for this week.</p>
+              )}
+            </div>
+            <a href="/me/check-in" className="button button-secondary">
+              {currentCheckIn ? 'Update check-in' : 'Submit check-in'}
+            </a>
+          </div>
+        ) : (
+          <p className="coaching-pending-note">
+            Waiting for {coach.name} to accept your coaching request.
+          </p>
+        )}
+
+        {isActive && currentReview ? (
+          <div className="coaching-review-card">
+            <div className="coaching-review-header">
+              <h4 className="coaching-review-title">Coach Weekly Review</h4>
+              <span className="coaching-review-date">Week of {formatDay(currentReview.weekStart)}</span>
+            </div>
+
+            {currentReview.watch.length > 0 ? (
+              <div className="coaching-review-group">
+                <span className="coaching-review-label">Watch items</span>
+                <ul className="coaching-pill-list">
+                  {currentReview.watch.map((item, i) => (
+                    <li key={i} className="coaching-pill coaching-pill--watch">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {currentReview.recommendations.length > 0 ? (
+              <div className="coaching-review-group">
+                <span className="coaching-review-label">Recommendations</span>
+                <ul className="coaching-pill-list">
+                  {currentReview.recommendations.map((item, i) => (
+                    <li key={i} className="coaching-pill coaching-pill--reco">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {currentReview.note ? (
+              <div className="coaching-review-group">
+                <span className="coaching-review-label">Coach Note</span>
+                <p className="coaching-review-note">{currentReview.note}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
 export default async function MePage({ searchParams }: Props) {
   const caller = await requireMember()
   const after = first((await searchParams).after)
-  const [dashboard, runs, devices] = await Promise.all([run('dashboard', caller, {}), run('listRuns', caller, { after }), run('listSessions', caller, {})])
-  if (!dashboard.ok || !runs.ok || !devices.ok) {
-    const failed = [dashboard, runs, devices].find((result) => !result.ok)
+  const [dashboard, runs, devices, coaching] = await Promise.all([
+    run('dashboard', caller, {}),
+    run('listRuns', caller, { after }),
+    run('listSessions', caller, {}),
+    run('myCoaching', caller, {}),
+  ])
+  if (!dashboard.ok || !runs.ok || !devices.ok || !coaching.ok) {
+    const failed = [dashboard, runs, devices, coaching].find((result) => !result.ok)
     return (
       <div className="page member-page">
         <h1>My running</h1>
@@ -101,6 +229,13 @@ export default async function MePage({ searchParams }: Props) {
         </div>
       </header>
 
+      {caller.session.coachId !== null ? (
+        <aside className="coach-banner" aria-label="Coach navigation">
+          <span>You are an ERC coach</span>
+          <a href="/me/coach">Go to Coach Roster &rarr;</a>
+        </aside>
+      ) : null}
+
       <div className="member-stats">
         <Stat title="This week" period={week} />
         <Stat title="This month" period={month} />
@@ -108,9 +243,11 @@ export default async function MePage({ searchParams }: Props) {
 
       <AthleteSummary athlete={dashboard.data.athlete} />
 
+      <CoachingSection coaching={coaching.data} />
+
       <section aria-labelledby="log-run">
         <h2 id="log-run">Log a run</h2>
-        <RunForm initial={{ ref: randomUUID(), values: { date: today, distanceKm: '', duration: '' } }} today={today} />
+        <RunForm initial={{ ref: randomUUID(), values: { date: today, distanceKm: '', duration: '', note: '' } }} today={today} />
       </section>
 
       <section aria-labelledby="recent-runs">

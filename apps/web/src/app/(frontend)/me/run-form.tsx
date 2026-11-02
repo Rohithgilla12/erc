@@ -56,6 +56,18 @@ export function RunForm({ initial, today }: { initial: RunFormState; today: stri
           <input name="duration" type="text" inputMode="numeric" placeholder="38:10" required defaultValue={values.duration} {...invalidProps(errors, 'duration')} />
           <FieldError errors={errors} field="duration" />
         </label>
+        <label className="member-field member-field--full">
+          <span>Run note / how it felt</span>
+          <input
+            name="note"
+            type="text"
+            maxLength={280}
+            placeholder="e.g. Felt strong, cool morning tempo"
+            defaultValue={values.note ?? ''}
+            {...invalidProps(errors, 'note')}
+          />
+          <FieldError errors={errors} field="note" />
+        </label>
       </div>
       <div className="member-row">
         <button className="button" type="submit" disabled={pending}>

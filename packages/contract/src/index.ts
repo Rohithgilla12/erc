@@ -199,6 +199,7 @@ export type MyCoachingView = {
   coach: CoachingCoach | null
   availableCoaches?: readonly CoachingCoach[]
   currentReview?: CoachReviewView | null
+  currentCheckIn?: AthleteCheckIn | null
 }
 
 export type CoachRosterItem = {
