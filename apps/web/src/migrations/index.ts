@@ -11,6 +11,7 @@ import * as migration_20261020_033438_home_blocks from './20261020_033438_home_b
 import * as migration_20261021_085649_subscriber_prior_consent from './20261021_085649_subscriber_prior_consent';
 import * as migration_20261021_105447_members from './20261021_105447_members';
 import * as migration_20261021_160546_athlete_claims from './20261021_160546_athlete_claims';
+import * as migration_20261102_180000_coaching from './20261102_180000_coaching';
 
 export const migrations = [
   {
@@ -77,5 +78,10 @@ export const migrations = [
     up: migration_20261021_160546_athlete_claims.up,
     down: migration_20261021_160546_athlete_claims.down,
     name: '20261021_160546_athlete_claims'
+  },
+  {
+    up: migration_20261102_180000_coaching.up,
+    down: migration_20261102_180000_coaching.down,
+    name: '20261102_180000_coaching',
   },
 ];

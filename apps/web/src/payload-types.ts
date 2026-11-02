@@ -226,6 +226,10 @@ export interface Coach {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * The member account that controls this coach profile and views athlete rosters.
+   */
+  member?: (number | null) | Member;
   workflow?:
     | {
         [k: string]: unknown;
@@ -243,6 +247,27 @@ export interface Coach {
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
+}
+/**
+ * People who sign in to the site. Accounts are created by signing in, never here. Suspend a member to sign them out everywhere and refuse new sign-ins.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "members".
+ */
+export interface Member {
+  id: number;
+  email: string;
+  /**
+   * Suspended members are signed out and cannot sign in again until reactivated.
+   */
+  status: 'active' | 'suspended';
+  /**
+   * When they confirmed they are 18 or over, on their first sign-in.
+   */
+  ageDeclaredAt: string;
+  lastSignInAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -455,27 +480,6 @@ export interface Athlete {
    */
   moderationDecision?: ('approve' | 'reject') | null;
   rejectionReason?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * People who sign in to the site. Accounts are created by signing in, never here. Suspend a member to sign them out everywhere and refuse new sign-ins.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "members".
- */
-export interface Member {
-  id: number;
-  email: string;
-  /**
-   * Suspended members are signed out and cannot sign in again until reactivated.
-   */
-  status: 'active' | 'suspended';
-  /**
-   * When they confirmed they are 18 or over, on their first sign-in.
-   */
-  ageDeclaredAt: string;
-  lastSignInAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1456,6 +1460,7 @@ export interface CoachesSelect<T extends boolean = true> {
   credentials?: T;
   photo?: T;
   bio?: T;
+  member?: T;
   workflow?: T;
   reviewRequest?: T;
   reviewNote?: T;
