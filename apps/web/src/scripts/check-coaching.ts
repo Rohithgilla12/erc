@@ -183,6 +183,7 @@ try {
     expect('athleteWeek run note matches', athleteWeekRes.data.runs[0]?.note, 'Felt strong, cool morning tempo')
     expect('athleteWeek checkIn feeling matches', athleteWeekRes.data.checkIn?.feeling, 'tired')
     expect('athleteWeek summary totalMetres is 10000', athleteWeekRes.data.summary.totalMetres, 10000)
+    expect('athleteWeek summary totalSeconds is 3000', athleteWeekRes.data.summary.totalSeconds, 3000)
     expect('athleteWeek summary runCount is 1', athleteWeekRes.data.summary.runCount, 1)
     expect('athleteWeek summary flags include ELEVATED_FATIGUE', athleteWeekRes.data.summary.flags.includes('ELEVATED_FATIGUE'), true)
     expect('athleteWeek summary flags include NIGGLE_REPORTED', athleteWeekRes.data.summary.flags.includes('NIGGLE_REPORTED'), true)

@@ -355,9 +355,12 @@ export async function getCoachRoster(
     member_id: number
     source: PublicSource
     ref: string
-    on_date: string
+    on: string
+    date: string
     metres: number
-    moving_s: number
+    distance: number
+    moving: number
+    seconds: number
     logged_at: Date | string
     note: string | null
   }
@@ -375,9 +378,10 @@ export async function getCoachRoster(
 
   if (activeMemberIds.length > 0) {
     const actRes = await db.execute(sql`
-      SELECT member_id, source, ref, on_date::text AS on_date, metres, moving_s, logged_at, note
+      SELECT member_id, source, ref, on_date::text AS on, on_date::text AS date, metres, metres AS distance, moving_s AS moving, moving_s AS seconds, logged_at, note
       FROM activities
       WHERE member_id IN ${sql`(${sql.join(activeMemberIds.map((id) => sql`${id}`), sql`, `)})`}
+        AND source IN ('manual', 'file')
         AND on_date BETWEEN ${prevWeek.first} AND ${thisWeek.last}
       ORDER BY on_date DESC, logged_at DESC
     `)
@@ -441,8 +445,8 @@ export async function getCoachRoster(
       })
     } else if (link.state === 'active') {
       const allRuns = activitiesByMember.get(link.athlete_member_id) ?? []
-      const thisWeekRuns = allRuns.filter((r) => r.on_date >= thisWeek.first && r.on_date <= thisWeek.last)
-      const prevWeekRuns = allRuns.filter((r) => r.on_date >= prevWeek.first && r.on_date <= prevWeek.last)
+      const thisWeekRuns = allRuns.filter((r) => r.on >= thisWeek.first && r.on <= thisWeek.last)
+      const prevWeekRuns = allRuns.filter((r) => r.on >= prevWeek.first && r.on <= prevWeek.last)
       const checkIn = checkInsByMember.get(link.athlete_member_id) ?? null
       const summary = summariseWeek(thisWeekRuns, prevWeekRuns, checkIn)
       const hasReview = reviewsByLinkId.has(link.id)
@@ -491,13 +495,21 @@ export async function decideRequest(
   }
 
   if (decision === 'accept') {
-    await db.execute(sql`
-      UPDATE coaching_links SET state = 'active', decided_at = now() WHERE id = ${linkId}
+    const res = await db.execute(sql`
+      UPDATE coaching_links SET state = 'active', decided_at = now()
+      WHERE id = ${linkId} AND coach_id = ${coachId} AND state = 'requested'
     `)
+    if ((res.rowCount ?? 0) === 0) {
+      return err({ code: 'conflict', message: 'This coaching request has already been decided.' })
+    }
   } else {
-    await db.execute(sql`
-      UPDATE coaching_links SET state = 'ended', decided_at = now(), ended_at = now(), ended_by = 'coach' WHERE id = ${linkId}
+    const res = await db.execute(sql`
+      UPDATE coaching_links SET state = 'ended', decided_at = now(), ended_at = now(), ended_by = 'coach'
+      WHERE id = ${linkId} AND coach_id = ${coachId} AND state = 'requested'
     `)
+    if ((res.rowCount ?? 0) === 0) {
+      return err({ code: 'conflict', message: 'This coaching request has already been decided.' })
+    }
   }
 
   return ok({ decided: true })
@@ -510,7 +522,7 @@ export async function getAthleteWeek(
   weekStart?: LocalDate | null,
 ): Promise<Result<AthleteWeekView, OpFailure>> {
   const db = payload.db.drizzle
-  const targetWeekStart = weekStart ?? weekOf(todayIn(CLUB_TIME_ZONE)).first
+  const targetWeekStart = weekOf(weekStart ?? todayIn(CLUB_TIME_ZONE)).first
   const thisWeek = { kind: 'week' as const, first: targetWeekStart, last: addDays(targetWeekStart, 6) }
   const prevWeekStart = addDays(targetWeekStart, -7)
   const prevWeek = { kind: 'week' as const, first: prevWeekStart, last: addDays(prevWeekStart, 6) }
@@ -556,6 +568,7 @@ export async function getAthleteWeek(
     SELECT member_id, source, ref, on_date::text AS on_date, metres, moving_s, logged_at, note
     FROM activities
     WHERE member_id = ${athleteRow.member_id}
+      AND source IN ('manual', 'file')
       AND on_date BETWEEN ${prevWeek.first} AND ${thisWeek.last}
     ORDER BY on_date DESC, logged_at DESC
   `)
@@ -586,7 +599,26 @@ export async function getAthleteWeek(
       }
     : null
 
-  const summary = summariseWeek(thisWeekRows, prevWeekRows, checkIn)
+  const runs: RunView[] = thisWeekRows.map((r) => ({
+    source: r.source,
+    ref: r.ref,
+    on: r.on_date,
+    distance: r.metres,
+    moving: r.moving_s,
+    loggedAt: instantOf(r.logged_at),
+    ...(r.note !== null && r.note !== undefined ? { note: r.note } : {}),
+  }))
+
+  const prevRuns: RunView[] = prevWeekRows.map((r) => ({
+    source: r.source,
+    ref: r.ref,
+    on: r.on_date,
+    distance: r.metres,
+    moving: r.moving_s,
+    loggedAt: instantOf(r.logged_at),
+  }))
+
+  const summary = summariseWeek(runs, prevRuns, checkIn)
 
   const revRes = await db.execute(sql`
     SELECT week_start_date::text AS week_start, watch, recommendations, note, shared_at
@@ -613,16 +645,6 @@ export async function getAthleteWeek(
       }
     : null
 
-  const runs: RunView[] = thisWeekRows.map((r) => ({
-    source: r.source,
-    ref: r.ref,
-    on: r.on_date,
-    distance: r.metres,
-    moving: r.moving_s,
-    loggedAt: instantOf(r.logged_at),
-    ...(r.note !== null && r.note !== undefined ? { note: r.note } : {}),
-  }))
-
   return ok({
     athlete: {
       id: athleteRow.id,
@@ -646,6 +668,8 @@ export async function saveWeekReview(
   input: WeekReviewInput,
 ): Promise<Result<CoachReviewView, OpFailure>> {
   const db = payload.db.drizzle
+  const targetWeekStart = weekOf(weekStart).first
+
   const athleteRes = await db.execute(sql`
     SELECT id, member_id FROM athletes WHERE slug = ${athleteSlug} LIMIT 1
   `)
@@ -671,7 +695,7 @@ export async function saveWeekReview(
     INSERT INTO week_reviews (link_id, week_start_date, watch, recommendations, note, shared_at)
     VALUES (
       ${linkRow.id},
-      ${weekStart},
+      ${targetWeekStart},
       ${JSON.stringify(input.watch ?? [])}::jsonb,
       ${JSON.stringify(input.recommendations ?? [])}::jsonb,
       ${input.note ?? null},
