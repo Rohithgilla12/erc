@@ -150,7 +150,7 @@ function CoachingSection({ coaching }: { coaching: MyCoachingView }) {
           </p>
         )}
 
-        {isActive && currentReview ? (
+        {isActive && currentReview && (currentReview.watch.length > 0 || currentReview.recommendations.length > 0 || currentReview.note) ? (
           <div className="coaching-review-card">
             <div className="coaching-review-header">
               <h4 className="coaching-review-title">Coach Weekly Review</h4>
@@ -233,6 +233,13 @@ export default async function MePage({ searchParams }: Props) {
         <aside className="coach-banner" aria-label="Coach navigation">
           <span>You are an ERC coach</span>
           <a href="/me/coach">Go to Coach Roster &rarr;</a>
+        </aside>
+      ) : null}
+
+      {coaching.data.link?.state === 'active' && coaching.data.coach ? (
+        <aside className="coach-banner" aria-label="Coach status">
+          <span>Your Coach: <strong>{coaching.data.coach.name}</strong></span>
+          <a href="/me/coaching">Manage coaching &rarr;</a>
         </aside>
       ) : null}
 

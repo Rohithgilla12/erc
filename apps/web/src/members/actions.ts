@@ -101,6 +101,7 @@ export async function requestCoachAction(formData: FormData): Promise<void> {
   const fields = fieldsOf(formData)
   await run('requestCoach', caller, { coachId: Number(fields.coachId) })
   revalidatePath('/me')
+  revalidatePath('/me/coaching')
   redirect('/me/coaching')
 }
 
@@ -109,6 +110,7 @@ export async function endCoachingAction(_formData: FormData): Promise<void> {
   if (caller.kind !== 'member') redirect('/sign-in')
   await run('endCoaching', caller, {})
   revalidatePath('/me')
+  revalidatePath('/me/coaching')
   redirect('/me/coaching')
 }
 
