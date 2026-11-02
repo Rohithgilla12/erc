@@ -42,6 +42,7 @@ pnpm --filter @erc/web payload run src/scripts/seed-plans.ts          # placehol
 pnpm --filter @erc/web payload run src/scripts/check-plans.ts         # after seeding; ERC_CHECK_URL=<site> adds the page and /downloads cases
 pnpm --filter @erc/web payload run src/scripts/check-newsletter.ts    # needs ERC_CHECK_URL=<site> and MAILPIT_URL=<mailpit>; the site's SMTP must send to that Mailpit; also checks the hourly email caps
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-athlete-claims.ts   # claims, profile edits, consent, photos; share MEDIA_DIR with the site
+pnpm --filter @erc/web payload run src/scripts/check-coaching.ts     # coaching links, check-ins, reviews, and triage
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-seo.ts   # after every seed; sitemap, robots.txt, feed and JSON-LD
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-r2.ts    # with the site and the script both given the R2_* variables; any S3-compatible store works
 ```
