@@ -170,9 +170,18 @@ type RunLike = {
   on?: LocalDate | string
 }
 
-const metresOf = (r: RunLike): number => Number(r.metres ?? r.distance ?? 0)
-const secondsOf = (r: RunLike): number => Number(r.seconds ?? r.moving ?? 0)
-const dateOf = (r: RunLike): string => String(r.date ?? r.on ?? '').trim()
+const metresOf = (r: RunLike): number => {
+  const n = Number(r.metres ?? r.distance ?? 0)
+  return Number.isFinite(n) ? n : 0
+}
+const secondsOf = (r: RunLike): number => {
+  const n = Number(r.seconds ?? r.moving ?? 0)
+  return Number.isFinite(n) ? n : 0
+}
+const dateOf = (r: RunLike): string => {
+  const raw = String(r.date ?? r.on ?? '').trim()
+  return raw.includes('T') ? (raw.split('T')[0] ?? '') : raw.slice(0, 10)
+}
 
 export const summariseWeek = (
   thisWeek: readonly (CountedRun<PublicSource> | RunLike)[],
