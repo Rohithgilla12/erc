@@ -232,7 +232,7 @@ export async function submitCheckIn(
   weekStart?: LocalDate | null,
 ): Promise<Result<OwnerOnly<AthleteCheckIn>, OpFailure>> {
   const db = payload.db.drizzle
-  const targetWeekStart = weekStart ?? weekOf(todayIn(CLUB_TIME_ZONE)).first
+  const targetWeekStart = weekOf(weekStart ?? todayIn(CLUB_TIME_ZONE)).first
   const { rows } = await db.execute(sql`
     INSERT INTO check_ins (member_id, week_start_date, feeling, niggles, note, submitted_at)
     VALUES (${memberId}, ${targetWeekStart}, ${input.feeling}, ${input.niggles ?? null}, ${input.note ?? null}, now())
@@ -264,7 +264,7 @@ export async function getMyWeekReview(
   weekStart?: LocalDate | null,
 ): Promise<Result<CoachReviewView | null, OpFailure>> {
   const db = payload.db.drizzle
-  const targetWeekStart = weekStart ?? weekOf(todayIn(CLUB_TIME_ZONE)).first
+  const targetWeekStart = weekOf(weekStart ?? todayIn(CLUB_TIME_ZONE)).first
 
   const linkRes = await db.execute(sql`
     SELECT id FROM coaching_links
