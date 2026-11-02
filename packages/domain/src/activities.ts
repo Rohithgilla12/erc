@@ -33,6 +33,13 @@ export type Activity<S extends ActivitySource = ActivitySource> = {
 
 export type Totals = { distance: Metres; moving: Seconds; runs: number }
 
+export type CountedRun<S extends ActivitySource = PublicSource> = {
+  metres: Metres | number
+  seconds: Seconds | number
+  date: LocalDate | string
+  source?: S
+}
+
 export const totalsOf = (runs: readonly Pick<Activity, 'distance' | 'moving'>[]): Totals => ({
   distance: runs.reduce((sum, run) => sum + run.distance, 0) as Metres,
   moving: runs.reduce((sum, run) => sum + run.moving, 0) as Seconds,
