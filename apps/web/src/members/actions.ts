@@ -114,6 +114,30 @@ export async function endCoachingAction(_formData: FormData): Promise<void> {
   redirect('/me/coaching')
 }
 
+export async function decideCoachingAction(formData: FormData): Promise<void> {
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  const linkId = String(formData.get('linkId') ?? '')
+  const decision = String(formData.get('decision') ?? '') as 'accept' | 'reject'
+  await run('decideCoachingRequest', caller, { linkId, decision })
+  revalidatePath('/me/coach')
+  redirect('/me/coach')
+}
+
+export async function saveWeekReviewAction(formData: FormData): Promise<void> {
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  const athleteSlug = String(formData.get('athleteSlug') ?? '')
+  const weekStart = String(formData.get('weekStart') ?? '')
+  const watch = String(formData.get('watch') ?? '')
+  const recommendations = String(formData.get('recommendations') ?? '')
+  const note = String(formData.get('note') ?? '')
+  await run('saveWeekReview', caller, { athleteSlug, weekStart, watch, recommendations, note })
+  revalidatePath(`/me/coach/${athleteSlug}`)
+  revalidatePath('/me')
+  redirect(`/me/coach/${athleteSlug}?saved=true`)
+}
+
 export type CheckInValues = { feeling: string; niggles?: string; note?: string }
 
 export type CheckInFormState = {
