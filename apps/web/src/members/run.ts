@@ -13,7 +13,7 @@ import {
   type OutputOf,
   type OwnerOnly,
 } from '@erc/contract'
-import { CLUB_TIME_ZONE, err, monthOf, ok, todayIn, totalsOf, weekOf, type Carrier, type RawInput, type Result } from '@erc/domain'
+import { CLUB_TIME_ZONE, err, monthOf, ok, todayIn, totalsOf, weekOf, type Carrier, type CoachId, type RawInput, type Result } from '@erc/domain'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getPayload } from 'payload'
@@ -23,6 +23,17 @@ import { senderKeyOf } from '@/content/form-guard'
 
 import { listRuns, recordManual, runsIn } from './activities'
 import { claimAthlete, myAthlete, searchClaimable, setPhoto, setVisibility, startAthlete, updateProfile, type AthleteRefusal } from './athlete'
+import {
+  decideRequest,
+  endCoaching,
+  getAthleteWeek,
+  getCoachRoster,
+  getMyCoaching,
+  getMyWeekReview,
+  requestCoach,
+  saveWeekReview,
+  submitCheckIn,
+} from './coaching'
 import { startSignIn, verifySignIn, type StartRefusal, type VerifyRefusal } from './sign-in'
 import { listSessions, resolveSession, revokeOwnSession, revokeSession, SESSION_COOKIE, type MemberSession } from './session'
 
@@ -36,7 +47,12 @@ export { signInOpen } from './sign-in'
  */
 export type Caller = { kind: 'anonymous'; carrier: Carrier; sender: string; rejectedToken: boolean } | { kind: 'member'; session: MemberSession; sender: string }
 
-type ContextFor<A> = A extends 'member' ? { session: MemberSession; sender: string } : { caller: Caller }
+export type CoachSession = MemberSession & { readonly coachId: CoachId }
+type ContextFor<A> = A extends 'coach'
+  ? { session: CoachSession; sender: string }
+  : A extends 'member'
+    ? { session: MemberSession; sender: string }
+    : { caller: Caller }
 
 /** Domain refusals map to an API code here and nowhere else. `invalid` and `unauthenticated` are `run`'s to raise. */
 export type OpFailure = { code: Exclude<ApiError['code'], 'invalid' | 'unauthenticated'>; message: string }
@@ -132,15 +148,15 @@ const IMPLEMENTATIONS: Implementations = {
   updateProfile: async ({ session }, input) => athleteResult(await updateProfile(await getPayload({ config }), session, input), session.member),
   setPhoto: async ({ session }, input) => athleteResult(await setPhoto(await getPayload({ config }), session, input.photo), session.member),
   setVisibility: async ({ session }, input) => athleteResult(await setVisibility(await getPayload({ config }), session, input), session.member),
-  myCoaching: async () => err({ code: 'unavailable', message: 'Not implemented' }),
-  requestCoach: async () => err({ code: 'unavailable', message: 'Not implemented' }),
-  endCoaching: async () => err({ code: 'unavailable', message: 'Not implemented' }),
-  submitCheckIn: async () => err({ code: 'unavailable', message: 'Not implemented' }),
-  myWeekReview: async () => err({ code: 'unavailable', message: 'Not implemented' }),
-  roster: async () => err({ code: 'unavailable', message: 'Not implemented' }),
-  decideCoachingRequest: async () => err({ code: 'unavailable', message: 'Not implemented' }),
-  athleteWeek: async () => err({ code: 'unavailable', message: 'Not implemented' }),
-  saveWeekReview: async () => err({ code: 'unavailable', message: 'Not implemented' }),
+  myCoaching: async ({ session }) => getMyCoaching(await getPayload({ config }), session.member),
+  requestCoach: async ({ session }, input) => requestCoach(await getPayload({ config }), session.member, input.coachId),
+  endCoaching: async ({ session }) => endCoaching(await getPayload({ config }), session.member, 'athlete'),
+  submitCheckIn: async ({ session }, input) => submitCheckIn(await getPayload({ config }), session.member, input),
+  myWeekReview: async ({ session }, input) => getMyWeekReview(await getPayload({ config }), session.member, input.weekStart),
+  roster: async ({ session }) => getCoachRoster(await getPayload({ config }), session.coachId),
+  decideCoachingRequest: async ({ session }, input) => decideRequest(await getPayload({ config }), session.coachId, input.linkId, input.decision),
+  athleteWeek: async ({ session }, input) => getAthleteWeek(await getPayload({ config }), session.coachId, input.athleteSlug, input.weekStart),
+  saveWeekReview: async ({ session }, input) => saveWeekReview(await getPayload({ config }), session.coachId, input.athleteSlug, input.weekStart, input),
 }
 
 /**
@@ -154,7 +170,12 @@ export async function run<K extends OperationName>(name: K, caller: Caller, raw:
   if (!parsed.ok) return { ok: false, error: { code: 'invalid', message: 'Check the highlighted fields.', fields: parsed.error } }
   const handler = IMPLEMENTATIONS[name] as Handler<K>
   let context: ContextFor<AccessOf<K>>
-  if (spec.access === 'member') {
+  if (spec.access === 'coach') {
+    if (caller.kind !== 'member' || !caller.session.coachId) {
+      return { ok: false, error: { code: 'forbidden', message: 'You must be a designated club coach to perform this action.' } }
+    }
+    context = { session: caller.session as CoachSession, sender: caller.sender } as ContextFor<AccessOf<K>>
+  } else if (spec.access === 'member') {
     if (caller.kind !== 'member') {
       return { ok: false, error: { code: 'unauthenticated', message: caller.rejectedToken ? 'That token is not valid. Sign in again.' : 'Sign in to continue.' } }
     }
@@ -180,6 +201,14 @@ export async function requireMember(): Promise<Extract<Caller, { kind: 'member' 
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   return caller
+}
+
+/** For `/coach` pages: the coach member, or a redirect. */
+export async function requireCoach(): Promise<Extract<Caller, { kind: 'member' }> & { session: CoachSession }> {
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  if (!caller.session.coachId) redirect('/me')
+  return caller as Extract<Caller, { kind: 'member' }> & { session: CoachSession }
 }
 
 /** For `/api/v1`: the bearer token, never the cookie. A bearer that does not resolve leaves the caller anonymous. */

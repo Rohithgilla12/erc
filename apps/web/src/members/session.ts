@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 
 import { sql } from '@payloadcms/db-postgres/drizzle'
 import type { IssuedSession, SessionToken, SessionView } from '@erc/contract'
-import { checkSession, SESSION_COOKIE_MAX_AGE_S, sessionExpiryFrom, type Carrier, type Email, type Instant, type MemberId, type MemberStatus } from '@erc/domain'
+import { checkSession, SESSION_COOKIE_MAX_AGE_S, sessionExpiryFrom, type Carrier, type CoachId, type Email, type Instant, type MemberId, type MemberStatus } from '@erc/domain'
 import type { Payload } from 'payload'
 
 export type { Carrier }
@@ -25,6 +25,7 @@ export type MemberSession = {
   readonly member: MemberId
   readonly email: Email
   readonly carrier: Carrier
+  readonly coachId: CoachId | null
   readonly [sessionBrand]: true
 }
 
@@ -67,7 +68,12 @@ export async function resolveSession(payload: Payload, token: string, carrier: C
   if (check === 'live_touch') {
     await payload.db.drizzle.execute(sql`UPDATE member_sessions SET last_seen_at = now(), expires_at = ${sessionExpiryFrom(now)} WHERE id = ${row.id}`)
   }
-  return { id: row.id as SessionId, member: row.member_id as MemberId, email: row.email as Email, carrier } as MemberSession
+  const coachResult = await payload.db.drizzle.execute(sql`
+    SELECT id FROM coaches WHERE member_id = ${row.member_id} AND _status = 'published' LIMIT 1`)
+  const coachRow = coachResult.rows[0] as { id: number } | undefined
+  const coachId = coachRow ? (coachRow.id as CoachId) : null
+
+  return { id: row.id as SessionId, member: row.member_id as MemberId, email: row.email as Email, carrier, coachId } as MemberSession
 }
 
 export async function revokeSession(payload: Payload, session: MemberSession): Promise<void> {
