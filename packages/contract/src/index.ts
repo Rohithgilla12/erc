@@ -1,8 +1,11 @@
 import {
   CLUB_TIME_ZONE,
   err,
+  firstOf,
+  isUuid,
   ok,
   parseAthleteSearch,
+  parseCheckIn,
   parseClaim,
   parseLocalDate,
   parseManualEntry,
@@ -10,14 +13,21 @@ import {
   parsePhoto,
   parseProfileEdit,
   parseRevokeSession,
+  parseSlug,
   parseVisibilityEdit,
   parseSignInStart,
   parseSignInVerify,
   parseSourceRef,
+  parseWeekReview,
   todayIn,
   type Activity,
+  type AthleteCheckIn,
   type AthleteVisibility,
   type Brand,
+  type CoachId,
+  type CoachingDecision,
+  type CoachingLink,
+  type CoachingLinkState,
   type Email,
   type FieldErrors,
   type Id,
@@ -34,6 +44,9 @@ import {
   type SourceRef,
   type Subdivision,
   type Totals,
+  type WatchFlag,
+  type WeeklySummary,
+  type WeekReviewInput,
 } from '@erc/domain'
 
 export const API_BASE = '/api/v1'
@@ -114,7 +127,7 @@ export type OwnerOnly<T> = T & OwnerOnlyMark
 export const ownedBy = <T>(_member: MemberId, value: T): OwnerOnly<T> => value as OwnerOnly<T>
 
 export type Method = 'GET' | 'POST'
-export type Access = 'anyone' | 'member'
+export type Access = 'anyone' | 'member' | 'coach'
 
 type HasOwnerOnly<T> = T extends OwnerOnlyMark
   ? true
@@ -151,17 +164,78 @@ const phantom =
     value
 const noInput = (_raw: RawInput): Result<Record<string, never>, FieldErrors> => ok({})
 
-export type RunView = { source: PublicSource; ref: string; on: string; distance: number; moving: number; loggedAt: Instant }
+export type RunView = { source: PublicSource; ref: string; on: string; distance: number; moving: number; loggedAt: Instant; note?: string | null }
 
-const runView = (run: Activity<PublicSource>): RunView => ({
+const runView = (run: Activity<PublicSource> & { note?: string | null }): RunView => ({
   source: run.source,
   ref: run.ref,
   on: run.on,
   distance: run.distance,
   moving: run.moving,
   loggedAt: run.loggedAt,
+  ...(run.note !== undefined && run.note !== null ? { note: run.note } : {}),
 })
 export { runView }
+
+export type CoachReviewView = {
+  weekStart: string
+  watch: readonly string[]
+  recommendations: readonly string[]
+  note: string | null
+  sharedAt?: Instant | string
+}
+
+export type CoachingCoach = {
+  id: number
+  name: string
+  slug: string
+  credentials?: string | null
+  photoUrl?: string | null
+  bio?: string | null
+}
+
+export type MyCoachingView = {
+  link: CoachingLink | null
+  coach: CoachingCoach | null
+  availableCoaches?: readonly CoachingCoach[]
+  currentReview?: CoachReviewView | null
+}
+
+export type CoachRosterItem = {
+  linkId: string
+  athleteMember: string
+  athleteName: string
+  athleteSlug: string
+  athletePhotoUrl?: string | null
+  totalMetres: number
+  totalSeconds: number
+  runCount: number
+  flags?: readonly WatchFlag[]
+  checkIn?: AthleteCheckIn | null
+  hasReview?: boolean
+  state?: CoachingLinkState
+  requestedAt?: Instant | string
+}
+
+export type CoachRosterView = {
+  coach?: { id: number; name: string; slug?: string }
+  pendingRequests: readonly CoachRosterItem[]
+  athletes: readonly CoachRosterItem[]
+}
+
+export type AthleteWeekView = {
+  athlete: {
+    id?: number
+    slug: string
+    name: string
+    photoUrl?: string | null
+  }
+  weekStart: string
+  runs: readonly RunView[]
+  checkIn: AthleteCheckIn | null
+  summary: WeeklySummary
+  review: CoachReviewView | null
+}
 
 export type PeriodTotals = Period & { totals: Totals }
 
@@ -210,7 +284,7 @@ const parseListRuns = (raw: RawInput): Result<{ after: RunCursor | null }, Field
 
 const logRunInput = (raw: RawInput) => parseManualEntry(raw, todayIn(CLUB_TIME_ZONE))
 
-type ManualRunFields = { ref?: string; date?: string; distanceKm: string; duration: string }
+type ManualRunFields = { ref?: string; date?: string; distanceKm: string; duration: string; note?: string }
 
 type Year = string | number | null
 type ProfileFields = { name?: string; bio?: string; city?: string | null; state?: string; runningSince?: Year; birthYear?: Year }
@@ -218,6 +292,72 @@ type VisibilityFields = Partial<Record<keyof AthleteVisibility, 'public' | 'hidd
 
 const profileEditInput = (raw: RawInput) => parseProfileEdit(raw, todayIn(CLUB_TIME_ZONE))
 const newProfileInput = (raw: RawInput) => parseNewProfile(raw, todayIn(CLUB_TIME_ZONE))
+
+export const parseRequestCoach = (raw: RawInput): Result<{ coachId: CoachId }, FieldErrors> => {
+  const idText = typeof raw.coachId === 'number' ? String(raw.coachId) : firstOf(raw.coachId)
+  return /^[1-9]\d{0,9}$/.test(idText)
+    ? ok({ coachId: Number(idText) as CoachId })
+    : err({ coachId: 'Select a valid coach.' })
+}
+
+export const parseWeekStartQuery = (raw: RawInput): Result<{ weekStart: LocalDate | null }, FieldErrors> => {
+  const value = firstOf(raw.weekStart)
+  if (value === '') return ok({ weekStart: null })
+  const parsed = parseLocalDate(value)
+  return parsed.ok ? ok({ weekStart: parsed.value }) : err({ weekStart: 'Enter the week start date as YYYY-MM-DD.' })
+}
+
+export const parseDecideCoachingRequest = (raw: RawInput): Result<{ linkId: string; decision: CoachingDecision }, FieldErrors> => {
+  const linkId = firstOf(raw.linkId).trim()
+  const decision = firstOf(raw.decision).trim()
+  const linkValid = isUuid(linkId)
+  const decisionValid = decision === 'accept' || decision === 'reject'
+  if (!linkValid && !decisionValid) {
+    return err({ linkId: 'The link id is not valid.', decision: 'Decision must be accept or reject.' })
+  }
+  if (!linkValid) return err({ linkId: 'The link id is not valid.' })
+  if (!decisionValid) return err({ decision: 'Decision must be accept or reject.' })
+  return ok({ linkId, decision: decision as CoachingDecision })
+}
+
+export const parseAthleteWeekQuery = (raw: RawInput): Result<{ athleteSlug: Slug; weekStart: LocalDate | null }, FieldErrors> => {
+  const slugText = firstOf(raw.athleteSlug).trim()
+  const slugResult = parseSlug(slugText)
+  const weekStartText = firstOf(raw.weekStart).trim()
+  const weekStartResult = weekStartText === '' ? ok(null) : parseLocalDate(weekStartText)
+
+  const errors: Record<string, string> = {}
+  if (!slugResult.ok) errors.athleteSlug = 'Enter a valid athlete slug.'
+  if (!weekStartResult.ok) errors.weekStart = 'Enter the week start date as YYYY-MM-DD.'
+
+  if (Object.keys(errors).length > 0) return err(errors)
+  return ok({
+    athleteSlug: (slugResult as { ok: true; value: Slug }).value,
+    weekStart: (weekStartResult as { ok: true; value: LocalDate | null }).value,
+  })
+}
+
+export const parseSaveWeekReview = (raw: RawInput): Result<{ athleteSlug: Slug; weekStart: LocalDate } & WeekReviewInput, FieldErrors> => {
+  const slugText = firstOf(raw.athleteSlug).trim()
+  const slugResult = parseSlug(slugText)
+  const weekStartText = firstOf(raw.weekStart).trim()
+  const weekStartResult = parseLocalDate(weekStartText)
+  const reviewResult = parseWeekReview(raw)
+
+  const errors: Record<string, string> = {}
+  if (!slugResult.ok) errors.athleteSlug = 'Enter a valid athlete slug.'
+  if (!weekStartResult.ok) errors.weekStart = 'Enter the week start date as YYYY-MM-DD.'
+  if (!reviewResult.ok) Object.assign(errors, reviewResult.error)
+
+  if (Object.keys(errors).length > 0) return err(errors)
+  return ok({
+    athleteSlug: (slugResult as { ok: true; value: Slug }).value,
+    weekStart: (weekStartResult as { ok: true; value: LocalDate }).value,
+    watch: (reviewResult as { ok: true; value: WeekReviewInput }).value.watch,
+    recommendations: (reviewResult as { ok: true; value: WeekReviewInput }).value.recommendations,
+    note: (reviewResult as { ok: true; value: WeekReviewInput }).value.note,
+  })
+}
 
 /**
  * The one list of everything a member can do. The server implements every entry (a total map), the web dashboard
@@ -269,6 +409,84 @@ export const OPERATIONS = {
     output: phantom<OwnerOnly<MyAthlete>>(),
   }),
   setVisibility: op({ method: 'POST', path: '/me/athlete/visibility', access: 'member', parse: parseVisibilityEdit, fields: phantom<VisibilityFields>(), output: phantom<OwnerOnly<MyAthlete>>() }),
+  myCoaching: op({
+    method: 'GET',
+    path: '/me/coaching',
+    access: 'member',
+    parse: noInput,
+    fields: phantom<Record<string, never>>(),
+    output: phantom<OwnerOnly<MyCoachingView>>(),
+  }),
+  requestCoach: op({
+    method: 'POST',
+    path: '/me/coaching/request',
+    access: 'member',
+    parse: parseRequestCoach,
+    fields: phantom<{ coachId: number | string }>(),
+    output: phantom<OwnerOnly<{ requested: true }>>(),
+  }),
+  endCoaching: op({
+    method: 'POST',
+    path: '/me/coaching/end',
+    access: 'member',
+    parse: noInput,
+    fields: phantom<Record<string, never>>(),
+    output: phantom<OwnerOnly<{ ended: true }>>(),
+  }),
+  submitCheckIn: op({
+    method: 'POST',
+    path: '/me/check-in',
+    access: 'member',
+    parse: parseCheckIn,
+    fields: phantom<{ feeling: string; niggles?: string; note?: string }>(),
+    output: phantom<OwnerOnly<AthleteCheckIn>>(),
+  }),
+  myWeekReview: op({
+    method: 'GET',
+    path: '/me/week-review',
+    access: 'member',
+    parse: parseWeekStartQuery,
+    fields: phantom<{ weekStart?: string }>(),
+    output: phantom<CoachReviewView | null>(),
+  }),
+  roster: op({
+    method: 'GET',
+    path: '/coach/roster',
+    access: 'coach',
+    parse: noInput,
+    fields: phantom<Record<string, never>>(),
+    output: phantom<CoachRosterView>(),
+  }),
+  decideCoachingRequest: op({
+    method: 'POST',
+    path: '/coach/requests/decide',
+    access: 'coach',
+    parse: parseDecideCoachingRequest,
+    fields: phantom<{ linkId: string; decision: 'accept' | 'reject' }>(),
+    output: phantom<{ decided: true }>(),
+  }),
+  athleteWeek: op({
+    method: 'GET',
+    path: '/coach/athletes/week',
+    access: 'coach',
+    parse: parseAthleteWeekQuery,
+    fields: phantom<{ athleteSlug: string; weekStart?: string }>(),
+    output: phantom<AthleteWeekView>(),
+  }),
+  saveWeekReview: op({
+    method: 'POST',
+    path: '/coach/athletes/review',
+    access: 'coach',
+    parse: parseSaveWeekReview,
+    fields: phantom<{
+      athleteSlug: string
+      weekStart: string
+      watch?: string | readonly string[]
+      recommendations?: string | readonly string[]
+      note?: string
+    }>(),
+    output: phantom<CoachReviewView>(),
+  }),
 } as const
 
 export type Operations = typeof OPERATIONS

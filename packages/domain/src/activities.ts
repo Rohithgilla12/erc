@@ -59,7 +59,7 @@ export const RUNS_LOGGED_PER_HOUR = 60
  * `ref` lets a form or client retry the same entry without logging it twice; the shell mints one when it is absent.
  * Duration is required: a board of distance without time cannot be sanity-checked.
  */
-export type ManualEntry = { ref: SourceRef | null; on: LocalDate; distance: Metres; moving: Seconds }
+export type ManualEntry = { ref: SourceRef | null; on: LocalDate; distance: Metres; moving: Seconds; note?: string | null }
 
 const DISTANCE_KM = /^\d{1,3}(?:[.,]\d{1,3})?$/
 
@@ -96,9 +96,16 @@ const ref = (raw: unknown): Result<SourceRef | null, string> => {
   return parsed.ok ? parsed : err('The entry reference is not valid.')
 }
 
+const runNote = (raw: unknown): Result<string | null, string> => {
+  if (raw === undefined || raw === null) return ok(null)
+  const text = firstOf(raw)
+  if (text === '') return ok(null)
+  return Array.from(text).length <= 280 ? ok(text) : err('Keep note under 280 characters.')
+}
+
 /**
  * Takes plain fields: `date` (defaults to today; from 2000-01-01 to today), `distanceKm`, `duration` (`mm:ss` or
- * `h:mm:ss`), and an optional `ref`. Refuses over 250 km and an average pace faster than 2:30 per km.
+ * `h:mm:ss`), an optional `note` (up to 280 chars), and an optional `ref`. Refuses over 250 km and an average pace faster than 2:30 per km.
  */
 export const parseManualEntry = (fields: RawInput, today: LocalDate): Result<ManualEntry, FieldErrors> => {
   const collected = collect({
@@ -106,11 +113,18 @@ export const parseManualEntry = (fields: RawInput, today: LocalDate): Result<Man
     date: runDate(firstOf(fields.date), today),
     distanceKm: distanceKm(firstOf(fields.distanceKm)),
     duration: parseDuration(firstOf(fields.duration)),
+    note: runNote(fields.note),
   })
   if (!collected.ok) return collected
-  const { date, distanceKm: distance, duration: moving } = collected.value
+  const { date, distanceKm: distance, duration: moving, note } = collected.value
   if (moving / (distance / 1000) < MIN_SECONDS_PER_KM) return err({ duration: 'That pace is faster than 2:30 per km. Check the distance and time.' })
-  return ok({ ref: collected.value.ref, on: date, distance, moving })
+  return ok({
+    ref: collected.value.ref,
+    on: date,
+    distance,
+    moving,
+    ...(note !== null && note !== undefined ? { note } : {}),
+  })
 }
 
 /** Seconds as `h:mm:ss` or `m:ss`, for the dashboard. */

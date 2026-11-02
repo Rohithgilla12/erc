@@ -58,6 +58,21 @@ describe('parseManualEntry', () => {
     expect(parseManualEntry(fields({ ref: 'not-a-uuid' }), today)).toEqual({ ok: false, error: { ref: 'The entry reference is not valid.' } })
   })
 
+  it('accepts an optional note up to 280 characters, and refuses longer notes', () => {
+    expect(parseManualEntry(fields({ note: 'Felt strong, cool morning' }), today)).toMatchObject({
+      ok: true,
+      value: { note: 'Felt strong, cool morning' },
+    })
+    expect(parseManualEntry(fields({ note: '' }), today)).toEqual({
+      ok: true,
+      value: { ref: null, on: '2026-10-20', distance: 6200, moving: 2290 },
+    })
+    expect(parseManualEntry(fields({ note: 'x'.repeat(281) }), today)).toEqual({
+      ok: false,
+      error: { note: 'Keep note under 280 characters.' },
+    })
+  })
+
   it('reports every bad field at once', () => {
     expect(parseManualEntry({ date: 'yesterday', distanceKm: '', duration: '' }, today)).toMatchObject({
       ok: false,

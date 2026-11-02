@@ -3,7 +3,7 @@ export * from './athletes'
 export * from './calendar'
 export * from './coaching'
 export * from './content'
-export type { FieldErrors } from './form-fields'
+export { firstOf, type FieldErrors } from './form-fields'
 export * from './members'
 export * from './moderation'
 export {

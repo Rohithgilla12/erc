@@ -132,6 +132,15 @@ const IMPLEMENTATIONS: Implementations = {
   updateProfile: async ({ session }, input) => athleteResult(await updateProfile(await getPayload({ config }), session, input), session.member),
   setPhoto: async ({ session }, input) => athleteResult(await setPhoto(await getPayload({ config }), session, input.photo), session.member),
   setVisibility: async ({ session }, input) => athleteResult(await setVisibility(await getPayload({ config }), session, input), session.member),
+  myCoaching: async () => err({ code: 'unavailable', message: 'Not implemented' }),
+  requestCoach: async () => err({ code: 'unavailable', message: 'Not implemented' }),
+  endCoaching: async () => err({ code: 'unavailable', message: 'Not implemented' }),
+  submitCheckIn: async () => err({ code: 'unavailable', message: 'Not implemented' }),
+  myWeekReview: async () => err({ code: 'unavailable', message: 'Not implemented' }),
+  roster: async () => err({ code: 'unavailable', message: 'Not implemented' }),
+  decideCoachingRequest: async () => err({ code: 'unavailable', message: 'Not implemented' }),
+  athleteWeek: async () => err({ code: 'unavailable', message: 'Not implemented' }),
+  saveWeekReview: async () => err({ code: 'unavailable', message: 'Not implemented' }),
 }
 
 /**
