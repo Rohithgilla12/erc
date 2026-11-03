@@ -17,11 +17,16 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_strava_athlete_id ON strava_connections(athlete_id);
     CREATE INDEX IF NOT EXISTS idx_strava_status ON strava_connections(status);
+
+    ALTER TABLE activities DROP CONSTRAINT IF EXISTS activities_source_check;
+    ALTER TABLE activities ADD CONSTRAINT activities_source_check CHECK (source IN ('manual', 'file', 'strava'));
   `)
 }
 
 export async function down({ db }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
+    ALTER TABLE activities DROP CONSTRAINT IF EXISTS activities_source_check;
+    ALTER TABLE activities ADD CONSTRAINT activities_source_check CHECK (source IN ('manual', 'file'));
     DROP TABLE IF EXISTS strava_connections CASCADE;
   `)
 }

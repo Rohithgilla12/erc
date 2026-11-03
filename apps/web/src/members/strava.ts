@@ -79,7 +79,13 @@ export async function getStravaStatus(
       SELECT count(*)::int AS pos
       FROM strava_connections
       WHERE status = 'waitlisted'
-        AND (created_at < ${row.created_at} OR (created_at = ${row.created_at} AND member_id <= ${memberId}))
+        AND (
+          created_at < (SELECT created_at FROM strava_connections WHERE member_id = ${memberId})
+          OR (
+            created_at = (SELECT created_at FROM strava_connections WHERE member_id = ${memberId})
+            AND member_id <= ${memberId}
+          )
+        )
     `)
     waitlistPosition = (posRes.rows[0] as { pos: number }).pos
   }
@@ -155,12 +161,15 @@ export async function getValidStravaToken(
       })
 
       if (!res.ok) {
-        // 400 invalid_grant: athlete revoked authorization on Strava
-        await db.execute(sql`
-          UPDATE strava_connections
-          SET status = 'disconnected', updated_at = now()
-          WHERE member_id = ${memberId}
-        `)
+        // Only mark disconnected on explicit client/auth failure (400 invalid_grant or 401 unauthorized).
+        // 429 rate limits or 5xx server errors are transient: return null without mutating status.
+        if (res.status === 400 || res.status === 401) {
+          await db.execute(sql`
+            UPDATE strava_connections
+            SET status = 'disconnected', updated_at = now()
+            WHERE member_id = ${memberId}
+          `)
+        }
         return null
       }
 
@@ -371,18 +380,17 @@ export async function joinStravaWaitlist(
       updated_at = now()
   `)
 
-  const { rows } = await db.execute(sql`
-    SELECT created_at
-    FROM strava_connections
-    WHERE member_id = ${memberId}
-  `)
-  const createdAt = rows[0]?.created_at
-
   const posRes = await db.execute(sql`
     SELECT count(*)::int AS pos
     FROM strava_connections
     WHERE status = 'waitlisted'
-      AND (created_at < ${createdAt} OR (created_at = ${createdAt} AND member_id <= ${memberId}))
+      AND (
+        created_at < (SELECT created_at FROM strava_connections WHERE member_id = ${memberId})
+        OR (
+          created_at = (SELECT created_at FROM strava_connections WHERE member_id = ${memberId})
+          AND member_id <= ${memberId}
+        )
+      )
   `)
   const position = (posRes.rows[0] as { pos: number }).pos
 
