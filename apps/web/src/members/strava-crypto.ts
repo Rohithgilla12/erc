@@ -4,10 +4,18 @@ const ALGORITHM = 'aes-256-gcm'
 const SALT = 'erc-strava-encryption-salt'
 const IV_LENGTH = 12
 
+let cachedSecret: string | undefined
+let cachedKey: Buffer | undefined
+
 function getKey(): Buffer {
   const secret = process.env.PAYLOAD_SECRET
   if (!secret) throw new Error('PAYLOAD_SECRET is required for token encryption')
-  return scryptSync(secret, SALT, 32)
+  if (cachedKey && secret === cachedSecret) {
+    return cachedKey
+  }
+  cachedSecret = secret
+  cachedKey = scryptSync(secret, SALT, 32)
+  return cachedKey
 }
 
 export function encryptToken(text: string): string {

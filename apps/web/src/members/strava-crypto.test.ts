@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import assert from 'node:assert/strict'
+import { afterEach, beforeEach, describe, it } from 'node:test'
 import { decryptToken, encryptToken } from './strava-crypto'
 
 describe('strava-crypto token encryption', () => {
@@ -20,21 +21,21 @@ describe('strava-crypto token encryption', () => {
     const token = 'strava_access_token_abc123xyz'
     const encrypted = encryptToken(token)
 
-    expect(encrypted).not.toBe(token)
-    expect(encrypted.split(':')).toHaveLength(3)
+    assert.notStrictEqual(encrypted, token)
+    assert.strictEqual(encrypted.split(':').length, 3)
 
     const decrypted = decryptToken(encrypted)
-    expect(decrypted).toBe(token)
+    assert.strictEqual(decrypted, token)
   })
 
   it('handles empty strings and unicode / complex characters', () => {
     const complex = 'token-with-special-chars-🚀-£-€-123!@#$%^&*()'
     const encrypted = encryptToken(complex)
-    expect(decryptToken(encrypted)).toBe(complex)
+    assert.strictEqual(decryptToken(encrypted), complex)
 
     const empty = ''
     const encryptedEmpty = encryptToken(empty)
-    expect(decryptToken(encryptedEmpty)).toBe(empty)
+    assert.strictEqual(decryptToken(encryptedEmpty), empty)
   })
 
   it('generates unique ciphertexts for identical plaintexts (random IV)', () => {
@@ -42,23 +43,35 @@ describe('strava-crypto token encryption', () => {
     const enc1 = encryptToken(token)
     const enc2 = encryptToken(token)
 
-    expect(enc1).not.toBe(enc2)
-    expect(decryptToken(enc1)).toBe(token)
-    expect(decryptToken(enc2)).toBe(token)
+    assert.notStrictEqual(enc1, enc2)
+    assert.strictEqual(decryptToken(enc1), token)
+    assert.strictEqual(decryptToken(enc2), token)
   })
 
   it('throws an error if PAYLOAD_SECRET is missing during encryption or decryption', () => {
     delete process.env.PAYLOAD_SECRET
 
-    expect(() => encryptToken('some-token')).toThrow('PAYLOAD_SECRET is required for token encryption')
-    expect(() => decryptToken('01:02:03')).toThrow('PAYLOAD_SECRET is required for token encryption')
+    assert.throws(() => encryptToken('some-token'), {
+      message: 'PAYLOAD_SECRET is required for token encryption',
+    })
+    assert.throws(() => decryptToken('01:02:03'), {
+      message: 'PAYLOAD_SECRET is required for token encryption',
+    })
   })
 
   it('rejects invalid ciphertext formats that do not have 3 colon-separated parts', () => {
-    expect(() => decryptToken('')).toThrow('Invalid encrypted token format')
-    expect(() => decryptToken('onlyonepart')).toThrow('Invalid encrypted token format')
-    expect(() => decryptToken('two:parts')).toThrow('Invalid encrypted token format')
-    expect(() => decryptToken('four:parts:here:extra')).toThrow('Invalid encrypted token format')
+    assert.throws(() => decryptToken(''), {
+      message: 'Invalid encrypted token format',
+    })
+    assert.throws(() => decryptToken('onlyonepart'), {
+      message: 'Invalid encrypted token format',
+    })
+    assert.throws(() => decryptToken('two:parts'), {
+      message: 'Invalid encrypted token format',
+    })
+    assert.throws(() => decryptToken('four:parts:here:extra'), {
+      message: 'Invalid encrypted token format',
+    })
   })
 
   it('fails decryption when ciphertext is tampered with', () => {
@@ -69,7 +82,7 @@ describe('strava-crypto token encryption', () => {
     const tamperedContent = contentHex.slice(0, -2) + (contentHex.slice(-2) === 'aa' ? 'bb' : 'aa')
     const tampered = `${ivHex}:${tagHex}:${tamperedContent}`
 
-    expect(() => decryptToken(tampered)).toThrow()
+    assert.throws(() => decryptToken(tampered))
   })
 
   it('fails decryption when authentication tag is tampered with', () => {
@@ -80,13 +93,13 @@ describe('strava-crypto token encryption', () => {
     const tamperedTag = (tagHex.slice(0, 2) === '00' ? '11' : '00') + tagHex.slice(2)
     const tampered = `${ivHex}:${tamperedTag}:${contentHex}`
 
-    expect(() => decryptToken(tampered)).toThrow()
+    assert.throws(() => decryptToken(tampered))
   })
 
   it('fails decryption if encrypted with a different PAYLOAD_SECRET', () => {
     const encrypted = encryptToken('secret-token')
     process.env.PAYLOAD_SECRET = 'different-secret-0987654321'
 
-    expect(() => decryptToken(encrypted)).toThrow()
+    assert.throws(() => decryptToken(encrypted))
   })
 })
