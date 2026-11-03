@@ -108,3 +108,28 @@ const COOKIE = { httpOnly: true, secure: true, sameSite: 'lax' as const, path: '
 /** The cookie outlives any slide of the row, so the row's `expires_at` alone decides whether the member is signed in. */
 export const sessionCookie = () => ({ ...COOKIE, maxAge: SESSION_COOKIE_MAX_AGE_S })
 export const clearedSessionCookie = () => ({ ...COOKIE, expires: new Date(0) })
+
+/**
+ * Resolves a member session from a raw cookie string (e.g. from the Cookie header) or from next/headers cookies if omitted.
+ */
+export async function resolveSessionFromCookie(
+  payload: Payload,
+  cookieHeader?: string | null,
+): Promise<MemberSession | null> {
+  let token: string | undefined
+  if (cookieHeader) {
+    const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`))
+    if (match) token = match[1]
+  }
+  if (!token) {
+    try {
+      const { cookies } = await import('next/headers')
+      const jar = await cookies()
+      token = jar.get(SESSION_COOKIE)?.value
+    } catch {
+      // outside request context or cookies() not available
+    }
+  }
+  if (!token) return null
+  return resolveSession(payload, token, 'cookie')
+}
