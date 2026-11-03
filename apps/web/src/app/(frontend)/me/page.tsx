@@ -319,7 +319,7 @@ function StravaSection({ strava }: { strava: StravaStatusView }) {
               </form>
               <form action={disconnectStravaAction}>
                 <button type="submit" className="button button-secondary">
-                  Disconnect
+                  Disconnect Strava
                 </button>
               </form>
             </div>

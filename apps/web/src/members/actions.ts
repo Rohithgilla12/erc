@@ -219,5 +219,3 @@ export async function saveVisibility(_previous: ProfileFormState, form: FormData
   return profileAction('setVisibility', form)
 }
 
-export { disconnectStravaAction, joinStravaWaitlistAction, syncStravaAction } from '@/app/(frontend)/me/actions'
-
