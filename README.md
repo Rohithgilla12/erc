@@ -1,6 +1,6 @@
 # ERC
 
-Website for ERC: race calendar, training plans, learning centre, and athlete profiles. Design: [docs/20261019-erc-phase-1-design.md](docs/20261019-erc-phase-1-design.md). Analytics and newsletter setup: [docs/20261020-analytics-and-newsletter.md](docs/20261020-analytics-and-newsletter.md).
+Website for ERC: race calendar, training plans, learning centre, athlete profiles, coaching portal, and member Strava sync. Design: [docs/20261019-erc-phase-1-design.md](docs/20261019-erc-phase-1-design.md). Analytics and newsletter setup: [docs/20261020-analytics-and-newsletter.md](docs/20261020-analytics-and-newsletter.md). Phase 2 design: [docs/20261021-erc-phase-2-design.md](docs/20261021-erc-phase-2-design.md). Strava design: [docs/superpowers/specs/2026-11-03-strava-sync-design.md](docs/superpowers/specs/2026-11-03-strava-sync-design.md).
 
 ## Layout
 
@@ -43,6 +43,7 @@ pnpm --filter @erc/web payload run src/scripts/check-plans.ts         # after se
 pnpm --filter @erc/web payload run src/scripts/check-newsletter.ts    # needs ERC_CHECK_URL=<site> and MAILPIT_URL=<mailpit>; the site's SMTP must send to that Mailpit; also checks the hourly email caps
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-athlete-claims.ts   # claims, profile edits, consent, photos; share MEDIA_DIR with the site
 pnpm --filter @erc/web payload run src/scripts/check-coaching.ts     # coaching links, check-ins, reviews, and triage
+pnpm --filter @erc/web payload run src/scripts/check-strava.ts       # Strava OAuth, token encryption, 10-cap waitlist, sync, webhooks, disconnect, and privacy isolation
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-seo.ts   # after every seed; sitemap, robots.txt, feed and JSON-LD
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-r2.ts    # with the site and the script both given the R2_* variables; any S3-compatible store works
 ```

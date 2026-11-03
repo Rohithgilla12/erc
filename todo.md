@@ -82,3 +82,14 @@ Workstream C = editorial workflow redesign (live vs working copy) + moderation t
 - [x] Task 5: Athlete profile coach banner and navigation integration
 - [x] Task 6: Coach roster triage view (`/me/coach`) and athlete weekly review editor (`/me/coach/[slug]`)
 - [x] Task 7: Full verification suite (`check-coaching.ts` 57 PASS 0 FAIL; turbo typecheck & build green)
+
+## Strava Sync (Slice 6)
+- [x] Task 1: Domain parsers & Strava activity mapping (`@erc/domain` vitest green)
+- [x] Task 2: Contract operations & wire types (`@erc/contract` vitest green)
+- [x] Task 3: Database migration & AES-256-GCM token encryption (`strava_connections`, `strava-crypto.ts`)
+- [x] Task 4: Backend Strava service & dispatcher integration (`strava.ts`, `run.ts` actions)
+- [x] Task 5: OAuth connect & callback route handlers (`/api/v1/strava/connect`, `/api/v1/strava/callback`)
+- [x] Task 6: Webhook subscription handshake & event ingestion (`/api/v1/strava/webhook`)
+- [x] Task 7: Athlete UI card & server actions on `/me` (progressive enhancement)
+- [x] Task 8: End-to-end verification script & documentation (`check-strava.ts` 84 PASS 0 FAIL; turbo test, typecheck, build green)
+
