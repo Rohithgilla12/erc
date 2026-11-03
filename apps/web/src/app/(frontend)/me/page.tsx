@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { MyAthlete, MyCoachingView, PeriodTotals } from '@erc/contract'
+import type { MyAthlete, MyCoachingView, PeriodTotals, StravaStatusView } from '@erc/contract'
 import { formatDuration, formatKm, type LocalDate, type Metres, type Seconds } from '@erc/domain'
 import type { Metadata } from 'next'
 import React from 'react'
@@ -8,15 +8,35 @@ import React from 'react'
 import { signOut, signOutDevice } from '@/members/actions'
 import { requireMember, run } from '@/members/run'
 
+import { disconnectStravaAction, joinStravaWaitlistAction, syncStravaAction } from './actions'
 import { RunForm } from './run-form'
 
 import './members.css'
 
 export const metadata: Metadata = { title: 'My running', robots: { index: false, follow: false } }
 
-type Props = { searchParams: Promise<{ after?: string | string[] }> }
+type Props = { searchParams: Promise<{ after?: string | string[]; strava?: string | string[] }> }
 
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? ''
+
+const STRAVA_NOTICES: Record<string, { message: string; type: 'success' | 'alert' }> = {
+  connected: {
+    message: 'Strava connected! Your runs from the past 90 days have been synced.',
+    type: 'success',
+  },
+  waitlisted: {
+    message: "You've been added to the Strava pilot waitlist.",
+    type: 'success',
+  },
+  denied: {
+    message: 'Strava authorization was cancelled.',
+    type: 'alert',
+  },
+  error: {
+    message: 'An error occurred while connecting to Strava. Please try again.',
+    type: 'alert',
+  },
+}
 
 // A LocalDate is a calendar fact, so it is formatted as a UTC date and never shifted by the server's zone.
 const day = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -196,14 +216,133 @@ function CoachingSection({ coaching }: { coaching: MyCoachingView }) {
   )
 }
 
+function formatRelativeTime(instant: string): string {
+  try {
+    const diffMs = Date.now() - new Date(instant).getTime()
+    if (isNaN(diffMs)) return clubDay.format(new Date(instant))
+    const diffSec = Math.floor(diffMs / 1000)
+    if (diffSec < 60) return 'just now'
+    const diffMin = Math.floor(diffSec / 60)
+    if (diffMin < 60) return `${diffMin} ${diffMin === 1 ? 'minute' : 'minutes'} ago`
+    const diffHr = Math.floor(diffMin / 60)
+    if (diffHr < 24) return `${diffHr} ${diffHr === 1 ? 'hour' : 'hours'} ago`
+    const diffDays = Math.floor(diffHr / 24)
+    if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
+    return clubDay.format(new Date(instant))
+  } catch {
+    return instant
+  }
+}
+
+function StravaSection({ strava }: { strava: StravaStatusView }) {
+  if (!strava.enabled) return null
+
+  return (
+    <section aria-labelledby="strava-heading" className="strava-section">
+      <h2 id="strava-heading">Strava sync</h2>
+
+      <div className="strava-card">
+        {strava.status === 'disconnected' && !strava.isAtCap ? (
+          <>
+            <div className="strava-header">
+              <div>
+                <h3 className="strava-title">Connect with Strava</h3>
+                <p className="strava-desc">
+                  Automatically sync your runs from Strava into your private ERC training log.
+                </p>
+              </div>
+            </div>
+            <div className="strava-actions">
+              <a href="/api/v1/strava/connect" className="button btn-strava">
+                Connect with Strava
+              </a>
+            </div>
+          </>
+        ) : null}
+
+        {strava.status === 'disconnected' && strava.isAtCap ? (
+          <>
+            <div className="strava-banner strava-banner--info">
+              <span>
+                <strong>Strava Pilot at Capacity ({strava.connectedCount}/{strava.cap})</strong>
+                <br />
+                The Strava pilot is currently full. Join the waitlist to be notified when capacity expands.
+              </span>
+            </div>
+            <div className="strava-actions">
+              <form action={joinStravaWaitlistAction}>
+                <button type="submit" className="button btn-strava">
+                  Join Waitlist
+                </button>
+              </form>
+            </div>
+          </>
+        ) : null}
+
+        {strava.status === 'waitlisted' ? (
+          <>
+            <div className="strava-banner strava-banner--info">
+              <span>
+                <strong>You are on the Strava waitlist (#{strava.waitlistPosition ?? 1})</strong>
+                <br />
+                We will connect your account as soon as capacity expands in the pilot.
+              </span>
+            </div>
+            <div className="strava-actions">
+              <form action={disconnectStravaAction}>
+                <button type="submit" className="button button-secondary">
+                  Leave Waitlist
+                </button>
+              </form>
+            </div>
+          </>
+        ) : null}
+
+        {strava.status === 'connected' ? (
+          <>
+            <div className="strava-header">
+              <div>
+                <h3 className="strava-title">Strava Connected</h3>
+                <p className="strava-meta">
+                  Last synced: {strava.lastSyncedAt ? formatRelativeTime(strava.lastSyncedAt) : 'Never'}
+                </p>
+              </div>
+              <span className="strava-badge strava-badge--connected">
+                Connected (Athlete #{strava.athleteId})
+              </span>
+            </div>
+            <div className="strava-actions">
+              <form action={syncStravaAction}>
+                <button type="submit" className="button btn-strava">
+                  Sync Now
+                </button>
+              </form>
+              <form action={disconnectStravaAction}>
+                <button type="submit" className="button button-secondary">
+                  Disconnect
+                </button>
+              </form>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
 export default async function MePage({ searchParams }: Props) {
   const caller = await requireMember()
-  const after = first((await searchParams).after)
-  const [dashboard, runs, devices, coaching] = await Promise.all([
+  const search = await searchParams
+  const after = first(search.after)
+  const stravaNoticeKey = first(search.strava)
+  const stravaNotice = stravaNoticeKey ? STRAVA_NOTICES[stravaNoticeKey] : null
+
+  const [dashboard, runs, devices, coaching, strava] = await Promise.all([
     run('dashboard', caller, {}),
     run('listRuns', caller, { after }),
     run('listSessions', caller, {}),
     run('myCoaching', caller, {}),
+    run('stravaStatus', caller, {}),
   ])
   if (!dashboard.ok || !runs.ok || !devices.ok || !coaching.ok) {
     const failed = [dashboard, runs, devices, coaching].find((result) => !result.ok)
@@ -216,6 +355,7 @@ export default async function MePage({ searchParams }: Props) {
       </div>
     )
   }
+  const stravaView = strava.ok ? strava.data : null
   const { week, month, today, member } = dashboard.data
   return (
     <div className="page member-page">
@@ -228,6 +368,15 @@ export default async function MePage({ searchParams }: Props) {
           </form>
         </div>
       </header>
+
+      {stravaNotice ? (
+        <aside
+          className={`strava-banner ${stravaNotice.type === 'alert' ? 'strava-banner--error' : 'strava-banner--success'}`}
+          role="status"
+        >
+          {stravaNotice.message}
+        </aside>
+      ) : null}
 
       {caller.session.coachId !== null ? (
         <aside className="coach-banner" aria-label="Coach navigation">
@@ -251,6 +400,8 @@ export default async function MePage({ searchParams }: Props) {
       <AthleteSummary athlete={dashboard.data.athlete} />
 
       <CoachingSection coaching={coaching.data} />
+
+      {stravaView && stravaView.enabled ? <StravaSection strava={stravaView} /> : null}
 
       <section aria-labelledby="log-run">
         <h2 id="log-run">Log a run</h2>

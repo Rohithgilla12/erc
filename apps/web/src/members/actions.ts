@@ -218,3 +218,6 @@ export async function savePhoto(_previous: ProfileFormState, form: FormData): Pr
 export async function saveVisibility(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
   return profileAction('setVisibility', form)
 }
+
+export { disconnectStravaAction, joinStravaWaitlistAction, syncStravaAction } from '@/app/(frontend)/me/actions'
+
