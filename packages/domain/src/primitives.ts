@@ -97,3 +97,5 @@ export const todayIn = (timeZone: 'Asia/Kolkata', now: Date = new Date()): Local
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ''
   return `${part('year')}-${part('month')}-${part('day')}` as LocalDate
 }
+
+export const instantOf = (value: unknown = new Date()): Instant => new Date(value as string | Date).toISOString() as Instant

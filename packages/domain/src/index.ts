@@ -10,6 +10,7 @@ export {
   addDays,
   daysBetween,
   err,
+  instantOf,
   isUuid,
   ok,
   parseEmail,

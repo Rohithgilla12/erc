@@ -1,6 +1,18 @@
 import { collect, firstOf, type FieldErrors } from './form-fields'
 import type { MemberId, RawInput } from './members'
-import { err, isUuid, ok, parseLocalDate, type Brand, type Instant, type LocalDate, type Metres, type Result, type Seconds } from './primitives'
+import {
+  err,
+  instantOf,
+  isUuid,
+  ok,
+  parseLocalDate,
+  type Brand,
+  type Instant,
+  type LocalDate,
+  type Metres,
+  type Result,
+  type Seconds,
+} from './primitives'
 
 export const ACTIVITY_SOURCES = ['manual', 'file', 'strava'] as const
 export type ActivitySource = (typeof ACTIVITY_SOURCES)[number]
@@ -30,6 +42,8 @@ export type Activity<S extends ActivitySource = ActivitySource> = {
   moving: Seconds
   loggedAt: Instant
 }
+
+export type StoredActivity<S extends ActivitySource = ActivitySource> = Activity<S> & { note?: string | null }
 
 export type Totals = { distance: Metres; moving: Seconds; runs: number }
 
@@ -138,3 +152,50 @@ export const formatDuration = (seconds: Seconds): string => {
 
 /** Metres as kilometres with one decimal, for the dashboard. */
 export const formatKm = (metres: Metres): string => `${(metres / 1000).toFixed(1)} km`
+
+export type StravaRunPayload = {
+  id: number | string
+  name?: string
+  distance: number
+  moving_time: number
+  start_date_local: string
+  type?: string
+  sport_type?: string
+}
+
+export const isRunActivity = (type?: string, sportType?: string): boolean => {
+  const t = (sportType || type || '').toLowerCase()
+  return t === 'run' || t === 'trailrun' || t === 'virtualrun'
+}
+
+export const parseStravaRun = (
+  raw: StravaRunPayload,
+  member: MemberId,
+): Result<StoredActivity<'strava'>, 'not_a_run' | 'invalid_distance' | 'invalid_pace' | 'invalid_date'> => {
+  if (!isRunActivity(raw.type, raw.sport_type)) return err('not_a_run')
+  const distance = Math.round(raw.distance) as Metres
+  if (distance <= 0 || distance > MAX_RUN_METRES) return err('invalid_distance')
+  const moving = Math.round(raw.moving_time) as Seconds
+  if (moving <= 0) return err('invalid_pace')
+  if (moving / (distance / 1000) < MIN_SECONDS_PER_KM) return err('invalid_pace')
+
+  // Parse YYYY-MM-DD from start_date_local (assumed to be in local athletic time)
+  const parsedDate = parseLocalDate((raw.start_date_local ?? '').slice(0, 10))
+  if (!parsedDate.ok) return err('invalid_date')
+  const on = parsedDate.value
+  if (on < EARLIEST_RUN_DATE) return err('invalid_date')
+
+  const ref = `strava:${raw.id}` as SourceRef
+  const note = raw.name ? raw.name.slice(0, 280) : null
+
+  return ok({
+    member,
+    source: 'strava',
+    ref,
+    on,
+    distance,
+    moving,
+    loggedAt: instantOf(new Date().toISOString()),
+    ...(note ? { note } : {}),
+  })
+}

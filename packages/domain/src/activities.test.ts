@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { formatDuration, formatKm, MAX_RUN_METRES, parseDuration, parseManualEntry, parseSourceRef, totalsOf, type LocalDate, type Metres, type Seconds } from './index'
+import {
+  formatDuration,
+  formatKm,
+  isRunActivity,
+  MAX_RUN_METRES,
+  parseDuration,
+  parseManualEntry,
+  parseSourceRef,
+  parseStravaRun,
+  totalsOf,
+  type LocalDate,
+  type MemberId,
+  type Metres,
+  type Seconds,
+  type StravaRunPayload,
+} from './index'
 
 const today = '2026-10-21' as LocalDate
 const fields = (overrides: Record<string, unknown> = {}) => ({ date: '2026-10-20', distanceKm: '6.2', duration: '38:10', ...overrides })
@@ -117,5 +132,125 @@ describe('parseSourceRef', () => {
   it('lower-cases a UUID and refuses anything else', () => {
     expect(parseSourceRef('3F2A1C4E-9B7D-4E1A-8C2B-5D6E7F8A9B0C')).toEqual({ ok: true, value: '3f2a1c4e-9b7d-4e1a-8c2b-5d6e7f8a9b0c' })
     expect(parseSourceRef('123')).toEqual({ ok: false, error: 'not_a_ref' })
+  })
+})
+
+describe('isRunActivity', () => {
+  it('accepts Run, TrailRun, and VirtualRun in any casing', () => {
+    expect(isRunActivity('Run')).toBe(true)
+    expect(isRunActivity('run')).toBe(true)
+    expect(isRunActivity(undefined, 'TrailRun')).toBe(true)
+    expect(isRunActivity('Run', 'VirtualRun')).toBe(true)
+  })
+
+  it('rejects other activity types and undefined', () => {
+    expect(isRunActivity('Ride')).toBe(false)
+    expect(isRunActivity('Swim')).toBe(false)
+    expect(isRunActivity('Walk')).toBe(false)
+    expect(isRunActivity('Hike')).toBe(false)
+    expect(isRunActivity(undefined, undefined)).toBe(false)
+    expect(isRunActivity('', '')).toBe(false)
+  })
+})
+
+describe('parseStravaRun', () => {
+  it('parses a valid Strava run into a StoredActivity<"strava">', () => {
+    const raw: StravaRunPayload = {
+      id: 123456789,
+      name: 'Morning Easy Run',
+      distance: 10000, // metres
+      moving_time: 3000, // seconds -> 5:00/km pace
+      start_date_local: '2026-11-03T07:00:00Z',
+      type: 'Run',
+    }
+    const parsed = parseStravaRun(raw, 1 as MemberId)
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.value.member).toBe(1)
+    expect(parsed.value.source).toBe('strava')
+    expect(parsed.value.ref).toBe('strava:123456789')
+    expect(parsed.value.distance).toBe(10000)
+    expect(parsed.value.moving).toBe(3000)
+    expect(parsed.value.on).toBe('2026-11-03')
+    expect(parsed.value.note).toBe('Morning Easy Run')
+    expect(parsed.value.loggedAt).toBeDefined()
+  })
+
+  it('handles string id, sport_type fallback, and missing note', () => {
+    const raw: StravaRunPayload = {
+      id: 'activity_98765',
+      distance: 5000.4,
+      moving_time: 1500.2,
+      start_date_local: '2026-10-15T06:30:00+05:30',
+      sport_type: 'TrailRun',
+    }
+    const parsed = parseStravaRun(raw, 42 as MemberId)
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.value.ref).toBe('strava:activity_98765')
+    expect(parsed.value.distance).toBe(5000)
+    expect(parsed.value.moving).toBe(1500)
+    expect(parsed.value.on).toBe('2026-10-15')
+    expect(parsed.value.note).toBeUndefined()
+  })
+
+  it('truncates note if name is longer than 280 characters', () => {
+    const longName = 'x'.repeat(300)
+    const raw: StravaRunPayload = {
+      id: 100,
+      name: longName,
+      distance: 5000,
+      moving_time: 1500,
+      start_date_local: '2026-11-01T06:00:00Z',
+      type: 'Run',
+    }
+    const parsed = parseStravaRun(raw, 1 as MemberId)
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.value.note).toHaveLength(280)
+    expect(parsed.value.note).toBe('x'.repeat(280))
+  })
+
+  it('rejects non-run activities', () => {
+    const ride = { id: 2, distance: 20000, moving_time: 3600, start_date_local: '2026-11-03T07:00:00Z', type: 'Ride' }
+    expect(parseStravaRun(ride, 1 as MemberId)).toEqual({ ok: false, error: 'not_a_run' })
+  })
+
+  it('rejects distance <= 0 or over 250 km', () => {
+    const zeroDist = { id: 3, distance: 0, moving_time: 300, start_date_local: '2026-11-03T07:00:00Z', type: 'Run' }
+    expect(parseStravaRun(zeroDist, 1 as MemberId)).toEqual({ ok: false, error: 'invalid_distance' })
+
+    const negDist = { id: 3, distance: -500, moving_time: 300, start_date_local: '2026-11-03T07:00:00Z', type: 'Run' }
+    expect(parseStravaRun(negDist, 1 as MemberId)).toEqual({ ok: false, error: 'invalid_distance' })
+
+    const overDist = { id: 3, distance: 250_001, moving_time: 80000, start_date_local: '2026-11-03T07:00:00Z', type: 'Run' }
+    expect(parseStravaRun(overDist, 1 as MemberId)).toEqual({ ok: false, error: 'invalid_distance' })
+
+    const maxDist = { id: 3, distance: 250_000, moving_time: 80000, start_date_local: '2026-11-03T07:00:00Z', type: 'Run' }
+    expect(parseStravaRun(maxDist, 1 as MemberId).ok).toBe(true)
+  })
+
+  it('rejects implausible pace faster than 2:30/km and moving_time <= 0', () => {
+    const zeroTime = { id: 4, distance: 5000, moving_time: 0, start_date_local: '2026-11-03T07:00:00Z', type: 'Run' }
+    expect(parseStravaRun(zeroTime, 1 as MemberId)).toEqual({ ok: false, error: 'invalid_pace' })
+
+    // 1000m in 100s -> 1:40/km (faster than 2:30/km)
+    const sprint = { id: 5, distance: 1000, moving_time: 100, start_date_local: '2026-11-03T07:00:00Z', type: 'Run' }
+    expect(parseStravaRun(sprint, 1 as MemberId)).toEqual({ ok: false, error: 'invalid_pace' })
+
+    // Exactly 2:30/km (150s per 1000m) is allowed
+    const boundaryPace = { id: 6, distance: 10000, moving_time: 1500, start_date_local: '2026-11-03T07:00:00Z', type: 'Run' }
+    expect(parseStravaRun(boundaryPace, 1 as MemberId).ok).toBe(true)
+  })
+
+  it('rejects invalid dates and dates before EARLIEST_RUN_DATE (2000-01-01)', () => {
+    const before2000 = { id: 7, distance: 5000, moving_time: 1500, start_date_local: '1999-12-31T23:59:59Z', type: 'Run' }
+    expect(parseStravaRun(before2000, 1 as MemberId)).toEqual({ ok: false, error: 'invalid_date' })
+
+    const badDate = { id: 8, distance: 5000, moving_time: 1500, start_date_local: 'not-a-date', type: 'Run' }
+    expect(parseStravaRun(badDate, 1 as MemberId)).toEqual({ ok: false, error: 'invalid_date' })
+
+    const emptyDate = { id: 9, distance: 5000, moving_time: 1500, start_date_local: '', type: 'Run' }
+    expect(parseStravaRun(emptyDate, 1 as MemberId)).toEqual({ ok: false, error: 'invalid_date' })
   })
 })
