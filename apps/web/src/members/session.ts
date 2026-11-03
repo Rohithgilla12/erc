@@ -119,7 +119,7 @@ export async function resolveSessionFromCookie(
   let token: string | undefined
   if (cookieHeader) {
     const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`))
-    if (match) token = match[1]
+    if (match) token = match[1].trim()
   }
   if (!token) {
     try {

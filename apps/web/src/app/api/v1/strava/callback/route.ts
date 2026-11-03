@@ -1,17 +1,21 @@
 import { NextResponse } from 'next/server'
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres/drizzle'
+import { type MemberId } from '@erc/domain'
 import { getPayload } from 'payload'
 
 import { resolveSessionFromCookie } from '@/members/session'
-import { joinStravaWaitlist, syncStravaActivities } from '@/members/strava'
+import { disconnectStrava, joinStravaWaitlist, syncStravaActivities } from '@/members/strava'
 import { encryptToken, verifyOAuthState } from '@/members/strava-crypto'
-
-export { verifyOAuthState }
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request): Promise<Response> {
+  // Feature flag check
+  if (process.env.STRAVA_ENABLED !== 'true') {
+    return NextResponse.redirect(new URL('/me', request.url))
+  }
+
   const url = new URL(request.url)
   const error = url.searchParams.get('error')
   const code = url.searchParams.get('code')
@@ -58,7 +62,8 @@ export async function GET(request: Request): Promise<Response> {
     SELECT count(*)::int AS count FROM strava_connections WHERE status = 'connected'
   `)
   const connectedCount = (countRes.rows[0] as { count: number })?.count ?? 0
-  const cap = Number(process.env.STRAVA_ATHLETE_CAP || 10)
+  const parsedCap = parseInt(process.env.STRAVA_ATHLETE_CAP || '10', 10)
+  const cap = Number.isFinite(parsedCap) && parsedCap >= 0 ? parsedCap : 10
 
   // If at or above cap and not already connected: mark/upsert waitlisted
   if (connectedCount >= cap && !isAlreadyConnected) {
@@ -106,11 +111,16 @@ export async function GET(request: Request): Promise<Response> {
     const tokenExpiresAt = new Date(data.expires_at * 1000).toISOString()
     const grantedScope = scope || 'read,activity:read'
 
+    // If this athlete was previously linked to another member, disconnect that member and purge their Strava activities
     if (athleteId > 0) {
-      await db.execute(sql`
-        DELETE FROM strava_connections
+      const { rows: conflictRows } = await db.execute(sql`
+        SELECT member_id
+        FROM strava_connections
         WHERE athlete_id = ${athleteId} AND member_id != ${session.member}
       `)
+      for (const row of conflictRows as { member_id: number }[]) {
+        await disconnectStrava(payload, row.member_id as MemberId)
+      }
     }
 
     // Upsert into strava_connections with status = 'connected'

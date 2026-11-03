@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
-import { decryptToken, encryptToken } from './strava-crypto'
+
+import {
+  decryptToken,
+  encryptToken,
+  signOAuthState,
+  verifyOAuthState,
+} from './strava-crypto'
 
 describe('strava-crypto token encryption', () => {
   const originalSecret = process.env.PAYLOAD_SECRET
@@ -101,5 +107,50 @@ describe('strava-crypto token encryption', () => {
     process.env.PAYLOAD_SECRET = 'different-secret-0987654321'
 
     assert.throws(() => decryptToken(encrypted))
+  })
+})
+
+describe('strava-crypto OAuth state', () => {
+  const testSecret = 'test-payload-secret-1234567890'
+  const memberId = 42
+
+  it('generates valid state signature and round-trip verifies successfully', () => {
+    const state = signOAuthState(memberId, testSecret)
+    assert.match(state, /^42\.[0-9a-f]{64}$/)
+    assert.strictEqual(verifyOAuthState(state, memberId, testSecret), true)
+  })
+
+  it('rejects tampered signature', () => {
+    const state = signOAuthState(memberId, testSecret)
+    const [id, sig] = state.split('.')
+    const tamperedSig = sig.slice(0, -1) + (sig.endsWith('0') ? '1' : '0')
+    const tamperedState = `${id}.${tamperedSig}`
+
+    assert.strictEqual(verifyOAuthState(tamperedState, memberId, testSecret), false)
+    assert.strictEqual(verifyOAuthState(state + 'x', memberId, testSecret), false)
+  })
+
+  it('rejects mismatched member ID', () => {
+    const state = signOAuthState(memberId, testSecret)
+    assert.strictEqual(verifyOAuthState(state, 999, testSecret), false)
+    assert.strictEqual(verifyOAuthState(state, 0, testSecret), false)
+  })
+
+  it('rejects malformed state strings', () => {
+    assert.strictEqual(verifyOAuthState('', memberId, testSecret), false)
+    assert.strictEqual(verifyOAuthState('nodotstate', memberId, testSecret), false)
+    assert.strictEqual(verifyOAuthState('.onlydot', memberId, testSecret), false)
+    assert.strictEqual(verifyOAuthState('onlydot.', memberId, testSecret), false)
+    assert.strictEqual(verifyOAuthState('abc.signature', memberId, testSecret), false)
+    assert.strictEqual(verifyOAuthState('42.', memberId, testSecret), false)
+    assert.strictEqual(verifyOAuthState('.123456', memberId, testSecret), false)
+  })
+
+  it('rejects missing or empty secret', () => {
+    const state = signOAuthState(memberId, testSecret)
+    assert.strictEqual(verifyOAuthState(state, memberId, ''), false)
+    assert.throws(() => signOAuthState(memberId, ''), {
+      message: 'PAYLOAD_SECRET is required to sign OAuth state',
+    })
   })
 })

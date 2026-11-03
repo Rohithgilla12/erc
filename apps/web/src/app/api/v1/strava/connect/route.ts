@@ -5,8 +5,6 @@ import { getPayload } from 'payload'
 import { resolveSessionFromCookie } from '@/members/session'
 import { signOAuthState } from '@/members/strava-crypto'
 
-export { signOAuthState }
-
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request): Promise<Response> {
