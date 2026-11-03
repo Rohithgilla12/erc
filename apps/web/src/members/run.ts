@@ -36,6 +36,7 @@ import {
 } from './coaching'
 import { startSignIn, verifySignIn, type StartRefusal, type VerifyRefusal } from './sign-in'
 import { listSessions, resolveSession, revokeOwnSession, revokeSession, SESSION_COOKIE, type MemberSession } from './session'
+import { disconnectStrava, getStravaStatus, joinStravaWaitlist, syncStravaActivities } from './strava'
 
 export { STATUS }
 export { signInOpen } from './sign-in'
@@ -157,6 +158,29 @@ const IMPLEMENTATIONS: Implementations = {
   decideCoachingRequest: async ({ session }, input) => decideRequest(await getPayload({ config }), session.coachId, input.linkId, input.decision),
   athleteWeek: async ({ session }, input) => getAthleteWeek(await getPayload({ config }), session.coachId, input.athleteSlug, input.weekStart),
   saveWeekReview: async ({ session }, input) => saveWeekReview(await getPayload({ config }), session.coachId, input.athleteSlug, input.weekStart, input),
+  stravaStatus: async ({ session }) => {
+    const payload = await getPayload({ config })
+    const status = await getStravaStatus(payload, session.member)
+    return ok(ownedBy(session.member, status))
+  },
+  syncStrava: async ({ session }) => {
+    const payload = await getPayload({ config })
+    const result = await syncStravaActivities(payload, session.member)
+    if (!result.ok) {
+      return err({ code: 'unavailable', message: result.error })
+    }
+    return ok(ownedBy(session.member, result.value))
+  },
+  disconnectStrava: async ({ session }) => {
+    const payload = await getPayload({ config })
+    await disconnectStrava(payload, session.member)
+    return ok(ownedBy(session.member, { disconnected: true }))
+  },
+  joinStravaWaitlist: async ({ session }) => {
+    const payload = await getPayload({ config })
+    const result = await joinStravaWaitlist(payload, session.member)
+    return ok(ownedBy(session.member, result))
+  },
 }
 
 /**
