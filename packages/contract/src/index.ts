@@ -273,6 +273,33 @@ export type MyAthlete =
 
 export type Dashboard = OwnerOnly<{ member: { email: Email }; today: string; week: PeriodTotals; month: PeriodTotals; athlete: MyAthlete }>
 
+export type StravaConnectionState = 'connected' | 'waitlisted' | 'disconnected'
+
+export type StravaStatusView = {
+  enabled: boolean
+  status: StravaConnectionState
+  athleteId: number | null
+  lastSyncedAt: string | null
+  connectedCount: number
+  cap: number
+  isAtCap: boolean
+  waitlistPosition: number | null
+}
+
+export type StravaSyncResultView = {
+  synced: number
+  lastSyncedAt: string
+}
+
+export type StravaDisconnectView = {
+  disconnected: true
+}
+
+export type StravaWaitlistView = {
+  waitlisted: true
+  position: number
+}
+
 /** One signed-in device. `current` marks the session making the request, which the page shows without a sign-out button. */
 export type SessionView = { id: string; label: string; current: boolean; createdAt: Instant; lastSeenAt: Instant }
 
@@ -487,6 +514,38 @@ export const OPERATIONS = {
       note?: string
     }>(),
     output: phantom<CoachReviewView>(),
+  }),
+  stravaStatus: op({
+    method: 'GET',
+    path: '/me/strava',
+    access: 'member',
+    parse: noInput,
+    fields: phantom<Record<string, never>>(),
+    output: phantom<OwnerOnly<StravaStatusView>>(),
+  }),
+  syncStrava: op({
+    method: 'POST',
+    path: '/me/strava/sync',
+    access: 'member',
+    parse: noInput,
+    fields: phantom<Record<string, never>>(),
+    output: phantom<OwnerOnly<StravaSyncResultView>>(),
+  }),
+  disconnectStrava: op({
+    method: 'POST',
+    path: '/me/strava/disconnect',
+    access: 'member',
+    parse: noInput,
+    fields: phantom<Record<string, never>>(),
+    output: phantom<OwnerOnly<StravaDisconnectView>>(),
+  }),
+  joinStravaWaitlist: op({
+    method: 'POST',
+    path: '/me/strava/waitlist',
+    access: 'member',
+    parse: noInput,
+    fields: phantom<Record<string, never>>(),
+    output: phantom<OwnerOnly<StravaWaitlistView>>(),
   }),
 } as const
 

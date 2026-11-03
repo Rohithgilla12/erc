@@ -57,6 +57,13 @@ describe('OPERATIONS', () => {
     }
   })
 
+  it('restricts Strava operations to member access tier', () => {
+    expect(OPERATIONS.stravaStatus.access).toBe('member')
+    expect(OPERATIONS.syncStrava.access).toBe('member')
+    expect(OPERATIONS.disconnectStrava.access).toBe('member')
+    expect(OPERATIONS.joinStravaWaitlist.access).toBe('member')
+  })
+
   it('parses logRun input with and without optional note (max 280 chars)', () => {
     const base = { date: '2026-10-20', distanceKm: '5', duration: '25:00' }
     expect(OPERATIONS.logRun.parse(base)).toEqual({
