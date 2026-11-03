@@ -1,0 +1,33 @@
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto'
+
+const ALGORITHM = 'aes-256-gcm'
+const SALT = 'erc-strava-encryption-salt'
+const IV_LENGTH = 12
+
+function getKey(): Buffer {
+  const secret = process.env.PAYLOAD_SECRET
+  if (!secret) throw new Error('PAYLOAD_SECRET is required for token encryption')
+  return scryptSync(secret, SALT, 32)
+}
+
+export function encryptToken(text: string): string {
+  const iv = randomBytes(IV_LENGTH)
+  const cipher = createCipheriv(ALGORITHM, getKey(), iv)
+  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()])
+  const tag = cipher.getAuthTag()
+  return `${iv.toString('hex')}:${tag.toString('hex')}:${encrypted.toString('hex')}`
+}
+
+export function decryptToken(encryptedString: string): string {
+  const parts = encryptedString.split(':')
+  if (parts.length !== 3) throw new Error('Invalid encrypted token format')
+  const [ivHex, tagHex, contentHex] = parts
+  const iv = Buffer.from(ivHex, 'hex')
+  const tag = Buffer.from(tagHex, 'hex')
+  const content = Buffer.from(contentHex, 'hex')
+
+  const decipher = createDecipheriv(ALGORITHM, getKey(), iv)
+  decipher.setAuthTag(tag)
+  const decrypted = Buffer.concat([decipher.update(content), decipher.final()])
+  return decrypted.toString('utf8')
+}

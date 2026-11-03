@@ -12,6 +12,7 @@ import * as migration_20261021_085649_subscriber_prior_consent from './20261021_
 import * as migration_20261021_105447_members from './20261021_105447_members';
 import * as migration_20261021_160546_athlete_claims from './20261021_160546_athlete_claims';
 import * as migration_20261102_180000_coaching from './20261102_180000_coaching';
+import * as migration_20261103_120000_strava from './20261103_120000_strava';
 
 export const migrations = [
   {
@@ -83,5 +84,10 @@ export const migrations = [
     up: migration_20261102_180000_coaching.up,
     down: migration_20261102_180000_coaching.down,
     name: '20261102_180000_coaching',
+  },
+  {
+    up: migration_20261103_120000_strava.up,
+    down: migration_20261103_120000_strava.down,
+    name: '20261103_120000_strava',
   },
 ];
