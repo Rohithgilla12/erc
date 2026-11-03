@@ -6,7 +6,7 @@ import {
   encryptToken,
   signOAuthState,
   verifyOAuthState,
-} from './strava-crypto'
+} from './strava-crypto.ts'
 
 describe('strava-crypto token encryption', () => {
   const originalSecret = process.env.PAYLOAD_SECRET

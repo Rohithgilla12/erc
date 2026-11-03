@@ -31,11 +31,9 @@ import { GET as webhookGet, POST as webhookPost } from '@/app/api/v1/strava/webh
 import { run, type Caller } from '@/members/run'
 import { issueSession, resolveSession, SESSION_COOKIE } from '@/members/session'
 import {
-  disconnectStrava,
   getStravaStatus,
   getValidStravaToken,
   joinStravaWaitlist,
-  syncStravaActivities,
 } from '@/members/strava'
 import {
   decryptToken,
@@ -73,6 +71,14 @@ const createdMemberIds: number[] = []
 let testCoachId: CoachId | null = null
 let testAthleteId: number | null = null
 let testLinkId: string | null = null
+
+type ActivityDbRow = {
+  source: string
+  ref: string
+  metres: number
+  moving_s: number
+  note: string | null
+}
 
 // Setup mock fetch for Strava API endpoints
 const originalFetch = globalThis.fetch
@@ -378,12 +384,13 @@ try {
   expect('memberA has lastSyncedAt timestamp', Boolean(statusA.lastSyncedAt), true)
 
   // Verify activities inserted with source = 'strava' and ref = 'strava:<id>'
-  const { rows: memberAActivities } = await payload.db.drizzle.execute(sql`
+  const { rows: memberAActivitiesRaw } = await payload.db.drizzle.execute(sql`
     SELECT source, ref, metres, moving_s, note FROM activities WHERE member_id = ${memberA} ORDER BY ref ASC
   `)
-  expect('only the 2 run activities were inserted (ride ignored)', memberAActivities.length, 2)
-  const run1 = memberAActivities.find((r: any) => r.ref === 'strava:3001')
-  const run2 = memberAActivities.find((r: any) => r.ref === 'strava:3002')
+  expect('only the 2 run activities were inserted (ride ignored)', memberAActivitiesRaw.length, 2)
+  const memberAActivities = memberAActivitiesRaw as unknown as ActivityDbRow[]
+  const run1 = memberAActivities.find((r) => r.ref === 'strava:3001')
+  const run2 = memberAActivities.find((r) => r.ref === 'strava:3002')
   expect('run1 has source = strava', run1?.source, 'strava')
   expect('run1 metres is 6000', run1?.metres, 6000)
   expect('run1 moving_s is 1800', run1?.moving_s, 1800)
@@ -442,12 +449,13 @@ try {
     expect('syncStrava returns synced count = 2', syncRes.data.synced, 2)
   }
 
-  const { rows: postSyncActivities } = await payload.db.drizzle.execute(sql`
-    SELECT ref, metres, moving_s, note FROM activities WHERE member_id = ${memberA} ORDER BY ref ASC
+  const { rows: postSyncActivitiesRaw } = await payload.db.drizzle.execute(sql`
+    SELECT source, ref, metres, moving_s, note FROM activities WHERE member_id = ${memberA} ORDER BY ref ASC
   `)
-  expect('activities count is now 3', postSyncActivities.length, 3)
-  const updatedRun1 = postSyncActivities.find((r: any) => r.ref === 'strava:3001')
-  const newRun4 = postSyncActivities.find((r: any) => r.ref === 'strava:3004')
+  expect('activities count is now 3', postSyncActivitiesRaw.length, 3)
+  const postSyncActivities = postSyncActivitiesRaw as unknown as ActivityDbRow[]
+  const updatedRun1 = postSyncActivities.find((r) => r.ref === 'strava:3001')
+  const newRun4 = postSyncActivities.find((r) => r.ref === 'strava:3004')
   expect('strava:3001 was updated with new metres', updatedRun1?.metres, 6200)
   expect('strava:3001 note was updated', updatedRun1?.note, 'Easy Morning Recovery (Paced)')
   expect('strava:3004 was added with 8000m', newRun4?.metres, 8000)
@@ -508,8 +516,9 @@ try {
     SELECT metres, note FROM activities WHERE member_id = ${memberA} AND ref = 'strava:3005'
   `)
   expect('webhook created activity strava:3005 in Postgres', createdActRows.length, 1)
-  expect('created activity metres is 5000', (createdActRows[0] as any)?.metres, 5000)
-  expect('created activity note is Webhook 5K Fast', (createdActRows[0] as any)?.note, 'Webhook 5K Fast')
+  const createdAct = createdActRows[0] as { metres: number; note: string | null } | undefined
+  expect('created activity metres is 5000', createdAct?.metres, 5000)
+  expect('created activity note is Webhook 5K Fast', createdAct?.note, 'Webhook 5K Fast')
 
   // 6c. Webhook activity.delete
   const deleteWebhookReq = new Request('http://localhost:3000/api/v1/strava/webhook', {
@@ -596,7 +605,7 @@ try {
   // ============================================================================
   console.log('\n--- 8. Privacy isolation ---')
   // 8a. Verify domain constant PUBLIC_SOURCES excludes 'strava'
-  expect('PUBLIC_SOURCES does not include strava', PUBLIC_SOURCES.includes('strava' as any), false)
+  expect('PUBLIC_SOURCES does not include strava', (PUBLIC_SOURCES as readonly string[]).includes('strava'), false)
   expect('PUBLIC_SOURCES includes manual', PUBLIC_SOURCES.includes('manual'), true)
   expect('PUBLIC_SOURCES includes file', PUBLIC_SOURCES.includes('file'), true)
 
@@ -646,14 +655,16 @@ try {
       AND source IN ('manual', 'file')
   `)
   expect('PUBLIC_SOURCES query returns only the manual activity', publicSourceRows.length, 1)
-  expect('PUBLIC_SOURCES result is manual source', (publicSourceRows[0] as any)?.source, 'manual')
-  expect('PUBLIC_SOURCES result metres is 10000', (publicSourceRows[0] as any)?.metres, 10000)
+  const publicAct = publicSourceRows[0] as { source: string; ref: string; metres: number } | undefined
+  expect('PUBLIC_SOURCES result is manual source', publicAct?.source, 'manual')
+  expect('PUBLIC_SOURCES result metres is 10000', publicAct?.metres, 10000)
 
   // Verify that a query for ALL activities finds both
   const { rows: allMemberCRows } = await payload.db.drizzle.execute(sql`
     SELECT count(*)::int AS count FROM activities WHERE member_id = ${memberC}
   `)
-  expect('database holds both activities for member', (allMemberCRows[0] as any)?.count, 2)
+  const countRow = allMemberCRows[0] as { count: number } | undefined
+  expect('database holds both activities for member', countRow?.count, 2)
 
   // Coach views athleteWeek: athleteWeek query explicitly enforces source IN ('manual', 'file')
   const coachSession = (await issueSession(payload, coachMember, 'cookie', 'Coach Browser')).token
