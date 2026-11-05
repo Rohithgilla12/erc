@@ -9,12 +9,6 @@ keep_images=3
 
 docker image inspect "erc-web:$tag" >/dev/null
 
-# Checked before anything changes: compose refuses every command while either is missing, rollback included.
-# The password goes unescaped into erc-umami's connection URL and into the SQL below, so only URL-safe characters.
-umami_password=$(grep -E '^UMAMI_DB_PASSWORD=' .env | cut -d= -f2- || true)
-[[ "$umami_password" =~ ^[A-Za-z0-9_-]{24,}$ ]] || { echo "Set UMAMI_DB_PASSWORD in .env: 24 or more letters, digits, - or _ (openssl rand -hex 24)" >&2; exit 1; }
-grep -qE '^UMAMI_APP_SECRET=.+' .env || { echo "Set UMAMI_APP_SECRET in .env (openssl rand -hex 32)" >&2; exit 1; }
-
 mkdir -p backups
 trap 'rm -f backups/.predeploy-*.partial' EXIT
 if [ "$(docker inspect -f '{{.State.Running}}' erc-postgres 2>/dev/null || true)" = "true" ]; then
@@ -47,18 +41,6 @@ for _ in $(seq 1 60); do
   sleep 2
 done
 docker exec erc-web wget -qO /dev/null http://127.0.0.1:3000/races || { echo "erc-web did not become healthy" >&2; exit 1; }
-
-# Umami keeps its data in its own role and database inside erc-postgres. Created on the first deploy; the password is
-# set every time so a changed UMAMI_DB_PASSWORD takes effect. Sent on stdin, so it never shows in the process list.
-docker exec -i erc-postgres psql -v ON_ERROR_STOP=1 -q -U erc -d erc <<SQL
-DO \$\$ BEGIN
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'umami') THEN CREATE ROLE umami; END IF;
-END \$\$;
-ALTER ROLE umami WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '$umami_password';
-REVOKE CONNECT ON DATABASE erc FROM PUBLIC;
-SELECT 'CREATE DATABASE umami OWNER umami' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'umami')\gexec
-SQL
-docker compose up -d erc-umami
 
 if [ -f cloudflared.yml ] && [ "${ERC_PUBLIC:-1}" = "1" ]; then
   docker compose --profile public up -d erc-cloudflared

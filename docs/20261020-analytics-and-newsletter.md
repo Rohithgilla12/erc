@@ -2,16 +2,17 @@
 
 Status: built 2026-10-20 (Phase 1, workstream W5b). Read with the [Phase 1 design](20261019-erc-phase-1-design.md).
 
-## Analytics: Umami on its own hostname
+## Analytics: the shared Umami at analytics.gilla.fun
 
-Umami 3.4.0 (MIT, cookieless) runs as `erc-umami` in the `erc` compose project. Its data lives in a `umami` database owned by a `umami` role inside `erc-postgres`, so the host's nightly `pg_dumpall` already backs it up. The `umami` role cannot connect to the `erc` database.
+Umami 3.4.0 (MIT, cookieless) runs on boxy as its own compose project, `~/analytics`, shared by every gilla.fun site. ERC is one website in it. The stack's source is `homebox/stacks/analytics`; it has its own Postgres (`analytics-postgres`, picked up by the nightly `pg_dumpall`) and its own Cloudflare Tunnel.
 
 ```
- browser ──> erc.<domain>        ─┐                          ┌─> erc-web:3000
-                                   ├─ Cloudflare Tunnel ──────┤
- browser ──> erc-stats.<domain>  ─┘  (script.js, /api/send,   └─> erc-umami:3000 ──> erc-postgres (db umami)
-             staff ──> dashboard      dashboard)
+ browser ──> erc.gilla.fun ──────── erc tunnel ─────────> erc-web:3000 ──> erc-postgres
+ browser ──> analytics.gilla.fun ── analytics tunnel ───> analytics-umami:3000 ──> analytics-postgres
+             (script.js, /api/send, dashboard)
 ```
+
+Until 2026-11-05 Umami ran inside this project as `erc-umami`, with a `umami` database in `erc-postgres`, at `erc-stats.gilla.fun`. It moved out so other sites can share it without depending on ERC's stack. The move copied the database with `pg_dump`, so ERC's website id, history, and the dashboard login did not change. The old `umami` database and role are still in `erc-postgres` as a rollback until they are dropped.
 
 The tracker loads from Umami's own hostname, which also serves the dashboard. A same-origin proxy route in `erc-web` was rejected for these reasons:
 
@@ -19,7 +20,7 @@ The tracker loads from Umami's own hostname, which also serves the dashboard. A 
 - Page-view beacons never touch `erc-web`, which is capped at one CPU and 768 MB.
 - There is no proxy code to maintain, and Umami answers the cross-origin beacons itself.
 
-The cost is one more tunnel route and DNS record, and some content blockers may block a cross-site analytics host **[G]**. Use a one-level name such as `erc-stats.gilla.fun`, so Cloudflare's free certificate covers it.
+The cost is that some content blockers may block a cross-site analytics host **[G]**.
 
 ### What the tracker sends
 
@@ -36,14 +37,10 @@ The tag sets these attributes, verified against the 3.4.0 tracker source:
 
 Umami stores no cookies and no IP addresses **[I]**. Do not turn on Umami's session replay or heatmaps; the site never loads `recorder.js`.
 
-### Set up Umami on the server
+### Connect ERC to Umami
 
-1. Add `UMAMI_DB_PASSWORD` (`openssl rand -hex 24`) and `UMAMI_APP_SECRET` (`openssl rand -hex 32`) to `~/erc/.env`. Every deploy now fails until both are set.
-2. Deploy. `deploy.sh` creates the `umami` role and database if missing and starts `erc-umami`.
-3. Umami starts with the login `admin` / `umami`, so change it before the dashboard is public. On the host, get the container's address with `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' erc-umami`. From the workstation, run `ssh -L 3001:<address>:3000 <host>`, open `http://localhost:3001`, sign in, and change the password.
-4. Add the tunnel route `erc-stats.<domain>` to `http://erc-umami:3000` in the host's `cloudflared.yml`, add its DNS record, and restart `erc-cloudflared`. Consider a Cloudflare Access policy on that hostname, with bypass rules for `/script.js` and `/api/send`, which every visitor's browser must reach **[I]**.
-5. In the dashboard, add a website with the site's domain. Copy its website id.
-6. Set `UMAMI_URL=https://erc-stats.<domain>` and `UMAMI_WEBSITE_ID=<id>` in `~/erc/.env`, then run `docker compose up -d erc-web`. No rebuild is needed.
+1. In the dashboard at https://analytics.gilla.fun, add a website with the site's domain. Copy its website id.
+2. Set `UMAMI_URL=https://analytics.gilla.fun` and `UMAMI_WEBSITE_ID=<id>` in `~/erc/.env`, then run `docker compose up -d erc-web` and `docker restart erc-cloudflared`. No rebuild is needed.
 
 ## Newsletter signup
 
