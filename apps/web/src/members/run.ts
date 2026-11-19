@@ -34,13 +34,16 @@ import {
   saveWeekReview,
   submitCheckIn,
 } from './coaching'
-import { startSignIn, verifySignIn, type StartRefusal, type VerifyRefusal } from './sign-in'
+import { googleSignInOpen } from './google'
+import { emailSignInOpen, startSignIn, verifySignIn, type StartRefusal, type VerifyRefusal } from './sign-in'
 import { listSessions, resolveSession, revokeOwnSession, revokeSession, SESSION_COOKIE, type MemberSession } from './session'
 import { disconnectStrava, getStravaStatus, joinStravaWaitlist, syncStravaActivities } from './strava'
 
 export { STATUS }
-export { emailSignInOpen, signInOpen } from './sign-in'
-export { googleSignInOpen } from './google'
+export { emailSignInOpen, googleSignInOpen }
+
+/** Sign-in is offered when at least one way in works. */
+export const signInOpen = (): boolean => emailSignInOpen() || googleSignInOpen()
 
 /**
  * Who is asking. `sender` is the keyed network hash the public forms use, for per-sender limits. An anonymous caller

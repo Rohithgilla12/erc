@@ -3,9 +3,8 @@ import config from '@payload-config'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getPayload } from 'payload'
 
-import { GOOGLE_HANDOFF_COOKIE, openHandoff, verifiedEmailFrom } from '@/members/google'
+import { enterWithGoogle, GOOGLE_HANDOFF_COOKIE, googleIdentityFrom, openHandoff } from '@/members/google'
 import { resolveSessionFromCookie, revokeSession, SESSION_COOKIE, sessionCookie } from '@/members/session'
-import { enterAsMember } from '@/members/sign-in'
 import { absoluteUrl } from '@/site-config'
 
 export const dynamic = 'force-dynamic'
@@ -24,12 +23,12 @@ export async function GET(request: NextRequest): Promise<Response> {
   const code = params.get('code')
   if (!code) return redirectTo('/sign-in?google=cancelled')
 
-  const email = await verifiedEmailFrom(code, handoff.nonce, now)
-  if (!email.ok) return redirectTo(`/sign-in?google=${email.error === 'unverified' ? 'unverified' : 'failed'}`)
+  const identity = await googleIdentityFrom(code, handoff.nonce, now)
+  if (!identity.ok) return redirectTo(`/sign-in?google=${identity.error === 'unverified' ? 'unverified' : 'failed'}`)
 
   const payload = await getPayload({ config })
-  const entered = await enterAsMember(payload, email.value, handoff.declaredAt, 'cookie', deviceLabelOf(null, 'cookie'))
-  if (!entered.ok) return redirectTo('/sign-in?google=suspended')
+  const entered = await enterWithGoogle(payload, identity.value, handoff.declaredAt, deviceLabelOf(null, 'cookie'))
+  if (!entered.ok) return redirectTo(`/sign-in?google=${entered.error}`)
 
   // Signing in again from a browser that still holds a session replaces it, so the old row does not live on unseen.
   const previous = await resolveSessionFromCookie(payload, request.headers.get('cookie'))

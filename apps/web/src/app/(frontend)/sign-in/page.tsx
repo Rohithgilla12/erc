@@ -19,6 +19,8 @@ const GOOGLE_NOTICES: Record<string, string> = {
   unverified: 'Google has not verified the email address on that account, so we cannot use it to sign you in.',
   suspended: 'This account is suspended. Contact the club if you think that is a mistake.',
   failed: 'We could not finish signing you in with Google. Please try again.',
+  link_needs_code: 'There is already an account for that address. Sign in with an emailed code instead; Google cannot prove you still own a non-Gmail address.',
+  linked_elsewhere: 'That account is already linked to a different Google account. Sign in with that one, or with an emailed code.',
 }
 
 type Props = { searchParams: Promise<{ google?: string | string[] }> }

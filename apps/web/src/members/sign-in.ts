@@ -25,20 +25,17 @@ import {
   type StoredSignInCode,
 } from '@erc/domain'
 import { after } from 'next/server'
-import type { Payload } from 'payload'
+import { ValidationError, type Payload } from 'payload'
 
 import { CLUB } from '@/app/(frontend)/site-nav'
 import { emailConfigured } from '@/cms/email'
 import { withCapLock, type Transaction } from '@/content/email-cap'
 import { mac, sameMac } from '@/content/form-guard'
 
-import { googleSignInOpen } from './google'
 import { instantOf, issueSession } from './session'
 
 /** A code can be offered only when it can be emailed, the same rule as the newsletter form. */
 export const emailSignInOpen = (): boolean => emailConfigured()
-
-export const signInOpen = (): boolean => emailSignInOpen() || googleSignInOpen()
 
 export type StartRefusal = 'per_address' | 'per_sender' | 'too_many_failures' | 'unavailable'
 export type VerifyRefusal = 'wrong_code' | 'locked' | 'suspended'
@@ -131,6 +128,10 @@ export async function startSignIn(payload: Payload, input: SignInStart, senderKe
 
 type MemberRow = { id: number; status: 'active' | 'suspended' }
 
+/** Payload reports a unique-index clash on `email` as a ValidationError naming that field. */
+const isTakenEmail = (error: unknown): boolean =>
+  error instanceof ValidationError && error.data.errors.some((issue) => issue.path === 'email')
+
 /**
  * Checks the newest code for the address, closes it on success (single use, decided by one conditional UPDATE so two
  * racing submissions cannot both win), then finds or creates the member and issues a session.
@@ -176,13 +177,17 @@ export async function enterAsMember(
   const found = (docs[0] as MemberRow | undefined) ?? null
   if (found?.status === 'suspended') return err('suspended')
   const context = { skipRevalidation: true }
-  const member = found
-    ? await payload.update({ collection: 'members', id: found.id, data: { lastSignInAt: now.toISOString() }, context, depth: 0 })
-    : await payload.create({
-        collection: 'members',
-        data: { email, status: 'active', ageDeclaredAt, lastSignInAt: now.toISOString() },
-        context,
-        depth: 0,
-      })
-  return ok(await issueSession(payload, member.id as MemberId, carrier, label))
+  let id = found?.id
+  if (id === undefined) {
+    try {
+      id = (await payload.create({ collection: 'members', data: { email, status: 'active', ageDeclaredAt, lastSignInAt: now.toISOString() }, context, depth: 0 })).id as number
+    } catch (error) {
+      // Two first sign-ins for one address can race to create it; the loser signs in to the winner's account.
+      if (!isTakenEmail(error)) throw error
+      return enterAsMember(payload, email, ageDeclaredAt, carrier, label)
+    }
+  } else {
+    await payload.update({ collection: 'members', id, data: { lastSignInAt: now.toISOString() }, context, depth: 0 })
+  }
+  return ok(await issueSession(payload, id as MemberId, carrier, label))
 }
