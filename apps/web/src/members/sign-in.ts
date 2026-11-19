@@ -15,6 +15,8 @@ import {
   SIGN_IN_CODE_TTL_MS,
   type Carrier,
   type CodeRequestCounts,
+  type Email,
+  type Instant,
   type MemberId,
   type Result,
   type SignInCode,
@@ -30,10 +32,13 @@ import { emailConfigured } from '@/cms/email'
 import { withCapLock, type Transaction } from '@/content/email-cap'
 import { mac, sameMac } from '@/content/form-guard'
 
+import { googleSignInOpen } from './google'
 import { instantOf, issueSession } from './session'
 
-/** Sign-in is offered exactly when a code can be emailed, the same rule as the newsletter form. */
-export const signInOpen = (): boolean => emailConfigured()
+/** A code can be offered only when it can be emailed, the same rule as the newsletter form. */
+export const emailSignInOpen = (): boolean => emailConfigured()
+
+export const signInOpen = (): boolean => emailSignInOpen() || googleSignInOpen()
 
 export type StartRefusal = 'per_address' | 'per_sender' | 'too_many_failures' | 'unavailable'
 export type VerifyRefusal = 'wrong_code' | 'locked' | 'suspended'
@@ -150,7 +155,24 @@ export async function verifySignIn(payload: Payload, input: SignInVerify, carrie
     RETURNING id`)
   if (closed.rows.length === 0) return err('wrong_code')
 
-  const { docs } = await payload.find({ collection: 'members', where: { email: { equals: input.email } }, limit: 1, depth: 0, pagination: false })
+  // A browser is always "Web browser"; only an app, which sends the bearer, gets to name itself.
+  const label = deviceLabelOf(carrier === 'bearer' ? input.device : null, carrier)
+  return enterAsMember(payload, input.email, instantOf(row.sent_at), carrier, label)
+}
+
+/**
+ * Finds or creates the member for an address someone has just proved they own, and issues a session. `ageDeclaredAt`
+ * is when they ticked "18 or over", stored only when this creates the account.
+ */
+export async function enterAsMember(
+  payload: Payload,
+  email: Email,
+  ageDeclaredAt: Instant,
+  carrier: Carrier,
+  label: string,
+): Promise<Result<IssuedSession, 'suspended'>> {
+  const now = new Date()
+  const { docs } = await payload.find({ collection: 'members', where: { email: { equals: email } }, limit: 1, depth: 0, pagination: false })
   const found = (docs[0] as MemberRow | undefined) ?? null
   if (found?.status === 'suspended') return err('suspended')
   const context = { skipRevalidation: true }
@@ -158,12 +180,9 @@ export async function verifySignIn(payload: Payload, input: SignInVerify, carrie
     ? await payload.update({ collection: 'members', id: found.id, data: { lastSignInAt: now.toISOString() }, context, depth: 0 })
     : await payload.create({
         collection: 'members',
-        // The declaration was ticked when this code was requested, so that is when it was made.
-        data: { email: input.email, status: 'active', ageDeclaredAt: instantOf(row.sent_at), lastSignInAt: now.toISOString() },
+        data: { email, status: 'active', ageDeclaredAt, lastSignInAt: now.toISOString() },
         context,
         depth: 0,
       })
-  // A browser is always "Web browser"; only an app, which sends the bearer, gets to name itself.
-  const label = deviceLabelOf(carrier === 'bearer' ? input.device : null, carrier)
   return ok(await issueSession(payload, member.id as MemberId, carrier, label))
 }

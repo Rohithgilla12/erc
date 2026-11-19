@@ -39,7 +39,8 @@ import { listSessions, resolveSession, revokeOwnSession, revokeSession, SESSION_
 import { disconnectStrava, getStravaStatus, joinStravaWaitlist, syncStravaActivities } from './strava'
 
 export { STATUS }
-export { signInOpen } from './sign-in'
+export { emailSignInOpen, signInOpen } from './sign-in'
+export { googleSignInOpen } from './google'
 
 /**
  * Who is asking. `sender` is the keyed network hash the public forms use, for per-sender limits. An anonymous caller

@@ -63,6 +63,9 @@ services:
       # Umami is the shared one on boxy (~/analytics, https://analytics.gilla.fun); the id is ERC's website there.
       UMAMI_URL: ${UMAMI_URL:-}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+      # "Continue with Google" shows on /sign-in only when both are set. The OAuth client's redirect URI is <ERC_SITE_URL>/api/v1/google/callback.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       # Strava sync is off unless STRAVA_ENABLED is "true". Tokens are encrypted with a key derived from PAYLOAD_SECRET, so rotating it disconnects every athlete.
       STRAVA_ENABLED: ${STRAVA_ENABLED:-}
       STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID:-}
