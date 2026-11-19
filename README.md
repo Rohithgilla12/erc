@@ -44,6 +44,7 @@ pnpm --filter @erc/web payload run src/scripts/check-newsletter.ts    # needs ER
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-athlete-claims.ts   # claims, profile edits, consent, photos; share MEDIA_DIR with the site
 pnpm --filter @erc/web payload run src/scripts/check-coaching.ts     # coaching links, check-ins, reviews, and triage
 pnpm --filter @erc/web payload run src/scripts/check-strava.ts       # Strava OAuth, token encryption, 10-cap waitlist, sync, webhooks, disconnect, and privacy isolation
+pnpm --filter @erc/web payload run src/scripts/check-google.ts       # Continue with Google: start, callback refusals, account linking, races; Google's token endpoint is stubbed
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-seo.ts   # after every seed; sitemap, robots.txt, feed and JSON-LD
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-r2.ts    # with the site and the script both given the R2_* variables; any S3-compatible store works
 ```
