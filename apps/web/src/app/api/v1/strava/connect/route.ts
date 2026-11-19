@@ -3,6 +3,7 @@ import config from '@payload-config'
 import { getPayload } from 'payload'
 
 import { resolveSessionFromCookie } from '@/members/session'
+import { absoluteUrl } from '@/site-config'
 import { signOAuthState } from '@/members/strava-crypto'
 
 export const dynamic = 'force-dynamic'
@@ -12,11 +13,11 @@ export async function GET(request: Request): Promise<Response> {
   const session = await resolveSessionFromCookie(payload, request.headers.get('cookie'))
 
   if (!session) {
-    return NextResponse.redirect(new URL('/sign-in', request.url))
+    return NextResponse.redirect(absoluteUrl('/sign-in'))
   }
 
   if (process.env.STRAVA_ENABLED !== 'true') {
-    return NextResponse.redirect(new URL('/me', request.url))
+    return NextResponse.redirect(absoluteUrl('/me'))
   }
 
   const clientId = process.env.STRAVA_CLIENT_ID
@@ -24,7 +25,7 @@ export async function GET(request: Request): Promise<Response> {
   const secret = process.env.PAYLOAD_SECRET
 
   if (!clientId || !redirectUri || !secret) {
-    return NextResponse.redirect(new URL('/me?strava=error', request.url))
+    return NextResponse.redirect(absoluteUrl('/me?strava=error'))
   }
 
   const state = signOAuthState(session.member, secret)

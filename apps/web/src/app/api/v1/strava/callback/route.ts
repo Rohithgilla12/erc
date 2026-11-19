@@ -5,6 +5,7 @@ import { type MemberId } from '@erc/domain'
 import { getPayload } from 'payload'
 
 import { resolveSessionFromCookie } from '@/members/session'
+import { absoluteUrl } from '@/site-config'
 import { disconnectStrava, joinStravaWaitlist, syncStravaActivities } from '@/members/strava'
 import { encryptToken, verifyOAuthState } from '@/members/strava-crypto'
 
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request): Promise<Response> {
   // Feature flag check
   if (process.env.STRAVA_ENABLED !== 'true') {
-    return NextResponse.redirect(new URL('/me', request.url))
+    return NextResponse.redirect(absoluteUrl('/me'))
   }
 
   const url = new URL(request.url)
@@ -24,7 +25,7 @@ export async function GET(request: Request): Promise<Response> {
 
   // 1. Check for access_denied error from Strava
   if (error === 'access_denied') {
-    return NextResponse.redirect(new URL('/me?strava=denied', request.url))
+    return NextResponse.redirect(absoluteUrl('/me?strava=denied'))
   }
 
   // 2. Resolve member session
@@ -32,22 +33,22 @@ export async function GET(request: Request): Promise<Response> {
   const session = await resolveSessionFromCookie(payload, request.headers.get('cookie'))
 
   if (!session) {
-    return NextResponse.redirect(new URL('/sign-in', request.url))
+    return NextResponse.redirect(absoluteUrl('/sign-in'))
   }
 
   // 3. Validate state signature and match with logged-in member session
   const secret = process.env.PAYLOAD_SECRET
   if (!secret || !state || !verifyOAuthState(state, session.member, secret)) {
-    return NextResponse.redirect(new URL('/me?strava=denied', request.url))
+    return NextResponse.redirect(absoluteUrl('/me?strava=denied'))
   }
 
   // Check requested scope if present (Strava sends comma-separated scopes)
   if (scope && !scope.includes('activity:read')) {
-    return NextResponse.redirect(new URL('/me?strava=denied', request.url))
+    return NextResponse.redirect(absoluteUrl('/me?strava=denied'))
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL('/me?strava=denied', request.url))
+    return NextResponse.redirect(absoluteUrl('/me?strava=denied'))
   }
 
   // 4. Pilot Cap Check
@@ -68,14 +69,14 @@ export async function GET(request: Request): Promise<Response> {
   // If at or above cap and not already connected: mark/upsert waitlisted
   if (connectedCount >= cap && !isAlreadyConnected) {
     await joinStravaWaitlist(payload, session.member)
-    return NextResponse.redirect(new URL('/me?strava=waitlisted', request.url))
+    return NextResponse.redirect(absoluteUrl('/me?strava=waitlisted'))
   }
 
   // 5. Under cap (or re-connecting): exchange authorization code
   const clientId = process.env.STRAVA_CLIENT_ID
   const clientSecret = process.env.STRAVA_CLIENT_SECRET
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(new URL('/me?strava=error', request.url))
+    return NextResponse.redirect(absoluteUrl('/me?strava=error'))
   }
 
   try {
@@ -91,7 +92,7 @@ export async function GET(request: Request): Promise<Response> {
     })
 
     if (!tokenRes.ok) {
-      return NextResponse.redirect(new URL('/me?strava=error', request.url))
+      return NextResponse.redirect(absoluteUrl('/me?strava=error'))
     }
 
     const data = (await tokenRes.json()) as {
@@ -102,7 +103,7 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     if (!data.access_token || !data.refresh_token || !data.expires_at || !data.athlete?.id) {
-      return NextResponse.redirect(new URL('/me?strava=error', request.url))
+      return NextResponse.redirect(absoluteUrl('/me?strava=error'))
     }
 
     const athleteId = Number(data.athlete.id)
@@ -164,8 +165,8 @@ export async function GET(request: Request): Promise<Response> {
       // If initial sync encounters an error, connection was still established
     }
 
-    return NextResponse.redirect(new URL('/me?strava=connected', request.url))
+    return NextResponse.redirect(absoluteUrl('/me?strava=connected'))
   } catch {
-    return NextResponse.redirect(new URL('/me?strava=error', request.url))
+    return NextResponse.redirect(absoluteUrl('/me?strava=error'))
   }
 }
