@@ -63,6 +63,13 @@ services:
       # Umami is the shared one on boxy (~/analytics, https://analytics.gilla.fun); the id is ERC's website there.
       UMAMI_URL: ${UMAMI_URL:-}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+      # Strava sync is off unless STRAVA_ENABLED is "true". Tokens are encrypted with a key derived from PAYLOAD_SECRET, so rotating it disconnects every athlete.
+      STRAVA_ENABLED: ${STRAVA_ENABLED:-}
+      STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID:-}
+      STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
+      STRAVA_REDIRECT_URI: ${STRAVA_REDIRECT_URI:-}
+      STRAVA_WEBHOOK_VERIFY_TOKEN: ${STRAVA_WEBHOOK_VERIFY_TOKEN:-}
+      STRAVA_ATHLETE_CAP: ${STRAVA_ATHLETE_CAP:-}
     volumes:
       - /data/media/erc/uploads:/data/uploads
       # The page cache grows with distinct URLs, so it lives on the large volume, not the root disk.
