@@ -558,7 +558,6 @@ export async function decideRequest(
 
 type CoachedAthlete = { athlete: { id: number; name: string; slug: string; member_id: number; photo_url: string | null }; linkId: string }
 
-/** The athlete behind a slug, if the coach has an active link to them. */
 async function coachedAthlete(payload: Payload, coachId: CoachId, athleteSlug: Slug): Promise<Result<CoachedAthlete, OpFailure>> {
   const db = payload.db.drizzle
   const athleteRes = await db.execute(sql`

@@ -23,7 +23,6 @@ import type { Payload } from 'payload'
 
 import { instantOf } from './session'
 
-/** The database or an open transaction. */
 export type Executor = Pick<Payload['db']['drizzle'], 'execute'>
 
 /** The activity row every metric row hangs off. */

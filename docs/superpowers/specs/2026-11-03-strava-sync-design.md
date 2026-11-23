@@ -38,7 +38,8 @@ This specification establishes **Slice 6 (Strava Sync)**, fully satisfying ERC's
 
 ### Non-Goals
 - **Public Leaderboard Sync:** Strava activities will **never** count toward public mileage boards or race results boards without an explicit manual file upload or self-report.
-- **Heart Rate & GPS Maps Storage:** ERC does not store or process GPS coordinate streams (polylines) or heart rate series, protecting athlete privacy and bounding storage.
+- **GPS Maps Storage:** ERC does not store GPS coordinate streams (polylines).
+- ~~Heart rate storage~~ Reversed on 2026-11-23: ERC now stores per-run metrics, splits, laps, best efforts and time, distance, heart-rate, cadence, speed and altitude streams in `activity_metrics`, `activity_splits`, `activity_laps`, `activity_best_efforts` and `activity_streams`, all cascading from the activity row. They are shown to the athlete, and to their coach only when `STRAVA_COACH_VIEW=true`. Detail and stream fetches go through the `strava_jobs` queue, drained every 15 minutes by `POST /api/v1/strava/drain` (bearer `STRAVA_DRAIN_SECRET`) within 80% of Strava's rate limits.
 - **Background Worker Daemon:** No background polling container or daemon; synchronization operates via webhooks and user-initiated on-demand requests.
 
 ---

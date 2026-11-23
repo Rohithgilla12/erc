@@ -219,7 +219,6 @@ export const parseStravaStreams = (raw: unknown): Result<RunStreams, 'not_stream
   })
 }
 
-/** One rate-limit window: requests used and allowed. */
 export type RateWindow = { used: number; limit: number }
 
 type HeaderSource = { get(name: string): string | null }

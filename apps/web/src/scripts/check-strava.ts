@@ -9,6 +9,10 @@
  * 6. Webhook events: activity.create adds a run, activity.delete removes it, and athlete deauthorization purges all tokens and activities.
  * 7. Disconnect: calls disconnectStrava, proving all Strava activities and connection rows are deleted.
  * 8. Privacy isolation: verifies PUBLIC_SOURCES query and athleteWeek exclude Strava activities.
+ * 9. Run metrics: list sync stores summary metrics (cadence doubled, missing heart rate) and queues detail and streams
+ *    jobs; webhooks queue instead of fetching; the drain refuses a missing or wrong secret, fetches details before
+ *    streams, stops at 80% of a rate-limit window and on a 429, backs off and gives up; run detail renders; coaches
+ *    see Strava runs only with STRAVA_COACH_VIEW; disconnect and deauthorisation leave no metric or job rows.
  *
  * Run via: pnpm --filter @erc/web payload run src/scripts/check-strava.ts
  */
