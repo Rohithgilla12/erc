@@ -57,6 +57,7 @@ process.env.STRAVA_CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET || 'mock_str
 process.env.STRAVA_REDIRECT_URI = process.env.STRAVA_REDIRECT_URI || 'http://localhost:3000/api/v1/strava/callback'
 process.env.STRAVA_WEBHOOK_VERIFY_TOKEN = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN || 'erc_strava_webhook_secret'
 process.env.STRAVA_ATHLETE_CAP = '10'
+delete process.env.STRAVA_COACH_VIEW
 
 const payload = await getPayload({ config })
 const runId = Date.now()
@@ -77,6 +78,7 @@ const expect = (label: string, actual: unknown, wanted: unknown) => {
 // Track created entities for robust cleanup
 const createdMemberIds: number[] = []
 let testCoachId: CoachId | null = null
+let otherCoachId: CoachId | null = null
 let testAthleteId: number | null = null
 let testLinkId: string | null = null
 
@@ -913,7 +915,7 @@ try {
     INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s, note)
     VALUES
       (${memberC}, 'manual', 'manual-privacy-run', ${today}, 10000, 3000, 'Legitimate Club Tempo'),
-      (${memberC}, 'strava', 'strava:private-999', ${today}, 25000, 7500, 'Private Strava Long Run')
+      (${memberC}, 'strava', 'strava:777001', ${today}, 25000, 7500, 'Private Strava Long Run')
   `)
 
   // Test SQL query using PUBLIC_SOURCES
@@ -954,6 +956,46 @@ try {
     expect('athleteWeek summary runCount is 1', data.summary.runCount, 1)
     expect('athleteWeek summary totalMetres is exactly 10000 (excludes 25000m Strava run)', data.summary.totalMetres, 10000)
   }
+
+  const coachRunDetail = (ref: string) => run('athleteRunDetail', coachCaller, { athleteSlug, source: 'strava', ref })
+  const hiddenDetail = await coachRunDetail('strava:777001')
+  expect('with the coach view off, a coach cannot open the Strava run', hiddenDetail.ok ? 'ok' : hiddenDetail.error.code, 'not_found')
+  const rosterOff = await run('roster', coachCaller, {})
+  expect('with the coach view off, the roster counts only the manual run', rosterOff.ok && rosterOff.data.athletes.find((a) => a.athleteSlug === athleteSlug)?.totalMetres, 10000)
+
+  process.env.STRAVA_COACH_VIEW = 'true'
+  const weekOn = await run('athleteWeek', coachCaller, { athleteSlug, weekStart })
+  expect('with the coach view on, athleteWeek includes the Strava run', weekOn.ok && [weekOn.data.runs.length, weekOn.data.summary.totalMetres], [2, 35000])
+  const rosterOn = await run('roster', coachCaller, {})
+  expect('with the coach view on, the roster counts the Strava run', rosterOn.ok && rosterOn.data.athletes.find((a) => a.athleteSlug === athleteSlug)?.totalMetres, 35000)
+  const shownDetail = await coachRunDetail('strava:777001')
+  expect('with the coach view on, the coach opens the Strava run detail', shownDetail.ok && [shownDetail.data.run.ref, shownDetail.data.run.distance], ['strava:777001', 25000])
+  const missingDetail = await coachRunDetail('strava:777002')
+  expect('a coach asking for a run the athlete does not have gets not_found', missingDetail.ok ? 'ok' : missingDetail.error.code, 'not_found')
+
+  const otherCoachMember = await createTestMember('other-coach')
+  const { rows: otherCoachRows } = await payload.db.drizzle.execute(sql`
+    INSERT INTO coaches (name, slug, credentials, member_id, _status)
+    VALUES ('Other Coach', ${`coach-other-${runId}`}, 'Coach', ${otherCoachMember}, 'published')
+    RETURNING id
+  `)
+  otherCoachId = (otherCoachRows[0] as { id: number }).id as CoachId
+  const otherCoachCaller: Caller = {
+    kind: 'member',
+    session: (await resolveSession(payload, (await issueSession(payload, otherCoachMember, 'cookie', 'Other Coach')).token, 'cookie'))!,
+    sender: '127.0.0.1',
+  }
+  const unlinkedDetail = await run('athleteRunDetail', otherCoachCaller, { athleteSlug, source: 'strava', ref: 'strava:777001' })
+  expect('a coach without an active link to the athlete is refused', unlinkedDetail.ok ? 'ok' : unlinkedDetail.error.code, 'forbidden')
+  const athleteAsCoach = await run('athleteRunDetail', { kind: 'member', session: (await resolveSession(payload, (await issueSession(payload, memberC, 'cookie', 'Athlete')).token, 'cookie'))!, sender: '127.0.0.1' }, { athleteSlug, source: 'strava', ref: 'strava:777001' })
+  expect('a member who is not a coach cannot use the coach operation', athleteAsCoach.ok ? 'ok' : athleteAsCoach.error.code, 'forbidden')
+
+  expect('with the coach view on, PUBLIC_SOURCES still excludes strava', (PUBLIC_SOURCES as readonly string[]).includes('strava'), false)
+  const { rows: publicRowsFlagOn } = await payload.db.drizzle.execute(sql`
+    SELECT count(*)::int AS n, coalesce(sum(metres), 0)::int AS metres FROM activities WHERE member_id = ${memberC} AND source IN ${sql`(${sql.join(PUBLIC_SOURCES.map((source) => sql`${source}`), sql`, `)})`}
+  `)
+  expect('a board built from PUBLIC_SOURCES counts only the manual run with the coach view on', publicRowsFlagOn[0], { n: 1, metres: 10000 })
+  delete process.env.STRAVA_COACH_VIEW
 } finally {
   // Restore global fetch
   globalThis.fetch = originalFetch
@@ -969,6 +1011,9 @@ try {
     }
     if (testCoachId) {
       await payload.db.drizzle.execute(sql`DELETE FROM coaches WHERE id = ${testCoachId}`)
+    }
+    if (otherCoachId) {
+      await payload.db.drizzle.execute(sql`DELETE FROM coaches WHERE id = ${otherCoachId}`)
     }
     if (createdMemberIds.length > 0) {
       await payload.db.drizzle.execute(

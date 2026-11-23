@@ -8,7 +8,9 @@ import {
   type CoachRosterView,
   type MyCoachingView,
   type OwnerOnly,
+  type RunDetailView,
   type RunView,
+  runView,
 } from '@erc/contract'
 import {
   addDays,
@@ -27,15 +29,25 @@ import {
   type CoachingLinkState,
   type LocalDate,
   type MemberId,
-  type PublicSource,
+  type ActivityKey,
+  type ActivitySource,
   type Result,
   type Slug,
   type WeekReviewInput,
 } from '@erc/domain'
 import type { Payload } from 'payload'
 
+import { readRunDetail } from './run-metrics'
 import { instantOf } from './session'
 import type { OpFailure } from './run'
+
+/**
+ * Strava's terms let its data be shown to the athlete it came from; coaches see it only once the club has turned
+ * this on. Public numbers never do, whatever this says: they read PUBLIC_SOURCES.
+ */
+export const stravaCoachView = (): boolean => process.env.STRAVA_COACH_VIEW === 'true'
+
+const coachSources = () => (stravaCoachView() ? sql`('manual', 'file', 'strava')` : sql`('manual', 'file')`)
 
 function asStringArray(value: unknown): readonly string[] {
   if (Array.isArray(value)) return value.map(String)
@@ -382,7 +394,7 @@ export async function getCoachRoster(
 
   type ActivityRow = {
     member_id: number
-    source: PublicSource
+    source: ActivitySource
     ref: string
     on: string
     date: string
@@ -410,7 +422,7 @@ export async function getCoachRoster(
       SELECT member_id, source, ref, on_date::text AS on, on_date::text AS date, metres, metres AS distance, moving_s AS moving, moving_s AS seconds, logged_at, note
       FROM activities
       WHERE member_id IN ${sql`(${sql.join(activeMemberIds.map((id) => sql`${id}`), sql`, `)})`}
-        AND source IN ('manual', 'file')
+        AND source IN ${coachSources()}
         AND on_date BETWEEN ${prevWeek.first} AND ${thisWeek.last}
       ORDER BY on_date DESC, logged_at DESC
     `)
@@ -544,18 +556,11 @@ export async function decideRequest(
   return ok({ decided: true })
 }
 
-export async function getAthleteWeek(
-  payload: Payload,
-  coachId: CoachId,
-  athleteSlug: Slug,
-  weekStart?: LocalDate | null,
-): Promise<Result<AthleteWeekView, OpFailure>> {
-  const db = payload.db.drizzle
-  const targetWeekStart = weekOf(weekStart ?? todayIn(CLUB_TIME_ZONE)).first
-  const thisWeek = { kind: 'week' as const, first: targetWeekStart, last: addDays(targetWeekStart, 6) }
-  const prevWeekStart = addDays(targetWeekStart, -7)
-  const prevWeek = { kind: 'week' as const, first: prevWeekStart, last: addDays(prevWeekStart, 6) }
+type CoachedAthlete = { athlete: { id: number; name: string; slug: string; member_id: number; photo_url: string | null }; linkId: string }
 
+/** The athlete behind a slug, if the coach has an active link to them. */
+async function coachedAthlete(payload: Payload, coachId: CoachId, athleteSlug: Slug): Promise<Result<CoachedAthlete, OpFailure>> {
+  const db = payload.db.drizzle
   const athleteRes = await db.execute(sql`
     SELECT a.id, a.name, a.slug, a.member_id, m.url AS photo_url
     FROM athletes a
@@ -582,10 +587,44 @@ export async function getAthleteWeek(
   if (!linkRow) {
     return err({ code: 'forbidden', message: 'You are not the designated coach for this athlete.' })
   }
+  return ok({ athlete: { ...athleteRow, member_id: athleteRow.member_id }, linkId: linkRow.id })
+}
+
+/** One run of an athlete the coach has an active link to. A Strava run is invisible unless the coach view is on. */
+export async function getAthleteRunDetail(
+  payload: Payload,
+  coachId: CoachId,
+  athleteSlug: Slug,
+  key: ActivityKey,
+): Promise<Result<RunDetailView, OpFailure>> {
+  const coached = await coachedAthlete(payload, coachId, athleteSlug)
+  if (!coached.ok) return coached
+  const detail =
+    key.source === 'strava' && !stravaCoachView()
+      ? null
+      : await readRunDetail(payload.db.drizzle, { member: coached.value.athlete.member_id as MemberId, ...key })
+  return detail ? ok({ ...detail, run: runView(detail.run) }) : err({ code: 'not_found', message: 'That run is not in this athlete\'s log.' })
+}
+
+export async function getAthleteWeek(
+  payload: Payload,
+  coachId: CoachId,
+  athleteSlug: Slug,
+  weekStart?: LocalDate | null,
+): Promise<Result<AthleteWeekView, OpFailure>> {
+  const db = payload.db.drizzle
+  const targetWeekStart = weekOf(weekStart ?? todayIn(CLUB_TIME_ZONE)).first
+  const thisWeek = { kind: 'week' as const, first: targetWeekStart, last: addDays(targetWeekStart, 6) }
+  const prevWeekStart = addDays(targetWeekStart, -7)
+  const prevWeek = { kind: 'week' as const, first: prevWeekStart, last: addDays(prevWeekStart, 6) }
+
+  const coached = await coachedAthlete(payload, coachId, athleteSlug)
+  if (!coached.ok) return coached
+  const { athlete: athleteRow, linkId } = coached.value
 
   type ActivityRow = {
     member_id: number
-    source: PublicSource
+    source: ActivitySource
     ref: string
     on_date: string
     metres: number
@@ -597,7 +636,7 @@ export async function getAthleteWeek(
     SELECT member_id, source, ref, on_date::text AS on_date, metres, moving_s, logged_at, note
     FROM activities
     WHERE member_id = ${athleteRow.member_id}
-      AND source IN ('manual', 'file')
+      AND source IN ${coachSources()}
       AND on_date BETWEEN ${prevWeek.first} AND ${thisWeek.last}
     ORDER BY on_date DESC, logged_at DESC
   `)
@@ -652,7 +691,7 @@ export async function getAthleteWeek(
   const revRes = await db.execute(sql`
     SELECT week_start_date::text AS week_start, watch, recommendations, note, shared_at
     FROM week_reviews
-    WHERE link_id = ${linkRow.id} AND week_start_date = ${thisWeek.first}
+    WHERE link_id = ${linkId} AND week_start_date = ${thisWeek.first}
     LIMIT 1
   `)
   const revRow = revRes.rows[0] as

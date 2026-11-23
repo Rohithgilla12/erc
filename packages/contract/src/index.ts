@@ -395,6 +395,13 @@ export const parseAthleteWeekQuery = (raw: RawInput): Result<{ athleteSlug: Slug
   })
 }
 
+export const parseAthleteRunQuery = (raw: RawInput): Result<{ athleteSlug: Slug } & ActivityKey, FieldErrors> => {
+  const slug = parseSlug(firstOf(raw.athleteSlug).trim())
+  const key = parseRunKey(raw)
+  if (!slug.ok) return err({ athleteSlug: 'Enter a valid athlete slug.', ...(key.ok ? {} : key.error) })
+  return key.ok ? ok({ athleteSlug: slug.value, ...key.value }) : key
+}
+
 export const parseSaveWeekReview = (raw: RawInput): Result<{ athleteSlug: Slug; weekStart: LocalDate } & WeekReviewInput, FieldErrors> => {
   const slugText = firstOf(raw.athleteSlug).trim()
   const slugResult = parseSlug(slugText)
@@ -538,6 +545,14 @@ export const OPERATIONS = {
     parse: parseAthleteWeekQuery,
     fields: phantom<{ athleteSlug: string; weekStart?: string }>(),
     output: phantom<AthleteWeekView>(),
+  }),
+  athleteRunDetail: op({
+    method: 'GET',
+    path: '/coach/athletes/run',
+    access: 'coach',
+    parse: parseAthleteRunQuery,
+    fields: phantom<{ athleteSlug: string; source: string; ref: string }>(),
+    output: phantom<RunDetailView>(),
   }),
   saveWeekReview: op({
     method: 'POST',

@@ -26,6 +26,7 @@ import { claimAthlete, myAthlete, searchClaimable, setPhoto, setVisibility, star
 import {
   decideRequest,
   endCoaching,
+  getAthleteRunDetail,
   getAthleteWeek,
   getCoachRoster,
   getMyCoaching,
@@ -166,6 +167,8 @@ const IMPLEMENTATIONS: Implementations = {
   roster: async ({ session }) => getCoachRoster(await getPayload({ config }), session.coachId),
   decideCoachingRequest: async ({ session }, input) => decideRequest(await getPayload({ config }), session.coachId, input.linkId, input.decision),
   athleteWeek: async ({ session }, input) => getAthleteWeek(await getPayload({ config }), session.coachId, input.athleteSlug, input.weekStart),
+  athleteRunDetail: async ({ session }, input) =>
+    getAthleteRunDetail(await getPayload({ config }), session.coachId, input.athleteSlug, { source: input.source, ref: input.ref }),
   saveWeekReview: async ({ session }, input) => saveWeekReview(await getPayload({ config }), session.coachId, input.athleteSlug, input.weekStart, input),
   stravaStatus: async ({ session }) => {
     const payload = await getPayload({ config })

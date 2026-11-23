@@ -54,8 +54,9 @@ export const parseStoredRef = (raw: unknown): Result<SourceRef, 'not_a_ref'> => 
   return Object.values(STORED_REF).some((pattern) => pattern.test(ref)) ? ok(ref as SourceRef) : err('not_a_ref')
 }
 
-/** Where a member opens one of their runs. */
-export const runDetailPath = ({ source, ref }: { source: ActivitySource; ref: string }): string => `/me/runs/${source}/${encodeURIComponent(ref)}`
+/** Where a member opens one of their runs, or, given the athlete's slug, where their coach opens it. */
+export const runDetailPath = ({ source, ref }: { source: ActivitySource; ref: string }, athleteSlug?: string): string =>
+  `${athleteSlug === undefined ? '/me' : `/me/coach/${athleteSlug}`}/runs/${source}/${encodeURIComponent(ref)}`
 
 /** One source's record of a run, as stored. `on` is fixed in IST when the row is written. */
 export type Activity<S extends ActivitySource = ActivitySource> = {

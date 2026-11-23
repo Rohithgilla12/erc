@@ -76,6 +76,8 @@ services:
       # Detail and stream fetches wait in a queue that host cron drains every 15 minutes; with no secret the drain refuses every call:
       # */15 * * * * . ~/erc/.env && curl -fsS -X POST -H "Authorization: Bearer $STRAVA_DRAIN_SECRET" "$ERC_SITE_URL/api/v1/strava/drain"
       STRAVA_DRAIN_SECRET: ${STRAVA_DRAIN_SECRET:-}
+      # Coaches see their athletes' Strava runs and run detail only when this is "true". Public numbers never include Strava.
+      STRAVA_COACH_VIEW: ${STRAVA_COACH_VIEW:-}
     volumes:
       - /data/media/erc/uploads:/data/uploads
       # The page cache grows with distinct URLs, so it lives on the large volume, not the root disk.

@@ -5,6 +5,7 @@ import {
   addDays,
   formatDuration,
   formatKm,
+  runDetailPath,
   type LocalDate,
   type Metres,
   type Seconds,
@@ -265,7 +266,13 @@ export default async function AthleteWeekReviewPage({ params, searchParams }: Pr
               <li className="member-run member-run--detailed" key={`${item.source}-${item.ref}`}>
                 <div className="member-run-main">
                   <span>
-                    <time dateTime={item.on}>{formatDay(item.on)}</time>
+                    {item.source === 'strava' ? (
+                      <a href={runDetailPath(item, athlete.slug)}>
+                        <time dateTime={item.on}>{formatDay(item.on)}</time>
+                      </a>
+                    ) : (
+                      <time dateTime={item.on}>{formatDay(item.on)}</time>
+                    )}
                   </span>
                   <span>{formatKm(item.distance as Metres)}</span>
                   <span className="member-run-detail">
