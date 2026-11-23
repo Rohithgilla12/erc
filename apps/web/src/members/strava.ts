@@ -10,12 +10,27 @@ import {
   type MemberId,
   type Result,
   type StravaActivityId,
+  type StravaSummary,
 } from '@erc/domain'
 import type { Payload } from 'payload'
 
-import { writeMetrics } from './run-metrics'
+import { writeMetrics, type Executor } from './run-metrics'
 import { decryptToken, encryptToken } from './strava-crypto'
 import { dropStravaJobs, queueMissingStravaWork } from './strava-jobs'
+
+/** Upserts the run and its summary metrics. Both Strava's list and detail responses carry everything this writes. */
+export async function writeStravaRun(db: Executor, { activity: run, metrics }: StravaSummary): Promise<void> {
+  await db.execute(sql`
+    INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s, note)
+    VALUES (${run.member}, 'strava', ${run.ref}, ${run.on}, ${run.distance}, ${run.moving}, ${run.note ?? null})
+    ON CONFLICT (member_id, source, ref) DO UPDATE SET
+      on_date = EXCLUDED.on_date,
+      metres = EXCLUDED.metres,
+      moving_s = EXCLUDED.moving_s,
+      note = EXCLUDED.note
+  `)
+  await writeMetrics(db, { member: run.member, source: 'strava', ref: run.ref }, metrics)
+}
 
 export async function getStravaStatus(
   payload: Payload,
@@ -281,18 +296,8 @@ export async function syncStravaActivities(
         const parsed = parseStravaSummary(item, memberId)
         if (!parsed.ok) continue
 
-        const { id, activity: run, metrics } = parsed.value
-        await tx.execute(sql`
-          INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s, note)
-          VALUES (${run.member}, 'strava', ${run.ref}, ${run.on}, ${run.distance}, ${run.moving}, ${run.note ?? null})
-          ON CONFLICT (member_id, source, ref) DO UPDATE SET
-            on_date = EXCLUDED.on_date,
-            metres = EXCLUDED.metres,
-            moving_s = EXCLUDED.moving_s,
-            note = EXCLUDED.note
-        `)
-        await writeMetrics(tx, { member: memberId, source: 'strava', ref: run.ref }, metrics)
-        seen.push(id)
+        await writeStravaRun(tx, parsed.value)
+        seen.push(parsed.value.id)
       }
 
       await queueMissingStravaWork(tx, memberId, seen)

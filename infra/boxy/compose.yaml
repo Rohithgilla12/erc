@@ -73,6 +73,9 @@ services:
       STRAVA_REDIRECT_URI: ${STRAVA_REDIRECT_URI:-}
       STRAVA_WEBHOOK_VERIFY_TOKEN: ${STRAVA_WEBHOOK_VERIFY_TOKEN:-}
       STRAVA_ATHLETE_CAP: ${STRAVA_ATHLETE_CAP:-}
+      # Detail and stream fetches wait in a queue that host cron drains every 15 minutes; with no secret the drain refuses every call:
+      # */15 * * * * . ~/erc/.env && curl -fsS -X POST -H "Authorization: Bearer $STRAVA_DRAIN_SECRET" "$ERC_SITE_URL/api/v1/strava/drain"
+      STRAVA_DRAIN_SECRET: ${STRAVA_DRAIN_SECRET:-}
     volumes:
       - /data/media/erc/uploads:/data/uploads
       # The page cache grows with distinct URLs, so it lives on the large volume, not the root disk.

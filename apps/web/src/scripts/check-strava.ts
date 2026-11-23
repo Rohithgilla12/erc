@@ -17,6 +17,7 @@ import { sql } from '@payloadcms/db-postgres/drizzle'
 import {
   CLUB_TIME_ZONE,
   PUBLIC_SOURCES,
+  type StravaActivityId,
   todayIn,
   weekOf,
   type CoachId,
@@ -28,6 +29,7 @@ import { getPayload } from 'payload'
 import { GET as connectGet } from '@/app/api/v1/strava/connect/route'
 import { GET as callbackGet } from '@/app/api/v1/strava/callback/route'
 import { GET as webhookGet, POST as webhookPost } from '@/app/api/v1/strava/webhook/route'
+import { POST as drainPost } from '@/app/api/v1/strava/drain/route'
 import { run, type Caller } from '@/members/run'
 import { issueSession, resolveSession, SESSION_COOKIE } from '@/members/session'
 import {
@@ -35,6 +37,8 @@ import {
   getValidStravaToken,
   joinStravaWaitlist,
 } from '@/members/strava'
+import { drainStravaJobs, MAX_JOB_ATTEMPTS } from '@/members/strava-drain'
+import { queueStravaJob } from '@/members/strava-jobs'
 import {
   decryptToken,
   encryptToken,
@@ -618,6 +622,13 @@ try {
     INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s, note)
     VALUES (${memberB}, 'strava', 'strava:9901', '2026-11-01', 7500, 2250, 'Member B Run')
   `)
+  await payload.db.drizzle.execute(sql`
+    INSERT INTO activity_metrics (member_id, source, ref, start_at, elapsed_s, has_heartrate) VALUES (${memberB}, 'strava', 'strava:9901', now(), 2300, false)
+  `)
+  await payload.db.drizzle.execute(sql`
+    INSERT INTO activity_streams (member_id, source, ref, time_s, distance_m) VALUES (${memberB}, 'strava', 'strava:9901', '{0,1}', '{0,3}')
+  `)
+  await queueStravaJob(payload.db.drizzle, memberB, 9902 as StravaActivityId, 'detail')
 
   const deauthWebhookReq = new Request('http://localhost:3000/api/v1/strava/webhook', {
     method: 'POST',
@@ -641,6 +652,163 @@ try {
     SELECT 1 FROM activities WHERE member_id = ${memberB} AND source = 'strava'
   `)
   expect('athlete deauth webhook purged member Strava activities', bActRows.length, 0)
+  const { rows: bLeftovers } = await payload.db.drizzle.execute(sql`
+    SELECT
+      (SELECT count(*)::int FROM activity_metrics WHERE member_id = ${memberB}) AS metrics,
+      (SELECT count(*)::int FROM activity_streams WHERE member_id = ${memberB}) AS streams,
+      (SELECT count(*)::int FROM strava_jobs WHERE member_id = ${memberB}) AS jobs
+  `)
+  expect('athlete deauth leaves no metric, stream or job rows', bLeftovers[0], { metrics: 0, streams: 0, jobs: 0 })
+
+  console.log('\n--- 6e. Queue drain ---')
+  process.env.STRAVA_DRAIN_SECRET = 'drain-secret-for-checks'
+  const drain = (authorization?: string) =>
+    drainPost(new Request('http://localhost:3000/api/v1/strava/drain', { method: 'POST', headers: authorization ? { authorization } : {} }))
+
+  expect('drain without a bearer is refused with 401', (await drain()).status, 401)
+  expect('drain with the wrong secret is refused with 401', (await drain('Bearer not-the-secret')).status, 401)
+  delete process.env.STRAVA_DRAIN_SECRET
+  expect('drain with no secret configured refuses even an empty bearer guess', (await drain('Bearer undefined')).status, 401)
+  process.env.STRAVA_DRAIN_SECRET = 'drain-secret-for-checks'
+  const drainAuthorised = async () => (await (await drain('Bearer drain-secret-for-checks')).json()) as Record<string, unknown>
+
+  const stravaCalls: string[] = []
+  let readUsage = 0
+  const detailStatus = new Map<number, number>()
+  const detailName = new Map<number, string>([[3001, 'Easy Morning Recovery (Paced)']])
+  const limited = (body: unknown, status = 200) => {
+    readUsage++
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json', 'X-ReadRateLimit-Limit': '100,1000', 'X-ReadRateLimit-Usage': `${readUsage},${readUsage}` },
+    })
+  }
+  customHandlers.unshift(async (url) => {
+    const match = /^https:\/\/www\.strava\.com\/api\/v3\/activities\/(\d+)(\/streams)?/.exec(url)
+    if (!match) return null
+    const id = Number(match[1])
+    const kind = match[2] ? 'streams' : 'detail'
+    stravaCalls.push(`${id}:${kind}`)
+    const status = kind === 'detail' ? (detailStatus.get(id) ?? 200) : 200
+    if (status !== 200) return limited({ message: 'stubbed failure' }, status)
+    if (kind === 'streams') {
+      return limited({
+        time: { data: [0, 10, 20, 30] },
+        distance: { data: [0, 32, 65, 98] },
+        heartrate: id === 3002 ? undefined : { data: [140, 150, 160, 170] },
+        cadence: { data: [84, 85, 86, 87] },
+        velocity_smooth: { data: [3.2, 3.3, 3.3, 3.2] },
+        altitude: { data: [900, 901, 902, 901] },
+      })
+    }
+    return limited({
+      id,
+      name: detailName.get(id) ?? `Run ${id}`,
+      type: 'Run',
+      sport_type: 'Run',
+      start_date: '2026-11-01T01:00:00Z',
+      start_date_local: '2026-11-01T06:30:00Z',
+      distance: 6200,
+      moving_time: 1820,
+      elapsed_time: 1870,
+      has_heartrate: id !== 3002,
+      ...(id !== 3002 ? { average_heartrate: 150, max_heartrate: 176 } : {}),
+      average_cadence: 86,
+      calories: 410.6,
+      device_name: 'Stub Watch',
+      splits_metric: [
+        { split: 1, distance: 1000, moving_time: 290, elapsed_time: 295, average_heartrate: 148, elevation_difference: 2, pace_zone: 2 },
+        { split: 2, distance: 1000, moving_time: 288, elapsed_time: 288, average_heartrate: 152, elevation_difference: -1, pace_zone: 2 },
+      ],
+      laps: [{ lap_index: 1, name: 'Lap 1', distance: 6200, moving_time: 1820, elapsed_time: 1870, average_speed: 3.4, max_speed: 4.1, average_heartrate: 150, max_heartrate: 176, average_cadence: 86 }],
+      best_efforts: [{ name: '1k', distance: 1000, moving_time: 280, elapsed_time: 280, pr_rank: 1 }],
+    })
+  })
+
+  const countFor = async (table: string, member: MemberId, ref: string) =>
+    ((await payload.db.drizzle.execute(sql`SELECT count(*)::int AS n FROM ${sql.raw(table)} WHERE member_id = ${member} AND ref = ${ref}`)).rows[0] as { n: number }).n
+
+  readUsage = 78
+  const firstDrain = await drainAuthorised()
+  expect('drain stops when the read window reaches 80%', firstDrain, { requests: 2, done: 2, retried: 0, dropped: 0, stopped: 'budget' })
+  expect('first drain fetched details oldest first', stravaCalls.splice(0), ['3001:detail', '3002:detail'])
+  const { rows: detailedRows } = await payload.db.drizzle.execute(sql`
+    SELECT calories, device_name, detailed_at IS NOT NULL AS detailed FROM activity_metrics WHERE member_id = ${memberA} AND ref = 'strava:3001'
+  `)
+  expect('detail job stored calories and device', detailedRows[0], { calories: 411, device_name: 'Stub Watch', detailed: true })
+  expect('detail job stored 2 splits, 1 lap and 1 best effort', [
+    await countFor('activity_splits', memberA, 'strava:3001'),
+    await countFor('activity_laps', memberA, 'strava:3001'),
+    await countFor('activity_best_efforts', memberA, 'strava:3001'),
+  ], [2, 1, 1])
+  const { rows: lapRows } = await payload.db.drizzle.execute(sql`SELECT avg_cadence_spm, avg_hr FROM activity_laps WHERE member_id = ${memberA} AND ref = 'strava:3001'`)
+  expect('lap cadence is doubled too', lapRows[0], { avg_cadence_spm: 172, avg_hr: 150 })
+
+  readUsage = 0
+  detailStatus.set(3004, 500)
+  const secondDrain = await drainAuthorised()
+  expect('second drain retries the failing detail, stores two streams, then finds nothing due', secondDrain, { requests: 3, done: 2, retried: 1, dropped: 0, stopped: 'empty' })
+  expect('a later detail job runs before earlier streams jobs, and streams wait for their own detail', stravaCalls.splice(0), ['3004:detail', '3001:streams', '3002:streams'])
+  const { rows: backoffRows } = await payload.db.drizzle.execute(sql`
+    SELECT attempts, last_error, not_before > now() + interval '10 minutes' AS backed_off FROM strava_jobs WHERE strava_activity_id = 3004 AND kind = 'detail'
+  `)
+  expect('failed detail job backs off with its error recorded', backoffRows[0], { attempts: 1, last_error: 'HTTP 500', backed_off: true })
+  const { rows: streamRows } = await payload.db.drizzle.execute(sql`
+    SELECT ref, time_s, cadence_spm, heartrate_bpm FROM activity_streams WHERE member_id = ${memberA} ORDER BY ref
+  `)
+  expect('streams stored as arrays with cadence doubled', streamRows[0], { ref: 'strava:3001', time_s: [0, 10, 20, 30], cadence_spm: [168, 170, 172, 174], heartrate_bpm: [140, 150, 160, 170] })
+  expect('streams for a run without heart rate store none', (streamRows[1] as { heartrate_bpm: unknown } | undefined)?.heartrate_bpm, null)
+
+  await payload.db.drizzle.execute(sql`UPDATE strava_jobs SET not_before = now() WHERE strava_activity_id = 3004 AND kind = 'detail'`)
+  detailStatus.set(3004, 429)
+  const limitedDrain = await drainAuthorised()
+  expect('a 429 stops the drain at once', limitedDrain, { requests: 1, done: 0, retried: 0, dropped: 0, stopped: 'rate_limited' })
+  const { rows: afterLimit } = await payload.db.drizzle.execute(sql`SELECT attempts, not_before <= now() AS due FROM strava_jobs WHERE strava_activity_id = 3004 AND kind = 'detail'`)
+  expect('a 429 hands the job back without counting an attempt', afterLimit[0], { attempts: 1, due: true })
+  stravaCalls.splice(0)
+
+  await payload.db.drizzle.execute(sql`UPDATE strava_jobs SET attempts = ${MAX_JOB_ATTEMPTS - 1} WHERE strava_activity_id = 3004 AND kind = 'detail'`)
+  detailStatus.set(3004, 503)
+  const giveUpDrain = await drainAuthorised()
+  expect('a job failing its last attempt is dropped, which frees its streams job', giveUpDrain, { requests: 2, done: 1, retried: 0, dropped: 1, stopped: 'empty' })
+  expect('queue is empty once everything is done or dropped', (await jobsOf(memberA)).length, 0)
+  stravaCalls.splice(0)
+
+  detailName.set(3001, 'Renamed on Strava')
+  await webhookPost(
+    new Request('http://localhost:3000/api/v1/strava/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ object_type: 'activity', aspect_type: 'update', object_id: 3001, owner_id: athleteIdMain, updates: { title: 'Renamed on Strava' } }),
+    }),
+  )
+  const updateDrain = await drainAuthorised()
+  expect('an update webhook costs one detail fetch and no stream refetch', [updateDrain.requests, stravaCalls.splice(0)], [1, ['3001:detail']])
+  const { rows: renamed } = await payload.db.drizzle.execute(sql`SELECT note FROM activities WHERE member_id = ${memberA} AND ref = 'strava:3001'`)
+  expect('the update renamed the run', (renamed[0] as { note: string } | undefined)?.note, 'Renamed on Strava')
+  expect('refetching a detail replaces splits instead of duplicating them', await countFor('activity_splits', memberA, 'strava:3001'), 2)
+
+  await queueStravaJob(payload.db.drizzle, memberA, 3002 as StravaActivityId, 'detail')
+  detailStatus.set(3002, 404)
+  await drainAuthorised()
+  expect('a run Strava no longer shows us is removed with its metrics', [
+    await countFor('activities', memberA, 'strava:3002'),
+    await countFor('activity_metrics', memberA, 'strava:3002'),
+    await countFor('activity_streams', memberA, 'strava:3002'),
+  ], [0, 0, 0])
+
+  await payload.db.drizzle.execute(sql`
+    INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s) VALUES (${memberA}, 'strava', 'strava:3010', '2026-11-04', 5000, 1500)
+  `)
+  readUsage = 0
+  stravaCalls.splice(0)
+  await queueStravaJob(payload.db.drizzle, memberA, 3010 as StravaActivityId, 'detail')
+  await queueStravaJob(payload.db.drizzle, memberA, 3011 as StravaActivityId, 'detail')
+  await queueStravaJob(payload.db.drizzle, memberA, 3012 as StravaActivityId, 'detail')
+  const capped = await drainStravaJobs(payload, 2)
+  expect('a drain stops at its request cap when headers allow more', [capped.requests, capped.stopped], [2, 'request_cap'])
+  await payload.db.drizzle.execute(sql`DELETE FROM strava_jobs WHERE strava_activity_id IN (3010, 3011, 3012)`)
+  await queueStravaJob(payload.db.drizzle, memberA, 3001 as StravaActivityId, 'streams')
 
   // ============================================================================
   // 7. Disconnect via disconnectStrava
@@ -658,6 +826,16 @@ try {
     SELECT 1 FROM activities WHERE member_id = ${memberA} AND source = 'strava'
   `)
   expect('disconnectStrava purged all Strava activities for member', aActAfterDisconnect.length, 0)
+  const { rows: aLeftovers } = await payload.db.drizzle.execute(sql`
+    SELECT
+      (SELECT count(*)::int FROM activity_metrics WHERE member_id = ${memberA}) AS metrics,
+      (SELECT count(*)::int FROM activity_splits WHERE member_id = ${memberA}) AS splits,
+      (SELECT count(*)::int FROM activity_laps WHERE member_id = ${memberA}) AS laps,
+      (SELECT count(*)::int FROM activity_best_efforts WHERE member_id = ${memberA}) AS efforts,
+      (SELECT count(*)::int FROM activity_streams WHERE member_id = ${memberA}) AS streams,
+      (SELECT count(*)::int FROM strava_jobs WHERE member_id = ${memberA}) AS jobs
+  `)
+  expect('disconnect leaves no metric, split, lap, effort, stream or job rows', aLeftovers[0], { metrics: 0, splits: 0, laps: 0, efforts: 0, streams: 0, jobs: 0 })
 
   const statusAfterDisconnect = await getStravaStatus(payload, memberA)
   expect('status is disconnected after disconnectStrava', statusAfterDisconnect.status, 'disconnected')
