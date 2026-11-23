@@ -14,6 +14,7 @@ import * as migration_20261021_160546_athlete_claims from './20261021_160546_ath
 import * as migration_20261102_180000_coaching from './20261102_180000_coaching';
 import * as migration_20261103_120000_strava from './20261103_120000_strava';
 import * as migration_20261119_120000_google_identities from './20261119_120000_google_identities';
+import * as migration_20261123_120000_activity_metrics from './20261123_120000_activity_metrics';
 
 export const migrations = [
   {
@@ -95,5 +96,10 @@ export const migrations = [
     up: migration_20261119_120000_google_identities.up,
     down: migration_20261119_120000_google_identities.down,
     name: '20261119_120000_google_identities',
+  },
+  {
+    up: migration_20261123_120000_activity_metrics.up,
+    down: migration_20261123_120000_activity_metrics.down,
+    name: '20261123_120000_activity_metrics',
   },
 ];
