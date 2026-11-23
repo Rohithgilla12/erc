@@ -317,26 +317,36 @@ try {
       name: 'Easy Morning Recovery',
       type: 'Run',
       sport_type: 'Run',
+      start_date: '2026-11-01T06:30:00Z',
       start_date_local: '2026-11-01T06:30:00Z',
       distance: 6000,
       moving_time: 1800,
       elapsed_time: 1850,
+      has_heartrate: true,
+      average_heartrate: 144.6,
+      max_heartrate: 171,
+      average_cadence: 85,
+      total_elevation_gain: 12.5,
+      workout_type: 0,
     },
     {
       id: 3002,
       name: 'Trail Endurance Run',
       type: 'Run',
       sport_type: 'TrailRun',
+      start_date: '2026-11-02T07:15:00Z',
       start_date_local: '2026-11-02T07:15:00Z',
       distance: 14000,
       moving_time: 4500,
       elapsed_time: 4600,
+      has_heartrate: false,
     },
     {
       id: 3003,
       name: 'Rest Day Coffee Ride',
       type: 'Ride',
       sport_type: 'Ride',
+      start_date: '2026-11-02T16:00:00Z',
       start_date_local: '2026-11-02T16:00:00Z',
       distance: 25000,
       moving_time: 3600,
@@ -399,6 +409,30 @@ try {
   expect('run2 metres is 14000', run2?.metres, 14000)
   expect('run2 moving_s is 4500', run2?.moving_s, 4500)
 
+  const { rows: metricRows } = await payload.db.drizzle.execute(sql`
+    SELECT ref, has_heartrate, avg_hr, max_hr, avg_cadence_spm, elevation_gain_m, elapsed_s, workout_type, detailed_at
+    FROM activity_metrics WHERE member_id = ${memberA} ORDER BY ref
+  `)
+  const metricsFor = (ref: string) => (metricRows as Record<string, unknown>[]).find((r) => r.ref === ref)
+  expect('list sync stored metrics for both runs and not the ride', metricRows.map((r) => r.ref), ['strava:3001', 'strava:3002'])
+  expect('run1 metrics carry heart rate, rounded', [metricsFor('strava:3001')?.has_heartrate, metricsFor('strava:3001')?.avg_hr, metricsFor('strava:3001')?.max_hr], [true, 145, 171])
+  expect('run1 cadence is doubled from per-leg 85 to 170 spm', metricsFor('strava:3001')?.avg_cadence_spm, 170)
+  expect('run1 elevation, elapsed and workout type stored', [metricsFor('strava:3001')?.elevation_gain_m, metricsFor('strava:3001')?.elapsed_s, metricsFor('strava:3001')?.workout_type], [12.5, 1850, 'default'])
+  expect('run2 without a heart-rate strap stores no heart rate', [metricsFor('strava:3002')?.has_heartrate, metricsFor('strava:3002')?.avg_hr, metricsFor('strava:3002')?.avg_cadence_spm], [false, null, null])
+  expect('list sync leaves detail columns for the detail job', metricsFor('strava:3001')?.detailed_at, null)
+
+  const jobsOf = async (member: MemberId) =>
+    (await payload.db.drizzle.execute(sql`SELECT strava_activity_id::text AS id, kind, attempts FROM strava_jobs WHERE member_id = ${member} ORDER BY strava_activity_id, kind`)).rows as {
+      id: string
+      kind: string
+      attempts: number
+    }[]
+  expect(
+    'list sync queued a detail and a streams job per run, none for the ride',
+    (await jobsOf(memberA)).map((j) => `${j.id}:${j.kind}`),
+    ['3001:detail', '3001:streams', '3002:detail', '3002:streams'],
+  )
+
   // ============================================================================
   // 5. On-demand sync via syncStrava
   // ============================================================================
@@ -409,6 +443,7 @@ try {
       name: 'Easy Morning Recovery (Paced)',
       type: 'Run',
       sport_type: 'Run',
+      start_date: '2026-11-01T06:30:00Z',
       start_date_local: '2026-11-01T06:30:00Z',
       distance: 6200,
       moving_time: 1820,
@@ -419,6 +454,7 @@ try {
       name: 'Track Intervals 8x400m',
       type: 'Run',
       sport_type: 'Run',
+      start_date: '2026-11-03T06:00:00Z',
       start_date_local: '2026-11-03T06:00:00Z',
       distance: 8000,
       moving_time: 2400,
@@ -488,6 +524,7 @@ try {
           name: 'Webhook 5K Fast',
           type: 'Run',
           sport_type: 'Run',
+          start_date: '2026-11-03T18:00:00Z',
           start_date_local: '2026-11-03T18:00:00Z',
           distance: 5000,
           moving_time: 1500,
@@ -512,13 +549,39 @@ try {
   const createWebhookRes = await webhookPost(createWebhookReq)
   expect('webhook activity.create returns 200', createWebhookRes.status, 200)
 
-  const { rows: createdActRows } = await payload.db.drizzle.execute(sql`
-    SELECT metres, note FROM activities WHERE member_id = ${memberA} AND ref = 'strava:3005'
+  expect(
+    'webhook activity.create queues detail and streams without calling Strava',
+    (await jobsOf(memberA)).filter((j) => j.id === '3005').map((j) => j.kind),
+    ['detail', 'streams'],
+  )
+  await payload.db.drizzle.execute(sql`UPDATE strava_jobs SET attempts = 3, not_before = now() + interval '1 hour', last_error = 'HTTP 500' WHERE strava_activity_id = 3005 AND kind = 'detail'`)
+  const updateWebhookRes = await webhookPost(
+    new Request('http://localhost:3000/api/v1/strava/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ object_type: 'activity', aspect_type: 'update', object_id: 3005, owner_id: athleteIdMain, updates: { title: 'Renamed' } }),
+    }),
+  )
+  expect('webhook activity.update returns 200', updateWebhookRes.status, 200)
+  const { rows: updatedJob } = await payload.db.drizzle.execute(sql`
+    SELECT attempts, last_error, not_before <= now() AS due FROM strava_jobs WHERE strava_activity_id = 3005 AND kind = 'detail'
   `)
-  expect('webhook created activity strava:3005 in Postgres', createdActRows.length, 1)
-  const createdAct = createdActRows[0] as { metres: number; note: string | null } | undefined
-  expect('created activity metres is 5000', createdAct?.metres, 5000)
-  expect('created activity note is Webhook 5K Fast', createdAct?.note, 'Webhook 5K Fast')
+  expect('webhook activity.update requeues the detail job fresh and due now', updatedJob[0], { attempts: 0, last_error: null, due: true })
+
+  const strangerWebhookRes = await webhookPost(
+    new Request('http://localhost:3000/api/v1/strava/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ object_type: 'activity', aspect_type: 'create', object_id: 3999, owner_id: 123123123 }),
+    }),
+  )
+  const { rows: strangerJobs } = await payload.db.drizzle.execute(sql`SELECT 1 FROM strava_jobs WHERE strava_activity_id = 3999`)
+  expect('webhook for an athlete nobody connected answers 200 and queues nothing', [strangerWebhookRes.status, strangerJobs.length], [200, 0])
+
+  await payload.db.drizzle.execute(sql`
+    INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s, note)
+    VALUES (${memberA}, 'strava', 'strava:3005', '2026-11-03', 5000, 1500, 'Webhook 5K Fast')
+  `)
 
   // 6c. Webhook activity.delete
   const deleteWebhookReq = new Request('http://localhost:3000/api/v1/strava/webhook', {
@@ -538,6 +601,7 @@ try {
     SELECT 1 FROM activities WHERE member_id = ${memberA} AND ref = 'strava:3005'
   `)
   expect('webhook deleted activity strava:3005 from Postgres', postDeleteActRows.length, 0)
+  expect('webhook activity.delete dropped its queued jobs', (await jobsOf(memberA)).filter((j) => j.id === '3005').length, 0)
 
   // 6d. Athlete deauthorization webhook
   const memberB = await createTestMember('b')

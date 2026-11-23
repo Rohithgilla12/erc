@@ -6,14 +6,16 @@ import type {
 import {
   err,
   ok,
-  parseStravaRun,
+  parseStravaSummary,
   type MemberId,
   type Result,
-  type StravaRunPayload,
+  type StravaActivityId,
 } from '@erc/domain'
 import type { Payload } from 'payload'
 
+import { writeMetrics } from './run-metrics'
 import { decryptToken, encryptToken } from './strava-crypto'
+import { dropStravaJobs, queueMissingStravaWork } from './strava-jobs'
 
 export async function getStravaStatus(
   payload: Payload,
@@ -266,20 +268,20 @@ export async function syncStravaActivities(
       return err(`Strava API error: ${res.statusText || res.status}`)
     }
 
-    const activities = (await res.json()) as StravaRunPayload[]
+    const activities: unknown = await res.json()
     if (!Array.isArray(activities)) {
       return err('Invalid activities response from Strava')
     }
 
-    let synced = 0
     const nowIso = new Date().toISOString()
+    const seen: StravaActivityId[] = []
 
     await db.transaction(async (tx) => {
       for (const item of activities) {
-        const parsed = parseStravaRun(item, memberId)
+        const parsed = parseStravaSummary(item, memberId)
         if (!parsed.ok) continue
 
-        const run = parsed.value
+        const { id, activity: run, metrics } = parsed.value
         await tx.execute(sql`
           INSERT INTO activities (member_id, source, ref, on_date, metres, moving_s, note)
           VALUES (${run.member}, 'strava', ${run.ref}, ${run.on}, ${run.distance}, ${run.moving}, ${run.note ?? null})
@@ -289,8 +291,11 @@ export async function syncStravaActivities(
             moving_s = EXCLUDED.moving_s,
             note = EXCLUDED.note
         `)
-        synced++
+        await writeMetrics(tx, { member: memberId, source: 'strava', ref: run.ref }, metrics)
+        seen.push(id)
       }
+
+      await queueMissingStravaWork(tx, memberId, seen)
 
       await tx.execute(sql`
         UPDATE strava_connections
@@ -300,7 +305,7 @@ export async function syncStravaActivities(
       `)
     })
 
-    return ok({ synced, lastSyncedAt: nowIso })
+    return ok({ synced: seen.length, lastSyncedAt: nowIso })
   } catch (error) {
     return err(error instanceof Error ? error.message : 'Failed to sync Strava activities')
   }
@@ -338,8 +343,9 @@ export async function disconnectStrava(
     }
   }
 
-  // Purge all Strava activities and connection row atomically
+  // Metric tables cascade from activities; queued jobs are keyed by Strava id, so they go explicitly.
   await db.transaction(async (tx) => {
+    await dropStravaJobs(tx, memberId)
     await tx.execute(sql`
       DELETE FROM activities
       WHERE member_id = ${memberId} AND source = 'strava'
