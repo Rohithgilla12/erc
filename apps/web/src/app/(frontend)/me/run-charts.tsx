@@ -3,80 +3,153 @@ import React from 'react'
 
 export const km = (metres: number) => `${(metres / 1000).toFixed(metres < 1000 ? 2 : 1)} km`
 
-const CHART_W = 600
-const CHART_H = 140
+const PLOT_W = 1000
+const PLOT_H = 100
 
-/** An SVG path through the points, starting a new segment after each gap so a stop is not drawn as a ramp. */
-const pathOf = (xs: readonly number[], ys: readonly (number | null)[], invert: boolean) => {
+type Point = readonly [x: number, y: number]
+
+/** Splits a series at its gaps, so a stop is drawn as a break rather than a ramp. */
+function segmentsOf(xs: readonly number[], ys: readonly (number | null)[]): Point[][] {
+  const segments: Point[][] = []
+  let current: Point[] = []
+  ys.forEach((y, i) => {
+    if (y === null) {
+      if (current.length > 0) segments.push(current)
+      current = []
+      return
+    }
+    current.push([xs[i] ?? 0, y])
+  })
+  if (current.length > 0) segments.push(current)
+  return segments
+}
+
+function pathsOf(xs: readonly number[], ys: readonly (number | null)[], invert: boolean) {
   const values = ys.filter((y): y is number => y !== null)
   const xMax = xs.at(-1) || 1
   const [low, high] = [Math.min(...values), Math.max(...values)]
-  const span = high - low || 1
-  const pad = span * 0.08
+  const pad = (high - low || 1) * 0.12
   const yOf = (y: number) => {
-    const t = (y - (low - pad)) / (span + 2 * pad)
-    return (invert ? t : 1 - t) * CHART_H
+    const t = (y - (low - pad)) / (high - low + 2 * pad)
+    return ((invert ? t : 1 - t) * PLOT_H).toFixed(1)
   }
-  let path = ''
-  let pen = false
-  ys.forEach((y, i) => {
-    if (y === null) {
-      pen = false
-      return
-    }
-    path += `${pen ? 'L' : 'M'}${(((xs[i] ?? 0) / xMax) * CHART_W).toFixed(1)} ${yOf(y).toFixed(1)}`
-    pen = true
-  })
-  return { path, low, high }
+  const xOf = (x: number) => ((x / xMax) * PLOT_W).toFixed(1)
+  let line = ''
+  let area = ''
+  for (const segment of segmentsOf(xs, ys)) {
+    const points = segment.map(([x, y]) => `${xOf(x)} ${yOf(y)}`)
+    line += `M${points.join('L')}`
+    area += `M${xOf(segment[0]![0])} ${PLOT_H}L${points.join('L')}L${xOf(segment.at(-1)![0])} ${PLOT_H}Z`
+  }
+  return { line, area, low, high }
 }
 
-type ChartProps = { title: string; distance: readonly number[]; values: readonly (number | null)[]; format: (value: number) => string; invert?: boolean }
+/** Kilometre marks for the shared axis: every km on short runs, thinning out so labels never crowd. */
+function kmTicks(totalMetres: number): number[] {
+  const totalKm = totalMetres / 1000
+  const step = [1, 2, 5, 10, 20].find((candidate) => totalKm / candidate <= 10) ?? 50
+  const ticks: number[] = []
+  for (let mark = step; mark < totalKm - step * 0.4; mark += step) ticks.push(mark * 1000)
+  return ticks
+}
 
-/** Server-drawn, so it renders without JavaScript. Faster pace plots higher, as runners read it. */
-export function LineChart({ title, distance, values, format, invert = false }: ChartProps) {
-  if (!values.some((value) => value !== null)) return null
-  const { path, low, high } = pathOf(distance, values, invert)
-  const total = km(distance.at(-1) ?? 0)
-  const [top, bottom] = invert ? [low, high] : [high, low]
+export type Trace = {
+  title: string
+  values: readonly (number | null)[]
+  /** Formats a bare number; `unit` follows it once, so ranges read "125–177 bpm". */
+  format: (value: number) => string
+  unit: string
+  /** Plot lower values higher, so faster pace reads as up. */
+  invert?: boolean
+}
+
+/**
+ * Every trace over the same distance axis, stacked like ruled lines in a notebook, so a coach can read a heart-rate
+ * rise against the pace and the hill underneath it. Server-drawn, so it works without JavaScript.
+ */
+export function TraceStack({ distance, traces }: { distance: readonly number[]; traces: readonly Trace[] }) {
+  const drawn = traces.filter((trace) => trace.values.some((value) => value !== null))
+  if (drawn.length === 0) return null
+  const total = distance.at(-1) ?? 0
+  const ticks = kmTicks(total)
+  const xPercent = (metres: number) => `${((metres / (total || 1)) * 100).toFixed(2)}%`
+
   return (
-    <figure className="run-chart">
-      <figcaption className="run-chart-title">{title}</figcaption>
-      <div className="run-chart-frame">
-        <span className="run-chart-axis run-chart-axis--top">{format(top)}</span>
-        <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" role="img" aria-label={`${title}: from ${format(low)} to ${format(high)} over ${total}`}>
-          <path d={path} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-        </svg>
-        <span className="run-chart-axis run-chart-axis--bottom">{format(bottom)}</span>
+    <div className="run-traces">
+      {drawn.map((trace) => {
+        const { line, area, low, high } = pathsOf(distance, trace.values, trace.invert ?? false)
+        const [best, worst] = trace.invert ? [low, high] : [high, low]
+        return (
+          <figure key={trace.title} className="run-trace">
+            <figcaption className="run-trace-label">
+              <span className="run-trace-title">{trace.title}</span>
+              <span className="run-trace-range">
+                {trace.format(worst)}–{trace.format(best)} {trace.unit}
+              </span>
+            </figcaption>
+            <div className="run-trace-plot">
+              <svg
+                viewBox={`0 0 ${PLOT_W} ${PLOT_H}`}
+                preserveAspectRatio="none"
+                role="img"
+                aria-label={`${trace.title} from ${trace.format(worst)} to ${trace.format(best)} ${trace.unit} over ${km(total)}`}
+              >
+                {ticks.map((tick) => (
+                  <line key={tick} className="run-trace-rule" x1={(tick / total) * PLOT_W} x2={(tick / total) * PLOT_W} y1="0" y2={PLOT_H} vectorEffect="non-scaling-stroke" />
+                ))}
+                <path className="run-trace-area" d={area} />
+                <path className="run-trace-line" d={line} vectorEffect="non-scaling-stroke" />
+              </svg>
+            </div>
+          </figure>
+        )
+      })}
+      <div className="run-trace-axis" aria-hidden="true">
+        <span className="run-trace-label" />
+        <span className="run-trace-ticks">
+          <span style={{ insetInlineStart: '0%' }}>0</span>
+          {ticks.map((tick) => (
+            <span key={tick} style={{ insetInlineStart: xPercent(tick) }}>
+              {tick / 1000}
+            </span>
+          ))}
+          <span className="run-trace-end">{km(total)}</span>
+        </span>
       </div>
-      <div className="run-chart-x">
-        <span>0 km</span>
-        <span>{total}</span>
-      </div>
-    </figure>
+    </div>
   )
 }
 
-/** Time in each heart-rate zone as a share of the run's zoned time. */
+const ZONE_NAMES: Record<ZoneTime['zone'], string> = { 1: 'Recovery', 2: 'Easy', 3: 'Steady', 4: 'Threshold', 5: 'Maximum' }
+
+/** Time in each heart-rate zone: one bar for the shape of the run, then a legend that carries the numbers. */
 export function ZoneBars({ zones }: { zones: readonly ZoneTime[] }) {
   const zoneTotal = zones.reduce((sum, zone) => sum + zone.seconds, 0)
+  const share = (zone: ZoneTime) => zone.seconds / zoneTotal
   return (
-    <ul className="run-zones">
-      {zones.map((zone) => {
-        const share = zone.seconds / zoneTotal
-        return (
-          <li key={zone.zone} className="run-zone">
-            <span className="run-zone-label">
-              Zone {zone.zone} <span className="member-run-detail">{zone.toBpm === null ? `${zone.fromBpm}+ bpm` : `${zone.fromBpm}–${zone.toBpm - 1} bpm`}</span>
-            </span>
-            <span className="run-zone-bar" aria-hidden="true">
-              <span style={{ inlineSize: `${(share * 100).toFixed(1)}%` }} data-zone={zone.zone} />
-            </span>
-            <span className="run-zone-time">
-              {formatDuration(Math.round(zone.seconds) as Seconds)} ({Math.round(share * 100)}%)
-            </span>
-          </li>
-        )
-      })}
-    </ul>
+    <div className="run-zones">
+      <div className="run-zone-strip" aria-hidden="true">
+        {zones
+          .filter((zone) => zone.seconds > 0)
+          .map((zone) => (
+            <span key={zone.zone} data-zone={zone.zone} style={{ flexGrow: zone.seconds }} />
+          ))}
+      </div>
+      <table className="run-zone-legend">
+        <tbody>
+          {zones.map((zone) => (
+            <tr key={zone.zone} data-empty={zone.seconds === 0 || undefined}>
+              <th scope="row">
+                <span className="run-zone-swatch" data-zone={zone.zone} aria-hidden="true" />
+                Zone {zone.zone} <span className="run-zone-name">{ZONE_NAMES[zone.zone]}</span>
+              </th>
+              <td className="run-zone-bpm">{zone.toBpm === null ? `${zone.fromBpm}+ bpm` : `${zone.fromBpm}–${zone.toBpm - 1} bpm`}</td>
+              <td>{formatDuration(Math.round(zone.seconds) as Seconds)}</td>
+              <td className="run-zone-share">{Math.round(share(zone) * 100)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

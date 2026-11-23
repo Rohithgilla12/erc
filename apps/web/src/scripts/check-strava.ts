@@ -807,7 +807,7 @@ try {
   if (detailRes.ok) {
     const html = renderToStaticMarkup(React.createElement(RunDetailBody, { detail: detailRes.data, viewer: 'self' }))
     expect('detail page draws four inline SVG charts', (html.match(/<svg/g) ?? []).length, 4)
-    expect('detail page shows a splits table, zone estimate label and best efforts', [html.includes('<table'), html.includes('An estimate.'), html.includes('personal best')], [true, true, true])
+    expect('detail page shows a splits table, zone estimate label and best efforts', [html.includes('<table'), html.includes('not a tested maximum'), html.includes('Personal best')], [true, true, true])
     const chartPaths = [...html.matchAll(/ d="([^"]+)"/g)].map((m) => m[1] ?? '')
     expect('every chart path starts with a move and has points', chartPaths.every((d) => /^M[\d.]+ [\d.]+L/.test(d)), true)
   }
