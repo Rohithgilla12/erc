@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  parseActivityKey,
+  parseStoredRef,
+  runDetailPath,
   formatDuration,
   formatKm,
   isRunActivity,
@@ -252,5 +255,27 @@ describe('parseStravaRun', () => {
 
     const emptyDate = { id: 9, distance: 5000, moving_time: 1500, start_date_local: '', type: 'Run' }
     expect(parseStravaRun(emptyDate, 1 as MemberId)).toEqual({ ok: false, error: 'invalid_date' })
+  })
+})
+
+describe('parseActivityKey', () => {
+  it('accepts each source with its own ref shape', () => {
+    expect(parseActivityKey('strava', 'strava:12345')).toEqual({ ok: true, value: { source: 'strava', ref: 'strava:12345' } })
+    expect(parseActivityKey('manual', '3F2A1C4E-9B7D-4E1A-8C2B-5D6E7F8A9B0C')).toEqual({ ok: true, value: { source: 'manual', ref: '3f2a1c4e-9b7d-4e1a-8c2b-5d6e7f8a9b0c' } })
+    expect(parseActivityKey('file', 'a'.repeat(64)).ok).toBe(true)
+  })
+
+  it('refuses a ref of another source, an unknown source, and junk', () => {
+    expect(parseActivityKey('manual', 'strava:12345').ok).toBe(false)
+    expect(parseActivityKey('strava', '3f2a1c4e-9b7d-4e1a-8c2b-5d6e7f8a9b0c').ok).toBe(false)
+    expect(parseActivityKey('garmin', 'strava:1').ok).toBe(false)
+    expect(parseActivityKey('strava', "strava:1' OR 1=1").ok).toBe(false)
+    expect(parseActivityKey(undefined, undefined).ok).toBe(false)
+  })
+
+  it('parseStoredRef accepts any source ref, and runDetailPath encodes it', () => {
+    expect(parseStoredRef('strava:9').ok).toBe(true)
+    expect(parseStoredRef('x').ok).toBe(false)
+    expect(runDetailPath({ source: 'strava', ref: 'strava:9' })).toBe('/me/runs/strava/strava%3A9')
   })
 })

@@ -32,6 +32,31 @@ export const parseSourceRef = (raw: unknown): Result<SourceRef, 'not_a_ref'> => 
   return isUuid(value) ? ok(value.toLowerCase() as SourceRef) : err('not_a_ref')
 }
 
+const STORED_REF: Readonly<Record<ActivitySource, RegExp>> = {
+  manual: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  file: /^[0-9a-f]{64}$/,
+  strava: /^strava:[1-9]\d{0,15}$/,
+}
+
+/** A stored activity's identity: which source, and that source's ref. Parsed, so the database only sees well-formed ones. */
+export type ActivityKey = { source: ActivitySource; ref: SourceRef }
+
+export const parseActivityKey = (rawSource: unknown, rawRef: unknown): Result<ActivityKey, 'not_a_run'> => {
+  const source = firstOf(rawSource)
+  const ref = firstOf(rawRef).toLowerCase()
+  if (!(ACTIVITY_SOURCES as readonly string[]).includes(source)) return err('not_a_run')
+  return STORED_REF[source as ActivitySource].test(ref) ? ok({ source: source as ActivitySource, ref: ref as SourceRef }) : err('not_a_run')
+}
+
+/** Any source's ref, for a key such as a page cursor that spans sources. */
+export const parseStoredRef = (raw: unknown): Result<SourceRef, 'not_a_ref'> => {
+  const ref = firstOf(raw).toLowerCase()
+  return Object.values(STORED_REF).some((pattern) => pattern.test(ref)) ? ok(ref as SourceRef) : err('not_a_ref')
+}
+
+/** Where a member opens one of their runs. */
+export const runDetailPath = ({ source, ref }: { source: ActivitySource; ref: string }): string => `/me/runs/${source}/${encodeURIComponent(ref)}`
+
 /** One source's record of a run, as stored. `on` is fixed in IST when the row is written. */
 export type Activity<S extends ActivitySource = ActivitySource> = {
   member: MemberId

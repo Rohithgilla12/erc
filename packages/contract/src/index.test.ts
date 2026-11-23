@@ -188,6 +188,11 @@ describe('run cursors', () => {
     expect(OPERATIONS.listRuns.parse({ after: '' })).toEqual({ ok: true, value: { after: null } })
   })
 
+  it('round-trips a page that ends on a Strava run', () => {
+    const strava = { ...run, ref: 'strava:12345678901' as SourceRef }
+    expect(parseRunCursor(encodeRunCursor(strava))).toEqual({ ok: true, value: strava })
+  })
+
   it.each([
     ['a timestamp the database would choke on', encode('2026-01-01|1|3f2a1c4e-9b7d-4e1a-8c2b-5d6e7f8a9b0c')],
     ['month 13', encode('2026-13-01|2026-10-20T12:34:56.789Z|3f2a1c4e-9b7d-4e1a-8c2b-5d6e7f8a9b0c')],

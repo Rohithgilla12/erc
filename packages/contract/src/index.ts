@@ -17,10 +17,15 @@ import {
   parseVisibilityEdit,
   parseSignInStart,
   parseSignInVerify,
-  parseSourceRef,
+  parseActivityKey,
+  parseStoredRef,
   parseWeekReview,
   todayIn,
   type Activity,
+  type ActivityKey,
+  type ActivitySource,
+  type BestEffort,
+  type ChartSeries,
   type AthleteCheckIn,
   type AthleteVisibility,
   type Brand,
@@ -31,22 +36,26 @@ import {
   type Email,
   type FieldErrors,
   type Id,
+  type Lap,
   type Instant,
   type LocalDate,
   type MemberId,
   type Period,
   type ProfileValues,
-  type PublicSource,
   type RawInput,
   type Result,
   type ReviewedField,
+  type RunDetail,
+  type RunMetrics,
   type Slug,
   type SourceRef,
+  type Split,
   type Subdivision,
   type Totals,
   type WatchFlag,
   type WeeklySummary,
   type WeekReviewInput,
+  type ZoneTime,
 } from '@erc/domain'
 
 export const API_BASE = '/api/v1'
@@ -105,7 +114,7 @@ export const parseRunCursor = (raw: string): Result<RunCursor, 'not_a_cursor'> =
   if (!parts || parts.length !== 3) return err('not_a_cursor')
   const [onText = '', loggedAt = '', refText = ''] = parts
   const on = parseLocalDate(onText)
-  const ref = parseSourceRef(refText)
+  const ref = parseStoredRef(refText)
   const instant = Date.parse(loggedAt)
   if (!on.ok || !ref.ok || Number.isNaN(instant) || new Date(instant).toISOString() !== loggedAt) return err('not_a_cursor')
   return ok({ on: on.value, loggedAt: loggedAt as Instant, ref: ref.value })
@@ -164,9 +173,9 @@ const phantom =
     value
 const noInput = (_raw: RawInput): Result<Record<string, never>, FieldErrors> => ok({})
 
-export type RunView = { source: PublicSource; ref: string; on: string; distance: number; moving: number; loggedAt: Instant; note?: string | null }
+export type RunView = { source: ActivitySource; ref: string; on: string; distance: number; moving: number; loggedAt: Instant; note?: string | null }
 
-const runView = (run: Activity<PublicSource> & { note?: string | null }): RunView => ({
+const runView = (run: Activity & { note?: string | null }): RunView => ({
   source: run.source,
   ref: run.ref,
   on: run.on,
@@ -176,6 +185,27 @@ const runView = (run: Activity<PublicSource> & { note?: string | null }): RunVie
   ...(run.note !== undefined && run.note !== null ? { note: run.note } : {}),
 })
 export { runView }
+
+/**
+ * One run in full. `metrics` is null until a source has measured more than distance and time; `charts` and `zones`
+ * need streams. `zones` uses a maximum heart rate estimated from the athlete's own highest recorded maximum in the
+ * last 12 months, so it is labelled as an estimate. `syncing` is true while fetches for this run are still queued.
+ */
+export type RunDetailView = {
+  run: RunView
+  metrics: (RunMetrics & Pick<RunDetail, 'calories' | 'deviceName'>) | null
+  splits: readonly Split[]
+  laps: readonly Lap[]
+  bestEfforts: readonly BestEffort[]
+  charts: ChartSeries | null
+  zones: { estimatedMaxHr: number; zones: readonly ZoneTime[] } | null
+  syncing: boolean
+}
+
+const parseRunKey = (raw: RawInput): Result<ActivityKey, FieldErrors> => {
+  const key = parseActivityKey(raw.source, raw.ref)
+  return key.ok ? key : err({ ref: 'That run link is not valid.' })
+}
 
 export type CoachReviewView = {
   weekStart: string
@@ -415,6 +445,14 @@ export const OPERATIONS = {
   dashboard: op({ method: 'GET', path: '/me/dashboard', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<Dashboard>() }),
   logRun: op({ method: 'POST', path: '/me/runs', access: 'member', parse: logRunInput, fields: phantom<ManualRunFields>(), output: phantom<OwnerOnly<RunView>>() }),
   listRuns: op({ method: 'GET', path: '/me/runs', access: 'member', parse: parseListRuns, fields: phantom<{ after?: string }>(), output: phantom<OwnerOnly<Page<RunView>>>() }),
+  runDetail: op({
+    method: 'GET',
+    path: '/me/runs/detail',
+    access: 'member',
+    parse: parseRunKey,
+    fields: phantom<{ source: string; ref: string }>(),
+    output: phantom<OwnerOnly<RunDetailView>>(),
+  }),
   myAthlete: op({ method: 'GET', path: '/me/athlete', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<OwnerOnly<MyAthlete>>() }),
   searchAthletes: op({
     method: 'GET',

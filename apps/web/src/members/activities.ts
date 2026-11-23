@@ -2,18 +2,18 @@ import { randomUUID } from 'node:crypto'
 
 import { sql } from '@payloadcms/db-postgres/drizzle'
 import { encodeRunCursor, type Page, type RunCursor } from '@erc/contract'
-import { err, ok, RUNS_LOGGED_PER_HOUR, type Activity, type ActivitySource, type LocalDate, type ManualEntry, type MemberId, type Metres, type Period, type PublicSource, type Result, type Seconds, type SourceRef } from '@erc/domain'
+import { err, ok, RUNS_LOGGED_PER_HOUR, type Activity, type ActivitySource, type LocalDate, type ManualEntry, type MemberId, type Metres, type Period, type Result, type Seconds, type SourceRef } from '@erc/domain'
 import type { Payload } from 'payload'
 
 import { instantOf, type MemberSession } from './session'
 
-type Row = { member_id: number; source: PublicSource; ref: string; on_date: string; metres: number; moving_s: number; logged_at: Date | string; note: string | null }
+type Row = { member_id: number; source: ActivitySource; ref: string; on_date: string; metres: number; moving_s: number; logged_at: Date | string; note: string | null }
 
 const columns = sql`member_id, source, ref, on_date::text AS on_date, metres, moving_s, logged_at, note`
 
-export type StoredActivity<S extends ActivitySource = PublicSource> = Activity<S> & { note?: string | null }
+export type StoredActivity<S extends ActivitySource = ActivitySource> = Activity<S> & { note?: string | null }
 
-const activityOf = (row: Row): StoredActivity<PublicSource> => ({
+const activityOf = (row: Row): StoredActivity => ({
   member: row.member_id as MemberId,
   source: row.source,
   ref: row.ref as SourceRef,
@@ -48,7 +48,7 @@ async function hasEntry(payload: Payload, session: MemberSession, ref: SourceRef
   return rows.length > 0
 }
 
-export async function runsIn(payload: Payload, session: MemberSession, period: Period): Promise<readonly StoredActivity<PublicSource>[]> {
+export async function runsIn(payload: Payload, session: MemberSession, period: Period): Promise<readonly StoredActivity[]> {
   const { rows } = await payload.db.drizzle.execute(sql`
     SELECT ${columns} FROM activities
     WHERE member_id = ${session.member} AND on_date BETWEEN ${period.first} AND ${period.last}
@@ -59,7 +59,7 @@ export async function runsIn(payload: Payload, session: MemberSession, period: P
 export const RUNS_PAGE_SIZE = 20
 
 /** Newest first, from just after the parsed cursor. The contract's parser has already refused anything malformed. */
-export async function listRuns(payload: Payload, session: MemberSession, after: RunCursor | null): Promise<Page<StoredActivity<PublicSource>>> {
+export async function listRuns(payload: Payload, session: MemberSession, after: RunCursor | null): Promise<Page<StoredActivity>> {
   const { rows } = await payload.db.drizzle.execute(sql`
     SELECT ${columns} FROM activities
     WHERE member_id = ${session.member}

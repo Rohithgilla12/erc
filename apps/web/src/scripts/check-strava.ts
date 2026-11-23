@@ -25,6 +25,10 @@ import {
   type Slug,
 } from '@erc/domain'
 import { getPayload } from 'payload'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+
+import { RunDetailBody } from '@/app/(frontend)/me/run-detail'
 
 import { GET as connectGet } from '@/app/api/v1/strava/connect/route'
 import { GET as callbackGet } from '@/app/api/v1/strava/callback/route'
@@ -661,6 +665,7 @@ try {
   expect('athlete deauth leaves no metric, stream or job rows', bLeftovers[0], { metrics: 0, streams: 0, jobs: 0 })
 
   console.log('\n--- 6e. Queue drain ---')
+  const memberC0 = await createTestMember('stranger')
   process.env.STRAVA_DRAIN_SECRET = 'drain-secret-for-checks'
   const drain = (authorization?: string) =>
     drainPost(new Request('http://localhost:3000/api/v1/strava/drain', { method: 'POST', headers: authorization ? { authorization } : {} }))
@@ -787,6 +792,27 @@ try {
   const { rows: renamed } = await payload.db.drizzle.execute(sql`SELECT note FROM activities WHERE member_id = ${memberA} AND ref = 'strava:3001'`)
   expect('the update renamed the run', (renamed[0] as { note: string } | undefined)?.note, 'Renamed on Strava')
   expect('refetching a detail replaces splits instead of duplicating them', await countFor('activity_splits', memberA, 'strava:3001'), 2)
+
+  const detailRes = await run('runDetail', callerA, { source: 'strava', ref: 'strava:3001' })
+  expect('runDetail returns the run with metrics, splits, laps and efforts', detailRes.ok && [detailRes.data.run.ref, detailRes.data.metrics?.cadence, detailRes.data.splits.length, detailRes.data.laps.length, detailRes.data.bestEfforts.length], ['strava:3001', 172, 2, 1, 1])
+  expect('runDetail downsamples streams for charts', detailRes.ok && detailRes.data.charts?.heartRate, [140, 150, 160, 170])
+  expect('heart-rate zones use the highest max_hr on record as the estimated maximum', detailRes.ok && detailRes.data.zones?.estimatedMaxHr, 176)
+  expect('runDetail is not syncing once the queue is empty', detailRes.ok && detailRes.data.syncing, false)
+  if (detailRes.ok) {
+    const html = renderToStaticMarkup(React.createElement(RunDetailBody, { detail: detailRes.data, viewer: 'self' }))
+    expect('detail page draws four inline SVG charts', (html.match(/<svg/g) ?? []).length, 4)
+    expect('detail page shows a splits table, zone estimate label and best efforts', [html.includes('<table'), html.includes('An estimate.'), html.includes('personal best')], [true, true, true])
+    const chartPaths = [...html.matchAll(/ d="([^"]+)"/g)].map((m) => m[1] ?? '')
+    expect('every chart path starts with a move and has points', chartPaths.every((d) => /^M[\d.]+ [\d.]+L/.test(d)), true)
+  }
+  const strangerRes = await run('runDetail', { ...callerA, session: { ...callerA.session, member: memberC0 } }, { source: 'strava', ref: 'strava:3001' })
+  expect('another member cannot open the run', strangerRes.ok ? 'ok' : strangerRes.error.code, 'not_found')
+  const junkRes = await run('runDetail', callerA, { source: 'strava', ref: "strava:1' OR '1'='1" })
+  expect('a malformed run key is refused before the database', junkRes.ok ? 'ok' : junkRes.error.code, 'invalid')
+  await queueStravaJob(payload.db.drizzle, memberA, 3001 as StravaActivityId, 'streams')
+  const syncingRes = await run('runDetail', callerA, { source: 'strava', ref: 'strava:3001' })
+  expect('runDetail reports syncing while a job for the run is queued', syncingRes.ok && syncingRes.data.syncing, true)
+  await payload.db.drizzle.execute(sql`DELETE FROM strava_jobs WHERE strava_activity_id = 3001`)
 
   await queueStravaJob(payload.db.drizzle, memberA, 3002 as StravaActivityId, 'detail')
   detailStatus.set(3002, 404)

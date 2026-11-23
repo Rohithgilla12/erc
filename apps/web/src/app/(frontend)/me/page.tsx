@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import type { MyAthlete, MyCoachingView, PeriodTotals, StravaStatusView } from '@erc/contract'
-import { formatDuration, formatKm, type LocalDate, type Metres, type Seconds } from '@erc/domain'
+import { formatDuration, formatKm, runDetailPath, type LocalDate, type Metres, type Seconds } from '@erc/domain'
 import type { Metadata } from 'next'
 import React from 'react'
 
@@ -417,11 +417,18 @@ export default async function MePage({ searchParams }: Props) {
             {runs.data.items.map((item) => (
               <li className="member-run" key={`${item.source}-${item.ref}`}>
                 <span>
-                  <time dateTime={item.on}>{formatDay(item.on)}</time>
+                  {item.source === 'strava' ? (
+                    <a href={runDetailPath(item)}>
+                      <time dateTime={item.on}>{formatDay(item.on)}</time>
+                    </a>
+                  ) : (
+                    <time dateTime={item.on}>{formatDay(item.on)}</time>
+                  )}
                 </span>
                 <span>{formatKm(item.distance as Metres)}</span>
                 <span className="member-run-detail">
                   {formatDuration(item.moving as Seconds)}, {paceOf(item.distance as Metres, item.moving as Seconds)}
+                  {item.source === 'strava' ? ', Strava' : null}
                 </span>
               </li>
             ))}

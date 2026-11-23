@@ -35,6 +35,7 @@ import {
   submitCheckIn,
 } from './coaching'
 import { googleSignInOpen } from './google'
+import { readRunDetail } from './run-metrics'
 import { emailSignInOpen, startSignIn, verifySignIn, type StartRefusal, type VerifyRefusal } from './sign-in'
 import { listSessions, resolveSession, revokeOwnSession, revokeSession, SESSION_COOKIE, type MemberSession } from './session'
 import { disconnectStrava, getStravaStatus, joinStravaWaitlist, syncStravaActivities } from './strava'
@@ -142,6 +143,10 @@ const IMPLEMENTATIONS: Implementations = {
   listRuns: async ({ session }, input) => {
     const page = await listRuns(await getPayload({ config }), session, input.after)
     return ok(ownedBy(session.member, { items: page.items.map(runView), next: page.next }))
+  },
+  runDetail: async ({ session }, input) => {
+    const detail = await readRunDetail((await getPayload({ config })).db.drizzle, { member: session.member, ...input })
+    return detail ? ok(ownedBy(session.member, { ...detail, run: runView(detail.run) })) : err({ code: 'not_found', message: 'That run is not in your log.' })
   },
   myAthlete: async ({ session }) => ok(ownedBy(session.member, await myAthlete(await getPayload({ config }), session))),
   searchAthletes: async ({ session }, input) => {
