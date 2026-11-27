@@ -67,6 +67,26 @@ export default function PrivacyPage() {
           store a hash of each signed-in device&apos;s session, which lasts {SESSION_IDLE_DAYS} days from its last use, and the
           runs you log: date, distance, and time. Your runs are shown only to you.
         </p>
+        <h3>Home city</h3>
+        <p>
+          If you choose a home city, we store it with your account and use it to list the races nearest you first. Only you
+          and club staff see it.
+        </p>
+        <h3>Intake answers</h3>
+        <p>
+          If you fill in the intake, we store your answers: your goal, how much you run and recent race times, sleep and
+          eating habits, and health answers such as a medical condition, injuries, and medication. We also store when you
+          consented and whether you share it with your coach. You can read it, and a coach can read it only while they coach
+          you and you have chosen to share it. Sharing turns off whenever coaching ends. Club staff cannot read it. We use it
+          only to help your coach plan your training; it is not medical advice.
+        </p>
+        <h3>Reviews and race questions</h3>
+        <p>
+          If you review a shoe or a race, we store your rating, title, review, and the distance or year you ran, with your
+          account. If you ask about a race, we store your question with your account. Club staff check each one before it is
+          shown. Once shown, it appears under your athlete name if your athlete profile is public, and as &ldquo;ERC
+          member&rdquo; if not. Your email address is never shown.
+        </p>
         <h3>Keeping the forms safe</h3>
         <p>
           To limit how often one connection can send the forms, we store a keyed hash of the network each form was sent from, with
@@ -100,6 +120,15 @@ export default function PrivacyPage() {
             A member account and its runs stay until you ask us to erase them. A sign-in code is deleted a day after it was
             sent, and a session once it has not been used for {SESSION_IDLE_DAYS} days.
           </li>
+          <li>
+            Your intake stays until you delete it on your intake page or your account is erased, and taking it again replaces
+            it. It is deleted from the site at once, and from our backups as they are replaced.
+          </li>
+          <li>
+            A review stays until you delete it or your account is erased. A race question stays until your account is erased;
+            ask us and we will delete one sooner. Staff can also take either down.
+          </li>
+          <li>Your home city stays until you change it or your account is erased.</li>
           <li>
             Visit statistics are kept on our server with no set deletion date. They are not linked to your name or email address.
           </li>

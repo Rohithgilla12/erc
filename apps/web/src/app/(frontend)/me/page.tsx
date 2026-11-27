@@ -113,7 +113,7 @@ function HomeCitySection({ homeCity, notice }: { homeCity: CitySlug | null; noti
             Races are measured from {city.name}. <a href={`/races?near=${city.slug}`}>See races near {city.name}</a>
           </>
         ) : (
-          'Choose your city to see the races nearest you first. Only you see it.'
+          'Choose your city to see the races nearest you first. Only you and club staff see it.'
         )}
       </p>
       <form className="member-form" action={setHomeCityAction}>

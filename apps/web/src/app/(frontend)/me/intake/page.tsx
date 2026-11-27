@@ -60,7 +60,7 @@ export default async function IntakePage({ searchParams }: Props) {
 
       {cleared && !saved ? (
         <p className="member-saved" role="status">
-          Your intake is deleted. Nothing of it is kept.
+          Your intake is deleted from the site at once, and from our backups as they are replaced.
         </p>
       ) : null}
       {saved ? (
