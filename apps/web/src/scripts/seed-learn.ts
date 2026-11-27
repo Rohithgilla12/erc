@@ -9,17 +9,13 @@ import { getPayload, type CollectionSlug, type RequiredDataFromCollectionSlug } 
 
 import { collectionTag, refreshRunningSite } from '@/cms/revalidate'
 
+import { seedStaffAccount } from './staff-account'
+
 if (process.env.NODE_ENV === 'production') throw new Error('Refusing to seed placeholder content in production')
 
 const payload = await getPayload({ config })
 
-const seedEmail = 'seed@erc.invalid'
-const existingStaff = await payload.find({ collection: 'staff', where: { email: { equals: seedEmail } }, limit: 1 })
-const staff =
-  existingStaff.docs[0] ??
-  (await payload.create({ collection: 'staff', data: { email: seedEmail, password: `seed-${Date.now()}`, role: 'editor' } }))
-// Payload's auth strategy tags the user with its collection; a Local API caller must do the same.
-const user = { ...staff, collection: 'staff' as const }
+const user = await seedStaffAccount(payload, 'seed@erc.invalid', 'editor')
 const context = { skipRevalidation: true }
 
 const text = (value: string) => ({ type: 'text', version: 1, text: value, format: 0, style: '', mode: 'normal', detail: 0 })

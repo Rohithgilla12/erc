@@ -8,7 +8,6 @@
  *
  * It saves as an `author`, a role that can submit for review but cannot publish, so no run can put an article live.
  */
-import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
 import config from '@payload-config'
@@ -17,14 +16,11 @@ import { getPayload } from 'payload'
 
 import { ARTICLE_TOPICS, ARTICLES, type Article } from './fixtures/articles'
 
+import { seedStaffAccount } from './staff-account'
+
 const payload = await getPayload({ config })
 
-const seedEmail = 'articles-seed@erc.invalid'
-const existingStaff = await payload.find({ collection: 'staff', where: { email: { equals: seedEmail } }, limit: 1 })
-const staff =
-  existingStaff.docs[0] ??
-  (await payload.create({ collection: 'staff', data: { email: seedEmail, password: randomUUID(), role: 'author' }, context: { skipRevalidation: true } }))
-const user = { ...staff, collection: 'staff' as const }
+const user = await seedStaffAccount(payload, 'articles-seed@erc.invalid', 'author')
 // Nothing here is public, so no cached page can change.
 const asAuthor = { user, overrideAccess: false, context: { skipRevalidation: true } }
 const submitted = { reviewRequest: 'submit' as const }

@@ -11,6 +11,8 @@ import { collectionTag, refreshRunningSite } from '@/cms/revalidate'
 
 import { minimalPdf } from './fixtures/pdf'
 
+import { seedStaffAccount } from './staff-account'
+
 if (process.env.NODE_ENV === 'production') throw new Error('Refusing to seed placeholder plans in production')
 
 type PlanData = RequiredDataFromCollectionSlug<'trainingPlans'>
@@ -134,14 +136,7 @@ const pdfLines = (title: string, weeks: readonly WeekData[]) => [
 const payload = await getPayload({ config })
 const context = { skipRevalidation: true }
 
-const seedEmail = 'seed@erc.invalid'
-const existingStaff = await payload.find({ collection: 'staff', where: { email: { equals: seedEmail } }, limit: 1 })
-const staff =
-  existingStaff.docs[0] ??
-  (await payload.create({ collection: 'staff', data: { email: seedEmail, password: `seed-${Date.now()}`, role: 'editor' } }))
-// The editorial workflow stamps the acting editor. Payload's auth strategy tags the user with its collection; a Local
-// API caller must do the same.
-const user = { ...staff, collection: 'staff' as const }
+const user = await seedStaffAccount(payload, 'seed@erc.invalid', 'editor')
 
 // Plans point at the coach and the PDF, so they go first.
 const removePlans = await payload.delete({ collection: 'trainingPlans', where: { slug: { in: Object.values(PLAN_SLUGS) } }, context })

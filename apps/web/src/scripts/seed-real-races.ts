@@ -11,6 +11,8 @@ import { getPayload, type RequiredDataFromCollectionSlug } from 'payload'
 
 import { collectionTag, refreshRunningSite } from '@/cms/revalidate'
 
+import { seedStaffAccount } from './staff-account'
+
 type RaceData = RequiredDataFromCollectionSlug<'races'>
 type Distance = NonNullable<RaceData['distances']>[number]
 
@@ -69,20 +71,7 @@ const toData = (race: RealRace): RaceData => ({
 
 const payload = await getPayload({ config })
 
-const seedEmail = 'seed@erc.invalid'
-const existingStaff = await payload.find({
-  collection: 'staff',
-  where: { email: { equals: seedEmail } },
-  limit: 1,
-})
-const staff =
-  existingStaff.docs[0] ??
-  (await payload.create({
-    collection: 'staff',
-    data: { email: seedEmail, password: `seed-${Date.now()}`, role: 'editor' },
-  }))
-// Decisions are stamped from the acting user, so the seed acts as its editor, tagged with its collection as auth would.
-const user = { ...staff, collection: 'staff' as const }
+const user = await seedStaffAccount(payload, 'seed@erc.invalid', 'editor')
 const context = { skipRevalidation: true }
 
 const removed = await payload.delete({

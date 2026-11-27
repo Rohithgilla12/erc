@@ -9,6 +9,8 @@ import { getPayload, type RequiredDataFromCollectionSlug } from 'payload'
 import { CLUB } from '@/app/(frontend)/site-nav'
 import { collectionTag, refreshRunningSite } from '@/cms/revalidate'
 
+import { seedStaffAccount } from './staff-account'
+
 type PageData = RequiredDataFromCollectionSlug<'pages'>
 type Layout = PageData['layout']
 
@@ -131,15 +133,7 @@ const pages = (coaches: number[]): PageData[] => {
 
 const payload = await getPayload({ config })
 
-const seedEmail = 'seed@erc.invalid'
-const existingStaff = await payload.find({ collection: 'staff', where: { email: { equals: seedEmail } }, limit: 1 })
-const staff =
-  existingStaff.docs[0] ??
-  (await payload.create({ collection: 'staff', data: { email: seedEmail, password: `seed-${Date.now()}`, role: 'editor' } }))
-
-// Publishing is a workflow transition stamped from the acting user, so the seed acts as its editor. Payload's auth
-// strategy tags the user with its collection; a Local API caller must do the same.
-const user = { ...staff, collection: 'staff' as const }
+const user = await seedStaffAccount(payload, 'seed@erc.invalid', 'editor')
 const context = { skipRevalidation: true }
 
 const publishedCoaches = await payload.find({ collection: 'coaches', overrideAccess: false, depth: 0, limit: 6, sort: 'name', pagination: false })
