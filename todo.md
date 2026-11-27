@@ -110,4 +110,4 @@ Workstream C = editorial workflow redesign (live vs working copy) + moderation t
 - [x] 9. Deployed 57a21c44af72 (rollback 656019d1f2c3); seeded 39 races, 6 articles in review, 10 shoes
 - [ ] check-revalidation flakes on a long-running server; clears on restart; root cause unknown
 - [ ] /me server-action errors still log Drizzle params (review text); wrap actions
-- [ ] Rotate the production Postgres password (exposed in a session transcript 2026-11-27)
+- [x] Rotated the production Postgres password 2026-11-27 (1Password: personal Private vault, "ERC production Postgres"); old password refused, app reconnected
