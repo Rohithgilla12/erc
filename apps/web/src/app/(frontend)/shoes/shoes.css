@@ -1,0 +1,144 @@
+.shoes,
+.shoe-detail {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.shoes-head,
+.shoe-detail-head {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.shoes-head h1,
+.shoe-detail-head h1 {
+  margin: 0;
+}
+
+.shoe-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shoe-filters .pill[aria-current='page'] {
+  border-color: var(--color-text);
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.shoe-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shoe-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.shoe-item:first-child {
+  border-top: 1px solid var(--color-border);
+}
+
+@media (min-width: 40rem) {
+  .shoe-item:has(.shoe-thumb) {
+    grid-template-columns: 8rem minmax(0, 1fr);
+  }
+}
+
+.shoe-thumb {
+  width: 100%;
+  max-width: 8rem;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+}
+
+.shoe-item-text {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.shoe-item h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.shoe-brand {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.shoe-description {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.shoe-image {
+  width: 100%;
+  max-width: 32rem;
+  height: auto;
+}
+
+.shoe-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.shoe-facts dt {
+  color: var(--color-text-muted);
+}
+
+.shoe-facts dd {
+  margin: 0;
+}
+
+.shoe-about {
+  margin: 0;
+  max-width: 40rem;
+}
+
+.shoes .lede {
+  margin: 0;
+  font-size: var(--text-lg);
+  color: var(--color-text-muted);
+}
+
+.shoes .empty {
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.shoe-detail .back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: var(--tap-target);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .shoe-detail .back-link:hover {
+    color: var(--color-text);
+  }
+}

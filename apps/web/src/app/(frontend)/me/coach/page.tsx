@@ -166,6 +166,9 @@ export default async function CoachRosterPage() {
             Club Coach: <strong>{coach.name}</strong>
           </p>
         ) : null}
+        <p>
+          <a href="/me/coach/questions">Answer race questions &rarr;</a>
+        </p>
       </header>
 
       {pendingRequests.length > 0 ? (

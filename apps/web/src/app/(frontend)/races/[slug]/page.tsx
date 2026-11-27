@@ -13,6 +13,7 @@ import { notFound } from 'next/navigation'
 import { getRace } from '@/content/races'
 import { absoluteUrl } from '@/site-config'
 
+import { QuestionsSection, ReviewsSection } from '../../_feedback/feedback'
 import { breadcrumbList, JsonLd } from '../../structured-data'
 
 import { StaleBadge, StatusBadge } from '../_components/badges'
@@ -232,6 +233,9 @@ export default async function RacePage({ params }: Props) {
           </li>
         </ul>
       </section>
+
+      <ReviewsSection subject={{ kind: 'races', id: race.id }} path={`/races/${race.slug}`} noun="race" />
+      <QuestionsSection race={race.id} />
     </article>
   )
 }

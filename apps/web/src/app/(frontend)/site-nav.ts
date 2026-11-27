@@ -4,6 +4,7 @@ export const SITE_SECTIONS = [
   { href: '/learn', label: 'Learn' },
   { href: '/videos', label: 'Videos' },
   { href: '/plans', label: 'Training plans' },
+  { href: '/shoes', label: 'Shoes' },
   { href: '/athletes', label: 'Athletes' },
   { href: '/coaching', label: 'Coaching' },
   { href: '/about', label: 'About' },
