@@ -155,6 +155,16 @@ try {
   await run('endCoaching', athlete, {})
   const ended = await run('athleteIntake', coach, { athleteSlug })
   expect('ending the link hides a shared intake from the coach', !ended.ok && ended.error.code, 'forbidden')
+  const afterEnd = await run('myIntake', athlete, {})
+  expect('ending the link turns sharing off, so the next coach does not see it', afterEnd.ok && afterEnd.data?.shareWithCoach, false)
+
+  await run('saveIntake', athlete, { answers, consent: 'on', shareWithCoach: 'on' })
+  await run('requestCoach', athlete, { coachId: strangerCoachId })
+  const strangerRoster = await run('roster', strangerCoach, {})
+  const strangerLink = strangerRoster.ok ? strangerRoster.data.pendingRequests[0]?.linkId : undefined
+  await run('decideCoachingRequest', strangerCoach, { linkId: strangerLink ?? '', decision: 'reject' })
+  const afterDecline = await run('myIntake', athlete, {})
+  expect('a declined request turns sharing off too', afterDecline.ok && afterDecline.data?.shareWithCoach, false)
 
   const parsed = parseIntakeAnswers(answers, todayIn(CLUB_TIME_ZONE))
   const failedSave = parsed.ok ? await saveIntake(payload, -1 as MemberId, { answers: parsed.value, shareWithCoach: false }).then(() => null, (error: unknown) => error) : null

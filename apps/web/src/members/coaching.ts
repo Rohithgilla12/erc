@@ -1,4 +1,4 @@
-import { sql } from '@payloadcms/db-postgres/drizzle'
+import { sql, type SQL } from '@payloadcms/db-postgres/drizzle'
 import {
   ownedBy,
   type AthleteWeekView,
@@ -212,6 +212,29 @@ export async function getMyCoaching(
   )
 }
 
+/**
+ * Ends the links `where` picks and turns off intake sharing for their athletes, in one statement, so an intake shared
+ * with one coach is never left shared for whoever coaches that athlete next. Returns how many links ended.
+ */
+export async function endLinks(
+  db: Payload['db']['drizzle'],
+  where: SQL,
+  endedBy: CoachingLinkEndedBy,
+  { decided = false }: { decided?: boolean } = {},
+): Promise<number> {
+  const { rows } = await db.execute(sql`
+    WITH ended AS (
+      UPDATE coaching_links SET state = 'ended', ended_at = now(), ended_by = ${endedBy}${decided ? sql`, decided_at = now()` : sql``}
+      WHERE ${where}
+      RETURNING athlete_member_id
+    ), unshared AS (
+      UPDATE intakes SET share_with_coach = false WHERE share_with_coach AND member_id IN (SELECT athlete_member_id FROM ended)
+    )
+    SELECT count(*)::int AS n FROM ended
+  `)
+  return (rows[0] as { n: number }).n
+}
+
 export async function requestCoach(
   payload: Payload,
   memberId: MemberId,
@@ -253,14 +276,8 @@ export async function endCoaching(
   memberId: MemberId,
   endedBy: CoachingLinkEndedBy,
 ): Promise<Result<OwnerOnly<{ ended: true }>, OpFailure>> {
-  const db = payload.db.drizzle
-  const { rows } = await db.execute(sql`
-    UPDATE coaching_links
-    SET state = 'ended', ended_at = now(), ended_by = ${endedBy}
-    WHERE athlete_member_id = ${memberId} AND state IN ('requested', 'active')
-    RETURNING id
-  `)
-  if (rows.length === 0) {
+  const ended = await endLinks(payload.db.drizzle, sql`athlete_member_id = ${memberId} AND state IN ('requested', 'active')`, endedBy)
+  if (ended === 0) {
     return err({ code: 'not_found', message: 'No active coaching relationship found.' })
   }
   return ok(ownedBy(memberId, { ended: true }))
@@ -544,11 +561,8 @@ export async function decideRequest(
       return err({ code: 'conflict', message: 'This coaching request has already been decided.' })
     }
   } else {
-    const res = await db.execute(sql`
-      UPDATE coaching_links SET state = 'ended', decided_at = now(), ended_at = now(), ended_by = 'coach'
-      WHERE id = ${linkId} AND coach_id = ${coachId} AND state = 'requested'
-    `)
-    if ((res.rowCount ?? 0) === 0) {
+    const declined = await endLinks(db, sql`id = ${linkId} AND coach_id = ${coachId} AND state = 'requested'`, 'coach', { decided: true })
+    if (declined === 0) {
       return err({ code: 'conflict', message: 'This coaching request has already been decided.' })
     }
   }

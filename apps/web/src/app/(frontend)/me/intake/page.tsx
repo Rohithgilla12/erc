@@ -17,11 +17,13 @@ type Props = { searchParams: Promise<{ cleared?: string }> }
 
 const clubDay = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: CLUB_TIME_ZONE })
 
+const SHARING_ENDS = 'Sharing turns off whenever coaching ends, so a later coach sees them only if you tick this again.'
+
 const shareNoteOf = (coaching: MyCoachingView | null): string => {
   const coach = coaching?.coach?.name
-  if (coaching?.link?.state === 'active' && coach) return `${coach} reads them while they coach you and this is ticked. Untick it to hide them straight away.`
-  if (coaching?.link?.state === 'requested' && coach) return `${coach} can read them once they accept your request, while this is ticked.`
-  return 'You have no coach yet. Once a coach accepts you, they can read your answers while this is ticked.'
+  if (coaching?.link?.state === 'active' && coach) return `${coach} reads them while they coach you and this is ticked. Untick it to hide them straight away. ${SHARING_ENDS}`
+  if (coaching?.link?.state === 'requested' && coach) return `${coach} can read them once they accept your request, while this is ticked. ${SHARING_ENDS}`
+  return `You have no coach yet. Once a coach accepts you, they can read your answers while this is ticked. ${SHARING_ENDS}`
 }
 
 export default async function IntakePage({ searchParams }: Props) {
