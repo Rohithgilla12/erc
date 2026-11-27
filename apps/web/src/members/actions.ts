@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation'
 import { fieldsOf, HONEYPOT_FIELD, TOKEN_FIELD } from '@/content/form-fields'
 import { checkFormToken, issueFormToken } from '@/content/form-guard'
 
+import { ACTION_FAILED, guarded } from './guarded'
 import { currentCaller, run } from './run'
 import { clearedSessionCookie, SESSION_COOKIE, sessionCookie } from './session'
 
@@ -26,7 +27,7 @@ const TIMING_NOTICES = {
   expired: 'This form was open for a long time, so we refreshed it. Please send it again.',
 }
 
-export async function signIn(_previous: SignInFormState, form: FormData): Promise<SignInFormState> {
+export const signIn = guarded(async (_previous: SignInFormState, form: FormData): Promise<SignInFormState> => {
   const fields = fieldsOf(form)
   const email = fields.email ?? ''
   const token = fields[TOKEN_FIELD] ?? ''
@@ -52,38 +53,40 @@ export async function signIn(_previous: SignInFormState, form: FormData): Promis
   if (started.ok) return { step: 'code', token, email: email.trim().toLowerCase() }
   const { error } = started
   return error.code === 'invalid' ? { step: 'email', token, email, ...(error.fields ? { errors: error.fields } : {}) } : { step: 'email', token, email, notice: error.message }
-}
+}, (previous, form) => ({ step: previous.step, token: previous.token, email: fieldsOf(form).email ?? previous.email, notice: ACTION_FAILED }))
 
-export async function signOut(): Promise<void> {
+export const signOut = guarded(async (): Promise<void> => {
   const caller = await currentCaller()
   if (caller.kind === 'member') await run('signOut', caller, {})
   const jar = await cookies()
   jar.set(SESSION_COOKIE, '', clearedSessionCookie())
   redirect('/')
-}
+})
 
 /** The sign-out button beside another device on /me. The current device keeps its own sign-out form. */
-export async function signOutDevice(form: FormData): Promise<void> {
+export const signOutDevice = guarded(async (form: FormData): Promise<void> => {
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   await run('revokeSession', caller, fieldsOf(form))
   revalidatePath('/me')
   redirect('/me#devices')
-}
+})
 
 export type RunValues = { date: string; distanceKm: string; duration: string; note?: string }
 
 /** `ref` is minted when the form is shown, so sending the same form twice logs one run. A saved run gets a fresh one. */
 export type RunFormState = { ref: string; values: RunValues; errors?: FieldErrors; notice?: string; saved?: RunView }
 
-export async function logRun(previous: RunFormState, form: FormData): Promise<RunFormState> {
+const runValuesOf = (fields: Record<string, string>): RunValues => ({
+  date: fields.date ?? '',
+  distanceKm: fields.distanceKm ?? '',
+  duration: fields.duration ?? '',
+  ...(fields.note !== undefined ? { note: fields.note } : {}),
+})
+
+export const logRun = guarded(async (previous: RunFormState, form: FormData): Promise<RunFormState> => {
   const fields = fieldsOf(form)
-  const values: RunValues = {
-    date: fields.date ?? '',
-    distanceKm: fields.distanceKm ?? '',
-    duration: fields.duration ?? '',
-    ...(fields.note !== undefined ? { note: fields.note } : {}),
-  }
+  const values = runValuesOf(fields)
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   const logged = await run('logRun', caller, { ...fields, ref: fields.ref || previous.ref })
@@ -93,9 +96,9 @@ export async function logRun(previous: RunFormState, form: FormData): Promise<Ru
   }
   revalidatePath('/me')
   return { ref: randomUUID(), values: { date: values.date, distanceKm: '', duration: '', note: '' }, saved: logged.data }
-}
+}, (previous, form) => ({ ref: previous.ref, values: runValuesOf(fieldsOf(form)), notice: ACTION_FAILED }))
 
-export async function requestCoachAction(formData: FormData): Promise<void> {
+export const requestCoachAction = guarded(async (formData: FormData): Promise<void> => {
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   const fields = fieldsOf(formData)
@@ -103,18 +106,18 @@ export async function requestCoachAction(formData: FormData): Promise<void> {
   revalidatePath('/me')
   revalidatePath('/me/coaching')
   redirect('/me/coaching')
-}
+})
 
-export async function endCoachingAction(_formData: FormData): Promise<void> {
+export const endCoachingAction = guarded(async (_formData: FormData): Promise<void> => {
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   await run('endCoaching', caller, {})
   revalidatePath('/me')
   revalidatePath('/me/coaching')
   redirect('/me/coaching')
-}
+})
 
-export async function decideCoachingAction(formData: FormData): Promise<void> {
+export const decideCoachingAction = guarded(async (formData: FormData): Promise<void> => {
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   const linkId = String(formData.get('linkId') ?? '')
@@ -122,9 +125,9 @@ export async function decideCoachingAction(formData: FormData): Promise<void> {
   await run('decideCoachingRequest', caller, { linkId, decision })
   revalidatePath('/me/coach')
   redirect('/me/coach')
-}
+})
 
-export async function saveWeekReviewAction(formData: FormData): Promise<void> {
+export const saveWeekReviewAction = guarded(async (formData: FormData): Promise<void> => {
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   const athleteSlug = String(formData.get('athleteSlug') ?? '')
@@ -140,7 +143,10 @@ export async function saveWeekReviewAction(formData: FormData): Promise<void> {
     redirect(`/me/coach/${athleteSlug}?error=${encodeURIComponent(res.error.message)}${weekParam}`)
   }
   redirect(`/me/coach/${athleteSlug}?saved=true${weekParam}`)
-}
+}, (formData) => {
+  const weekStart = String(formData.get('weekStart') ?? '')
+  redirect(`/me/coach/${String(formData.get('athleteSlug') ?? '')}?error=${encodeURIComponent(ACTION_FAILED)}${weekStart ? `&weekStart=${encodeURIComponent(weekStart)}` : ''}`)
+})
 
 export type CheckInValues = { feeling: string; niggles?: string; note?: string }
 
@@ -151,15 +157,13 @@ export type CheckInFormState = {
   saved?: boolean
 }
 
-export async function submitCheckInAction(previous: CheckInFormState, formData: FormData): Promise<CheckInFormState> {
+const checkInValuesOf = (fields: Record<string, string>): CheckInValues => ({ feeling: fields.feeling ?? '', niggles: fields.niggles ?? '', note: fields.note ?? '' })
+
+export const submitCheckInAction = guarded(async (_previous: CheckInFormState, formData: FormData): Promise<CheckInFormState> => {
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   const fields = fieldsOf(formData)
-  const values: CheckInValues = {
-    feeling: fields.feeling ?? '',
-    niggles: fields.niggles ?? '',
-    note: fields.note ?? '',
-  }
+  const values = checkInValuesOf(fields)
   const done = await run('submitCheckIn', caller, fields)
   if (!done.ok) {
     const { error } = done
@@ -169,7 +173,7 @@ export async function submitCheckInAction(previous: CheckInFormState, formData: 
   }
   revalidatePath('/me')
   redirect('/me')
-}
+}, (_previous, formData) => ({ values: checkInValuesOf(fieldsOf(formData)), notice: ACTION_FAILED }))
 
 /** Every athlete form on /me/athlete: what was typed, so a refusal shows it again, and the outcome. */
 export type ProfileFormState = { values: Readonly<Record<string, string>>; errors?: FieldErrors; notice?: string; saved?: string }
@@ -184,7 +188,10 @@ const SAVED: Record<ProfileOperation, string> = {
   setVisibility: 'Saved. The public pages now show exactly this.',
 }
 
-async function profileAction(name: ProfileOperation, form: FormData): Promise<ProfileFormState> {
+/** The text typed into a form, shown again with the notice when the action failed unexpectedly. */
+const typedAgain = (_previous: unknown, form: FormData) => ({ values: fieldsOf(form), notice: ACTION_FAILED })
+
+const profileAction = (name: ProfileOperation) => guarded(async (_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> => {
   // The typed text comes back with a refusal; an uploaded file goes to the operation only.
   const values = fieldsOf(form)
   const files = Object.fromEntries([...form].filter(([key, value]) => typeof value !== 'string' && !(key in values)))
@@ -197,27 +204,17 @@ async function profileAction(name: ProfileOperation, form: FormData): Promise<Pr
   }
   revalidatePath('/me', 'layout')
   return { values, saved: SAVED[name] }
-}
+}, typedAgain)
 
-export async function claimProfile(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
-  return profileAction('claimAthlete', form)
-}
+export const claimProfile = profileAction('claimAthlete')
 
-export async function startProfile(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
-  return profileAction('startAthlete', form)
-}
+export const startProfile = profileAction('startAthlete')
 
-export async function saveProfile(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
-  return profileAction('updateProfile', form)
-}
+export const saveProfile = profileAction('updateProfile')
 
-export async function savePhoto(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
-  return profileAction('setPhoto', form)
-}
+export const savePhoto = profileAction('setPhoto')
 
-export async function saveVisibility(_previous: ProfileFormState, form: FormData): Promise<ProfileFormState> {
-  return profileAction('setVisibility', form)
-}
+export const saveVisibility = profileAction('setVisibility')
 
 /** The review, question and answer forms: what was typed, so a refusal shows it again, and the outcome. */
 export type FeedbackFormState = { values: Readonly<Record<string, string>>; errors?: FieldErrors; notice?: string; saved?: string }
@@ -225,7 +222,7 @@ export type FeedbackFormState = { values: Readonly<Record<string, string>>; erro
 const refusedWith = (values: FeedbackFormState['values'], error: { code: string; message: string; fields?: FieldErrors }): FeedbackFormState =>
   error.code === 'invalid' ? { values, ...(error.fields ? { errors: error.fields } : {}) } : { values, notice: error.message }
 
-export async function writeReviewAction(_previous: FeedbackFormState, form: FormData): Promise<FeedbackFormState> {
+export const writeReviewAction = guarded(async (_previous: FeedbackFormState, form: FormData): Promise<FeedbackFormState> => {
   const values = fieldsOf(form)
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
@@ -233,11 +230,11 @@ export async function writeReviewAction(_previous: FeedbackFormState, form: Form
   if (!done.ok) return refusedWith(values, done.error)
   revalidatePath(done.data.subject.path)
   return { values, saved: values.review ? 'Saved. A club volunteer checks every change before it shows again.' : 'Thanks. Your review shows here once a club volunteer has checked it.' }
-}
+}, typedAgain)
 
 const SUBJECT_PATH = /^\/(shoes|races)\/[a-z0-9]+(-[a-z0-9]+)*$/
 
-export async function deleteReviewAction(form: FormData): Promise<void> {
+export const deleteReviewAction = guarded(async (form: FormData): Promise<void> => {
   const fields = fieldsOf(form)
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
@@ -245,18 +242,18 @@ export async function deleteReviewAction(form: FormData): Promise<void> {
   const back = SUBJECT_PATH.test(fields.path ?? '') ? (fields.path as string) : '/'
   revalidatePath(back)
   redirect(`${back}#reviews`)
-}
+})
 
-export async function askQuestionAction(_previous: FeedbackFormState, form: FormData): Promise<FeedbackFormState> {
+export const askQuestionAction = guarded(async (_previous: FeedbackFormState, form: FormData): Promise<FeedbackFormState> => {
   const values = fieldsOf(form)
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   const done = await run('askQuestion', caller, values)
   if (!done.ok) return refusedWith(values, done.error)
   return { values: { ...values, text: '' }, saved: 'Thanks. Your question shows here once a club volunteer has checked it.' }
-}
+}, typedAgain)
 
-export async function answerQuestionAction(_previous: FeedbackFormState, form: FormData): Promise<FeedbackFormState> {
+export const answerQuestionAction = guarded(async (_previous: FeedbackFormState, form: FormData): Promise<FeedbackFormState> => {
   const values = fieldsOf(form)
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
@@ -265,5 +262,5 @@ export async function answerQuestionAction(_previous: FeedbackFormState, form: F
   revalidatePath(done.data.race.path)
   revalidatePath('/me/coach/questions')
   return { values, saved: 'Answer saved. It shows on the race page now.' }
-}
+}, typedAgain)
 
