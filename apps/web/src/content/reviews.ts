@@ -3,6 +3,7 @@ import { subjectKeyOf, type HttpsUrl, type Id, type Instant, type Rating, type R
 import { sql } from '@payloadcms/db-postgres/drizzle'
 import { unstable_cache } from 'next/cache'
 import { getPayload, type Payload } from 'payload'
+import { cache } from 'react'
 
 import { collectionTag } from '@/cms/revalidate'
 import type { ErcSlug } from '@/cms/slugs'
@@ -107,7 +108,20 @@ async function readShoe(slug: string): Promise<PublicShoe | null> {
   return doc ? shoeOf(doc, await ratingSummaries(payload, [keyOfShoe(doc.id)])) : null
 }
 
-export const getShoe = cached(readShoe, 'shoes:get', ['shoes', 'reviews', 'media'])
+const readShoeSlugs = cached(
+  async (): Promise<string[]> => {
+    const payload = await getPayload({ config })
+    const { docs } = await payload.find({ collection: 'shoes', overrideAccess: false, depth: 0, pagination: false, select: { slug: true } })
+    return docs.map((doc) => doc.slug)
+  },
+  'shoes:slugs',
+  ['shoes'],
+)
+
+const cachedShoe = cached(readShoe, 'shoes:get', ['shoes', 'reviews', 'media'])
+
+/** A shoe by slug. Unknown slugs are answered from the cached slug list, so a made-up URL adds no cache entry. */
+export const getShoe = cache(async (slug: string): Promise<PublicShoe | null> => ((await readShoeSlugs()).includes(slug) ? cachedShoe(slug) : null))
 
 type ReviewRow = AuthorRow & { id: number; rating: number; title: string; body: string; km_run: number | null; year_run: number | null; created_at: Date | string }
 
