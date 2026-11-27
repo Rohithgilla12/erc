@@ -1,5 +1,5 @@
 import { sql } from '@payloadcms/db-postgres/drizzle'
-import type { MemberStatus } from '@erc/domain'
+import { cityBySlug, type MemberStatus } from '@erc/domain'
 import type { CollectionAfterChangeHook, CollectionBeforeDeleteHook } from 'payload'
 
 import { isAdmin } from '../access'
@@ -79,5 +79,13 @@ export const Members = defineRecord({
       admin: { ...setBySignIn.admin, ...dayAndTime, description: 'When they confirmed they are 18 or over, on their first sign-in.' },
     },
     { name: 'lastSignInAt', label: 'Last signed in', type: 'date', ...setBySignIn, admin: { ...setBySignIn.admin, ...dayAndTime } },
+    {
+      name: 'homeCity',
+      label: 'Home city',
+      type: 'text',
+      validate: (value: string | null | undefined) => !value || cityBySlug(value) !== null || 'Not a city the site knows',
+      access: { update: () => false },
+      admin: { readOnly: true, position: 'sidebar', description: 'Chosen by the member on /me, for races near them.' },
+    },
   ],
 })
