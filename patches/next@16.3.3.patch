@@ -1,0 +1,26 @@
+diff --git a/dist/esm/server/lib/incremental-cache/tags-manifest.external.js b/dist/esm/server/lib/incremental-cache/tags-manifest.external.js
+index c7988e275ce6d36e05cf00a94a229b0d056ae929..e6e541003d586d36e904a531429e552343e34fd4 100644
+--- a/dist/esm/server/lib/incremental-cache/tags-manifest.external.js
++++ b/dist/esm/server/lib/incremental-cache/tags-manifest.external.js
+@@ -6,7 +6,7 @@ export const areTagsExpired = (tags, timestamp)=>{
+         const entry = tagsManifest.get(tag);
+         const expiredAt = entry == null ? void 0 : entry.expired;
+         if (typeof expiredAt === 'number') {
+-            const now = performance.timeOrigin + performance.now();
++            const now = Date.now();
+             // For immediate expiration (expiredAt <= now) and tag was invalidated after entry was created
+             // OR for future expiration that has now passed (expiredAt > timestamp && expiredAt <= now)
+             const isImmediatelyExpired = expiredAt <= now && expiredAt > timestamp;
+diff --git a/dist/server/lib/incremental-cache/tags-manifest.external.js b/dist/server/lib/incremental-cache/tags-manifest.external.js
+index 580e770aeaf477bed332fcf34c02a409f6f99e7e..8b1da41ed64a96893de21c8ae2953d2f5bc46839 100644
+--- a/dist/server/lib/incremental-cache/tags-manifest.external.js
++++ b/dist/server/lib/incremental-cache/tags-manifest.external.js
+@@ -30,7 +30,7 @@ const areTagsExpired = (tags, timestamp)=>{
+         const entry = tagsManifest.get(tag);
+         const expiredAt = entry == null ? void 0 : entry.expired;
+         if (typeof expiredAt === 'number') {
+-            const now = performance.timeOrigin + performance.now();
++            const now = Date.now();
+             // For immediate expiration (expiredAt <= now) and tag was invalidated after entry was created
+             // OR for future expiration that has now passed (expiredAt > timestamp && expiredAt <= now)
+             const isImmediatelyExpired = expiredAt <= now && expiredAt > timestamp;
