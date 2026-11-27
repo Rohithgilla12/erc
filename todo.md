@@ -93,3 +93,18 @@ Workstream C = editorial workflow redesign (live vs working copy) + moderation t
 - [x] Task 7: Athlete UI card & server actions on `/me` (progressive enhancement)
 - [x] Task 8: End-to-end verification script & documentation (`check-strava.ts` 84 PASS 0 FAIL; turbo test, typecheck, build green)
 
+
+## Phase 3 (founder meeting follow-up, 2026-11-27)
+- [x] 1. `how` over the affected subsystem. skip: subsystems already documented in the Phase 1 and 2 designs; read races, kinds, coaching migration directly
+- [x] 2. `architect` for parallel design exploration. skip: each slice follows an existing precedent (coaching tables, moderated records, editorial kind); design in docs/20261127-erc-phase-3-design.md
+- [x] 3. Throughput checkpoint
+  - Blocking first steps: design doc committed as base 454bd49
+  - Independent workstreams: intake, reviews+Q&A, nearest+news, real races content, articles content; five opus worktrees
+  - Shared mutable state: migrations/index.ts, contract OPERATIONS, payload-types.ts; each slice gets a fixed migration name, merged one at a time with types regenerated
+  - Smallest safe decomposition: one owner per slice; content slices touch only scripts/fixtures
+- [ ] 4. Delegate code-writing (opus, worktrees)
+- [ ] 5. Verify on the matching surface (check scripts, build, rendered pages)
+- [ ] 6. Small ordered commits, merge one slice at a time
+- [ ] 7. interrogate if contested. skip unless review disagrees
+- [ ] 8. Independent review (Fable) of the merged code before deploy
+- [ ] 9. Deploy to boxy (operator approved), run migrations and seeds, public checks
