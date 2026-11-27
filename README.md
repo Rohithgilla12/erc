@@ -1,6 +1,6 @@
 # ERC
 
-Website for ERC: race calendar, training plans, learning centre, athlete profiles, coaching portal, and member Strava sync. Design: [docs/20261019-erc-phase-1-design.md](docs/20261019-erc-phase-1-design.md). Analytics and newsletter setup: [docs/20261020-analytics-and-newsletter.md](docs/20261020-analytics-and-newsletter.md). Phase 2 design: [docs/20261021-erc-phase-2-design.md](docs/20261021-erc-phase-2-design.md). Strava design: [docs/superpowers/specs/2026-11-03-strava-sync-design.md](docs/superpowers/specs/2026-11-03-strava-sync-design.md).
+Website for ERC: race calendar, training plans, learning centre, athlete profiles, coaching portal, and member Strava sync. Phase 3 design: [docs/20261127-erc-phase-3-design.md](docs/20261127-erc-phase-3-design.md). Design: [docs/20261019-erc-phase-1-design.md](docs/20261019-erc-phase-1-design.md). Analytics and newsletter setup: [docs/20261020-analytics-and-newsletter.md](docs/20261020-analytics-and-newsletter.md). Phase 2 design: [docs/20261021-erc-phase-2-design.md](docs/20261021-erc-phase-2-design.md). Strava design: [docs/superpowers/specs/2026-11-03-strava-sync-design.md](docs/superpowers/specs/2026-11-03-strava-sync-design.md).
 
 ## Layout
 
