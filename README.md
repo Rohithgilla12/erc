@@ -37,6 +37,8 @@ pnpm --filter @erc/web payload run src/scripts/seed-athletes.ts       # six plac
 pnpm --filter @erc/web payload run src/scripts/check-athletes.ts      # ERC_CHECK_URL=<site> adds REST and page cases
 pnpm --filter @erc/web payload run src/scripts/seed-learn.ts          # placeholder topics, coaches, posts and videos, upserted by slug
 pnpm --filter @erc/web payload run src/scripts/check-learn.ts         # after seeding; ERC_CHECK_URL=<site> adds route, REST, player and JSON-LD cases
+pnpm --filter @erc/web payload run src/scripts/seed-articles.ts       # the six Learn articles, upserted by slug and left in review for staff to publish
+pnpm --filter @erc/web payload run src/scripts/check-articles.ts      # after seeding; the articles are hidden from the public and in review for staff
 pnpm --filter @erc/web payload run src/scripts/seed-pages.ts          # placeholder Home, About, Coaching, Contact, published
 pnpm --filter @erc/web payload run src/scripts/seed-plans.ts          # placeholder 5K and 10K plans and one PDF, replaced on re-run
 pnpm --filter @erc/web payload run src/scripts/check-plans.ts         # after seeding; ERC_CHECK_URL=<site> adds the page and /downloads cases
