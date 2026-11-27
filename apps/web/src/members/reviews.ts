@@ -20,6 +20,7 @@ import {
 import type { Payload } from 'payload'
 
 import { expireCollection } from '@/cms/revalidate'
+import { withXactLock, type Transaction } from '@/content/xact-lock'
 
 import { instantOf } from './session'
 
@@ -99,10 +100,16 @@ const reviewById = async (payload: Payload, id: number): Promise<MyReview> => {
 const liveReviewExists = async (payload: Payload, member: MemberId, key: string) =>
   (await rowsOf(payload, sql`SELECT 1 FROM reviews WHERE member_id = ${member} AND subject_key = ${key} AND moderation_state <> 'rejected'`)).length > 0
 
-const writtenThisHour = async (payload: Payload, table: 'reviews' | 'questions', member: MemberId) => {
-  const [row] = await rowsOf<{ n: number }>(payload, sql`SELECT count(*)::int AS n FROM ${sql.identifier(table)} WHERE member_id = ${member} AND created_at > now() - interval '1 hour'`)
-  return row?.n ?? 0
+const writtenThisHour = async (db: Transaction, table: 'reviews' | 'questions', member: MemberId) => {
+  const { rows } = await db.execute(sql`SELECT count(*)::int AS n FROM ${sql.identifier(table)} WHERE member_id = ${member} AND created_at > now() - interval '1 hour'`)
+  return (rows[0] as { n: number } | undefined)?.n ?? 0
 }
+
+/**
+ * Held while a member's hourly count is read and their new row written, so parallel requests cannot all count under
+ * the limit. Namespaced, so it never shares a lock with an email cap.
+ */
+const memberWritesLock = (member: MemberId) => `member-writes:${member}`
 
 /**
  * A new review goes in through Payload, which writes the subject's join row; the partial unique index refuses a second
@@ -131,23 +138,27 @@ export async function writeReview(payload: Payload, member: MemberId, { review, 
     return ok(await reviewById(payload, review))
   }
   if (await liveReviewExists(payload, member, key)) return err('already_reviewed')
-  if ((await writtenThisHour(payload, 'reviews', member)) >= REVIEWS_PER_HOUR) return err('too_many')
   try {
-    const created = await payload.create({
-      collection: 'reviews',
-      overrideAccess: true,
-      data: {
-        subject: draft.subject.kind === 'shoes' ? { relationTo: 'shoes', value: draft.subject.id } : { relationTo: 'races', value: draft.subject.id },
-        subjectKey: key,
-        member,
-        rating: draft.rating,
-        title: draft.title,
-        body: draft.body,
-        kmRun,
-        yearRun,
-        moderation: { state: 'submitted' },
-      },
+    const created = await withXactLock(payload, memberWritesLock(member), async (req, db) => {
+      if ((await writtenThisHour(db, 'reviews', member)) >= REVIEWS_PER_HOUR) return null
+      return payload.create({
+        collection: 'reviews',
+        overrideAccess: true,
+        req,
+        data: {
+          subject: draft.subject.kind === 'shoes' ? { relationTo: 'shoes', value: draft.subject.id } : { relationTo: 'races', value: draft.subject.id },
+          subjectKey: key,
+          member,
+          rating: draft.rating,
+          title: draft.title,
+          body: draft.body,
+          kmRun,
+          yearRun,
+          moderation: { state: 'submitted' },
+        },
+      })
     })
+    if (!created) return err('too_many')
     return ok(await reviewById(payload, created.id))
   } catch (error) {
     if (await liveReviewExists(payload, member, key)) return err('already_reviewed')
@@ -168,8 +179,11 @@ type RaceRow = { name: string; slug: string }
 export async function askQuestion(payload: Payload, member: MemberId, draft: QuestionDraft): Promise<Result<MyQuestion, QuestionRefusal>> {
   const [race] = await rowsOf<RaceRow>(payload, sql`SELECT name, slug FROM races WHERE id = ${draft.race} AND moderation_state = 'approved'`)
   if (!race) return err('no_race')
-  if ((await writtenThisHour(payload, 'questions', member)) >= QUESTIONS_PER_HOUR) return err('too_many')
-  const created = await payload.create({ collection: 'questions', overrideAccess: true, data: { race: draft.race, member, text: draft.text, moderation: { state: 'submitted' } } })
+  const created = await withXactLock(payload, memberWritesLock(member), async (req, db) => {
+    if ((await writtenThisHour(db, 'questions', member)) >= QUESTIONS_PER_HOUR) return null
+    return payload.create({ collection: 'questions', overrideAccess: true, req, data: { race: draft.race, member, text: draft.text, moderation: { state: 'submitted' } } })
+  })
+  if (!created) return err('too_many')
   return ok({
     id: created.id as Id<'questions'>,
     race: { id: draft.race, name: race.name, path: `/races/${race.slug}` },
@@ -208,19 +222,25 @@ const coachQuestionsWhere = (payload: Payload, condition: ReturnType<typeof sql>
 export const coachQuestions = async (payload: Payload, coach: CoachId): Promise<CoachQuestion[]> => (await coachQuestionsWhere(payload, sql`true`)).map(coachQuestionOf(coach))
 
 /**
- * A coach answers an approved question nobody has answered, or changes their own answer. Written through Payload, so
- * the race page shows it at once; the collection's staff stamp leaves a server write's `answeredBy` alone.
+ * A coach answers an approved question nobody has answered, or changes their own answer. One conditional UPDATE
+ * decides it, so of two coaches answering at once only the first gets in. Plain SQL runs no collection hooks, so the
+ * cached race pages are expired here.
  */
 export async function answerQuestion(payload: Payload, coach: CoachId, draft: AnswerDraft): Promise<Result<CoachQuestion, AnswerRefusal>> {
+  const answered = await payload.db.drizzle.transaction(async (db) => {
+    const { rows } = await db.execute(sql`
+      UPDATE questions q SET answer = ${draft.answer}, answered_at = now(), updated_at = now()
+      WHERE q.id = ${draft.question} AND q.moderation_state = 'approved'
+        AND (q.answer IS NULL OR EXISTS (SELECT 1 FROM questions_rels r WHERE r.parent_id = q.id AND r.path = 'answeredBy' AND r.coaches_id = ${coach}))
+      RETURNING q.id`)
+    if (rows.length === 0) return false
+    await db.execute(sql`DELETE FROM questions_rels WHERE parent_id = ${draft.question} AND path = 'answeredBy'`)
+    await db.execute(sql`INSERT INTO questions_rels (parent_id, path, coaches_id) VALUES (${draft.question}, 'answeredBy', ${coach})`)
+    return true
+  })
   const [current] = await coachQuestionsWhere(payload, sql`q.id = ${draft.question}`)
   if (!current) return err('no_question')
-  if (current.answer !== null && current.coaches_id !== coach) return err('answered_by_someone_else')
-  await payload.update({
-    collection: 'questions',
-    id: draft.question,
-    overrideAccess: true,
-    data: { answer: draft.answer, answeredBy: { relationTo: 'coaches', value: coach }, answeredAt: new Date().toISOString() },
-  })
-  const [answered] = await coachQuestionsWhere(payload, sql`q.id = ${draft.question}`)
-  return ok(coachQuestionOf(coach)(answered!))
+  if (!answered) return err('answered_by_someone_else')
+  await expireCollection(payload, 'questions')
+  return ok(coachQuestionOf(coach)(current))
 }

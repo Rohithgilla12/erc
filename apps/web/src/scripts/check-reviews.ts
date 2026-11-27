@@ -7,10 +7,11 @@
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
 import type { Envelope } from '@erc/contract'
-import { QUESTIONS_PER_HOUR, REVIEWS_PER_HOUR, type MemberId } from '@erc/domain'
+import { QUESTIONS_PER_HOUR, REVIEWS_PER_HOUR, type CoachId, type Id, type MemberId } from '@erc/domain'
 import { getPayload } from 'payload'
 
 import { collectionTag, refreshRunningSite } from '@/cms/revalidate'
+import { answerQuestion, askQuestion } from '@/members/reviews'
 import { issueSession, SESSION_COOKIE } from '@/members/session'
 
 import { FORGED_SESSION } from './fixtures/forged-session'
@@ -126,6 +127,7 @@ const members: Member[] = []
 let shoeId = 0
 let raceId = 0
 let coachId = 0
+let rivalCoachId = 0
 
 try {
   const shoe = await payload.create({
@@ -250,6 +252,31 @@ try {
   expect('and shows as answered by the club', await pageShows(racePath, 'Answered by the club'), true)
   expect("a coach cannot overwrite someone else's answer", codeOf(await api('/coach/questions/answer', coachMember, { question: staffRow.id, answer: 'No.' })), [409, 'conflict'])
 
+  const dana = await newMember('dana')
+  members.push(dana)
+  const burst = await Promise.all(
+    Array.from({ length: QUESTIONS_PER_HOUR + 5 }, (_, n) => askQuestion(payload, dana.id, { race: raceId as Id<'races'>, text: `${token} burst question ${n}` })),
+  )
+  expect(`${QUESTIONS_PER_HOUR + 5} questions asked at once let exactly ${QUESTIONS_PER_HOUR} in`, burst.filter((result) => result.ok).length, QUESTIONS_PER_HOUR)
+
+  const rivalMember = await newMember('rival')
+  members.push(rivalMember)
+  rivalCoachId = (await row<{ id: number }>(sql`
+    INSERT INTO coaches (name, slug, member_id, _status) VALUES (${`${token} Rival`}, ${`revchk-rival-${run}`}, ${rivalMember.id}, 'published') RETURNING id`))!.id
+  const contested = (await row<{ id: number }>(sql`
+    INSERT INTO questions (race_id, member_id, text, moderation_state) VALUES (${raceId}, ${dana.id}, ${`${token} contested`}, 'approved') RETURNING id`))!.id as Id<'questions'>
+  const [first, second] = await Promise.all(
+    [coachId, rivalCoachId].map((coach) => answerQuestion(payload, coach as CoachId, { question: contested, answer: `${token} from coach ${coach}` })),
+  )
+  const winner = first?.ok ? coachId : rivalCoachId
+  const stored = await payload.findByID({ collection: 'questions', id: contested, depth: 0, overrideAccess: true })
+  expect('two coaches answering at once: one gets in, the other is refused', [first?.ok, second?.ok].filter(Boolean).length, 1)
+  expect('and the stored answer and its coach are the winner’s', [stored.answer, stored.answeredBy?.relationTo, stored.answeredBy?.value], [`${token} from coach ${winner}`, 'coaches', winner])
+  const loser = winner === coachId ? rivalCoachId : coachId
+  const refused = await answerQuestion(payload, loser as CoachId, { question: contested, answer: 'Overwrite' })
+  expect('the other coach still cannot overwrite it', !refused.ok && refused.error, 'answered_by_someone_else')
+  expect('the winner can change their own answer', (await answerQuestion(payload, winner as CoachId, { question: contested, answer: `${token} changed` })).ok, true)
+
   await db.execute(sql`
     INSERT INTO questions (race_id, member_id, text, moderation_state)
     SELECT ${raceId}, ${ben.id}, ${`${token} filler question`}, 'rejected' FROM generate_series(1, ${QUESTIONS_PER_HOUR})`)
@@ -271,6 +298,7 @@ try {
   if (shoeId) await payload.delete({ collection: 'shoes', id: shoeId, overrideAccess: true }).catch(() => null)
   if (raceId) await payload.delete({ collection: 'races', id: raceId, overrideAccess: true }).catch(() => null)
   if (coachId) await db.execute(sql`DELETE FROM coaches WHERE id = ${coachId}`)
+  if (rivalCoachId) await db.execute(sql`DELETE FROM coaches WHERE id = ${rivalCoachId}`)
   await db.execute(sql`DELETE FROM reviews WHERE subject_key LIKE ${`revchk-filler-${run}-%`}`)
   await db.execute(sql`DELETE FROM athletes WHERE slug = ${`revchk-asha-${run}`}`)
   for (const member of members) await payload.delete({ collection: 'members', id: member.id, overrideAccess: true }).catch(() => null)
