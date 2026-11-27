@@ -8,7 +8,7 @@ import React from 'react'
 import { signOut, signOutDevice } from '@/members/actions'
 import { requireMember, run } from '@/members/run'
 
-import { CityOptions } from '../races/_components/city-select'
+import { CityOptions } from '../races/_components/near'
 
 import { disconnectStravaAction, joinStravaWaitlistAction, setHomeCityAction, syncStravaAction } from './actions'
 import { RunForm } from './run-form'

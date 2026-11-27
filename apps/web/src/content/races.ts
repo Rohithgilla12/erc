@@ -1,7 +1,13 @@
 import config from '@payload-config'
 import {
   canonicalPathOf,
+  cityBySlug,
   DISCIPLINES,
+  nearestRaces,
+  type City,
+  type CitySlug,
+  type NearRace,
+  type Subdivision,
   DISTANCE_BANDS,
   INDIAN_SUBDIVISIONS,
   parseLocalDate,
@@ -67,6 +73,42 @@ export const findRaces = async (query: RaceQuery): Promise<RacePage> => {
   const page = Math.min(query.page, first.totalPages)
   return page === 1 ? first : read({ ...query, page }, today)
 }
+
+export const NEAREST_RACES = 24
+
+/** Uncached; pages call `findNearestRaces`. Exported for scripts that run outside Next.js. */
+export async function queryNearestRaces(payload: Payload, origin: City, today: LocalDate, limit = NEAREST_RACES): Promise<NearRace<PublicRace>[]> {
+  // Upcoming venue races are a few thousand rows at most, so ranking them all in memory beats a spatial index.
+  const { rows } = await payload.db.drizzle.execute(sql`
+    SELECT r.id, r.location_city AS city, r.location_subdivision AS subdivision, r.dates_start AS start
+    FROM races r
+    WHERE r.moderation_state = 'approved' AND r.location_kind = 'venue' AND r.dates_start >= ${today}`)
+  const placed = (rows as { id: number; city: string; subdivision: Subdivision; start: LocalDate }[]).map((row) => ({
+    id: row.id,
+    dates: { start: row.start },
+    location: { kind: 'venue' as const, venue: '', city: row.city, subdivision: row.subdivision, country: 'IN' },
+  }))
+  const nearest = nearestRaces(placed, origin).slice(0, limit)
+  const races = new Map((await racesInOrder(nearest.map(({ race }) => race.id), payload)).map((race) => [race.id as number, race]))
+  return nearest.flatMap(({ race, distance }) => {
+    const full = races.get(race.id)
+    return full ? [{ race: full, distance }] : []
+  })
+}
+
+const cachedNearestRaces = cacheRaceReads(
+  async (slug: CitySlug, today: LocalDate) => {
+    const origin = cityBySlug(slug)
+    return origin ? queryNearestRaces(await getPayload({ config }), origin, today) : []
+  },
+  'races:near',
+)
+
+/**
+ * The upcoming races nearest a city. Keyed by the city's slug, never by who is asking, so a member's home city and
+ * an anonymous `?near=` share entries, and the cache holds at most one per city in `CITIES` per IST day.
+ */
+export const findNearestRaces = (origin: City): Promise<NearRace<PublicRace>[]> => cachedNearestRaces(origin.slug, todayIn('Asia/Kolkata'))
 
 const approvedSlugs = cacheRaceReads(async (): Promise<string[]> => {
   const { rows } = await (await getPayload({ config })).db.drizzle.execute(sql`SELECT slug FROM races WHERE moderation_state = 'approved'`)

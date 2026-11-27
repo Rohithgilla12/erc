@@ -13,7 +13,7 @@ import {
   type OutputOf,
   type OwnerOnly,
 } from '@erc/contract'
-import { CLUB_TIME_ZONE, err, monthOf, ok, todayIn, totalsOf, weekOf, type Carrier, type CoachId, type RawInput, type Result } from '@erc/domain'
+import { CLUB_TIME_ZONE, err, monthOf, ok, todayIn, totalsOf, weekOf, type Carrier, type City, type CoachId, type RawInput, type Result } from '@erc/domain'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getPayload } from 'payload'
@@ -240,6 +240,15 @@ export const currentCaller = cache(async (): Promise<Caller> => {
   const token = jar.get(SESSION_COOKIE)?.value
   const session = token ? await resolveSession(await getPayload({ config }), token, 'cookie') : null
   return session ? { kind: 'member', session, sender } : { kind: 'anonymous', carrier: 'cookie', sender, rejectedToken: token !== undefined }
+})
+
+/**
+ * The signed-in member's home city, for public pages that rank races by it. Read per request and never cached across
+ * requests, so one member's city cannot reach another visitor's page.
+ */
+export const viewerHomeCity = cache(async (): Promise<City | null> => {
+  const caller = await currentCaller()
+  return caller.kind === 'member' ? readHomeCity(await getPayload({ config }), caller.session.member) : null
 })
 
 /** For `/me` pages: the member, or a redirect to sign in. */
