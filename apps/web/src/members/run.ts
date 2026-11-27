@@ -36,6 +36,7 @@ import {
   submitCheckIn,
 } from './coaching'
 import { googleSignInOpen } from './google'
+import { readHomeCity, saveHomeCity } from './home-city'
 import { readRunDetail } from './run-metrics'
 import { emailSignInOpen, startSignIn, verifySignIn, type StartRefusal, type VerifyRefusal } from './sign-in'
 import { listSessions, resolveSession, revokeOwnSession, revokeSession, SESSION_COOKIE, type MemberSession } from './session'
@@ -127,15 +128,24 @@ const IMPLEMENTATIONS: Implementations = {
     const payload = await getPayload({ config })
     const today = todayIn(CLUB_TIME_ZONE)
     const [week, month] = [weekOf(today), monthOf(today)]
-    const [weekRuns, monthRuns, athlete] = await Promise.all([runsIn(payload, session, week), runsIn(payload, session, month), myAthlete(payload, session)])
+    const [weekRuns, monthRuns, athlete, homeCity] = await Promise.all([
+      runsIn(payload, session, week),
+      runsIn(payload, session, month),
+      myAthlete(payload, session),
+      readHomeCity(payload, session.member),
+    ])
     const dashboard: Dashboard = ownedBy(session.member, {
-      member: { email: session.email },
+      member: { email: session.email, homeCity: homeCity?.slug ?? null },
       today,
       week: { ...week, totals: totalsOf(weekRuns) },
       month: { ...month, totals: totalsOf(monthRuns) },
       athlete,
     })
     return ok(dashboard)
+  },
+  setHomeCity: async ({ session }, input) => {
+    await saveHomeCity(await getPayload({ config }), session.member, input.city)
+    return ok(ownedBy(session.member, { homeCity: input.city }))
   },
   logRun: async ({ session }, input) => {
     const run = await recordManual(await getPayload({ config }), session, input)

@@ -6,6 +6,7 @@ import {
   ok,
   parseAthleteSearch,
   parseCheckIn,
+  parseHomeCity,
   parseClaim,
   parseLocalDate,
   parseManualEntry,
@@ -33,6 +34,7 @@ import {
   type CoachingDecision,
   type CoachingLink,
   type CoachingLinkState,
+  type CitySlug,
   type Email,
   type FieldErrors,
   type Id,
@@ -301,7 +303,14 @@ export type MyAthlete =
   | { kind: 'claim_pending'; athlete: ClaimableAthlete; note: string }
   | { kind: 'profile'; profile: OwnProfile }
 
-export type Dashboard = OwnerOnly<{ member: { email: Email }; today: string; week: PeriodTotals; month: PeriodTotals; athlete: MyAthlete }>
+/** `homeCity` is the slug the member chose for races near them, or null until they choose one. */
+export type Dashboard = OwnerOnly<{
+  member: { email: Email; homeCity: CitySlug | null }
+  today: string
+  week: PeriodTotals
+  month: PeriodTotals
+  athlete: MyAthlete
+}>
 
 export type StravaConnectionState = 'connected' | 'waitlisted' | 'disconnected'
 
@@ -450,6 +459,14 @@ export const OPERATIONS = {
   listSessions: op({ method: 'GET', path: '/me/sessions', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<OwnerOnly<{ items: readonly SessionView[] }>>() }),
   revokeSession: op({ method: 'POST', path: '/me/sessions/revoke', access: 'member', parse: parseRevokeSession, fields: phantom<{ session: string }>(), output: phantom<OwnerOnly<{ revoked: true }>>() }),
   dashboard: op({ method: 'GET', path: '/me/dashboard', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<Dashboard>() }),
+  setHomeCity: op({
+    method: 'POST',
+    path: '/me/home-city',
+    access: 'member',
+    parse: parseHomeCity,
+    fields: phantom<{ city: string }>(),
+    output: phantom<OwnerOnly<{ homeCity: CitySlug | null }>>(),
+  }),
   logRun: op({ method: 'POST', path: '/me/runs', access: 'member', parse: logRunInput, fields: phantom<ManualRunFields>(), output: phantom<OwnerOnly<RunView>>() }),
   listRuns: op({ method: 'GET', path: '/me/runs', access: 'member', parse: parseListRuns, fields: phantom<{ after?: string }>(), output: phantom<OwnerOnly<Page<RunView>>>() }),
   runDetail: op({
