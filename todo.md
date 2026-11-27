@@ -102,9 +102,12 @@ Workstream C = editorial workflow redesign (live vs working copy) + moderation t
   - Independent workstreams: intake, reviews+Q&A, nearest+news, real races content, articles content; five opus worktrees
   - Shared mutable state: migrations/index.ts, contract OPERATIONS, payload-types.ts; each slice gets a fixed migration name, merged one at a time with types regenerated
   - Smallest safe decomposition: one owner per slice; content slices touch only scripts/fixtures
-- [ ] 4. Delegate code-writing (opus, worktrees)
-- [ ] 5. Verify on the matching surface (check scripts, build, rendered pages)
-- [ ] 6. Small ordered commits, merge one slice at a time
-- [ ] 7. interrogate if contested. skip unless review disagrees
-- [ ] 8. Independent review (Fable) of the merged code before deploy
-- [ ] 9. Deploy to boxy (operator approved), run migrations and seeds, public checks
+- [x] 4. Delegate code-writing (opus, worktrees)
+- [x] 5. Verify on the matching surface: fresh-DB suite, 390/1280 screenshots, built-site race page
+- [x] 6. Small ordered commits, merge one slice at a time
+- [x] 7. interrogate if contested. skip: review verdict was MERGE WITH FIXES, not contested
+- [x] 8. Independent review (Fable): H1 seed password, M1-M4 and lows fixed on phase3-fixes
+- [x] 9. Deployed 57a21c44af72 (rollback 656019d1f2c3); seeded 39 races, 6 articles in review, 10 shoes
+- [ ] check-revalidation flakes on a long-running server; clears on restart; root cause unknown
+- [ ] /me server-action errors still log Drizzle params (review text); wrap actions
+- [ ] Rotate the production Postgres password (exposed in a session transcript 2026-11-27)
