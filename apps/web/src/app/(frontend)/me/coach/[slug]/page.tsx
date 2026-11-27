@@ -3,6 +3,7 @@ import React from 'react'
 
 import {
   addDays,
+  CLUB_TIME_ZONE,
   formatDuration,
   formatKm,
   runDetailPath,
@@ -15,7 +16,10 @@ import {
 import { saveWeekReviewAction } from '@/members/actions'
 import { requireMember, run } from '@/members/run'
 
+import { IntakeAnswersList } from '../../intake/intake-answers'
+
 import '../../members.css'
+import '../../intake/intake.css'
 
 export const metadata: Metadata = {
   title: 'Athlete Week Review',
@@ -42,6 +46,8 @@ const weekFormat = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'UTC',
 })
 const formatWeek = (date: LocalDate | string) => weekFormat.format(new Date(`${date}T00:00:00Z`))
+
+const clubDay = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: CLUB_TIME_ZONE })
 
 const paceOf = (distance: Metres, moving: Seconds) => {
   if (distance <= 0) return '0:00 /km'
@@ -83,10 +89,13 @@ export default async function AthleteWeekReviewPage({ params, searchParams }: Pr
 
   const { slug } = await params
   const { weekStart, saved, error } = await searchParams
-  const res = await run('athleteWeek', caller, {
-    athleteSlug: slug,
-    ...(weekStart ? { weekStart } : {}),
-  })
+  const [res, intake] = await Promise.all([
+    run('athleteWeek', caller, {
+      athleteSlug: slug,
+      ...(weekStart ? { weekStart } : {}),
+    }),
+    run('athleteIntake', caller, { athleteSlug: slug }),
+  ])
 
   if (!res.ok) {
     return (
@@ -253,6 +262,25 @@ export default async function AthleteWeekReviewPage({ params, searchParams }: Pr
             <p className="member-note">No check-in submitted by athlete for this week yet.</p>
           )}
         </div>
+      </section>
+
+      <section aria-labelledby="intake-heading" className="coaching-section">
+        <h2 id="intake-heading">Intake</h2>
+        {!intake.ok ? (
+          <p className="member-alert" role="alert">
+            {intake.error.message}
+          </p>
+        ) : intake.data.shared ? (
+          <details>
+            <summary>
+              Shared by {athlete.name}, updated {clubDay.format(new Date(intake.data.updatedAt))}
+            </summary>
+            <p className="member-note">Background for coaching, not medical advice. Ask before acting on a health answer.</p>
+            <IntakeAnswersList answers={intake.data.answers} />
+          </details>
+        ) : (
+          <p className="member-note">Not shared.</p>
+        )}
       </section>
 
       {/* Weekly Runs Log */}
