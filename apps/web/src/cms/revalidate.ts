@@ -41,14 +41,21 @@ const outsideNextRequest = (error: unknown) =>
  */
 const revalidate = async (req: PayloadRequest, tags: readonly string[]) => {
   if (req.context.skipRevalidation) return
+  await expireTags(req.payload, tags)
+}
+
+const expireTags = async (payload: Payload, tags: readonly string[]) => {
   try {
     expireNow(tags)
   } catch (error) {
-    if (outsideNextRequest(error)) req.payload.logger.debug({ tags }, 'Outside a Next.js request; asking the running site to revalidate')
-    else req.payload.logger.warn({ tags, err: error }, 'In-process revalidation failed; asking the running site to revalidate')
-    await refreshRunningSite(req.payload, tags)
+    if (outsideNextRequest(error)) payload.logger.debug({ tags }, 'Outside a Next.js request; asking the running site to revalidate')
+    else payload.logger.warn({ tags, err: error }, 'In-process revalidation failed; asking the running site to revalidate')
+    await refreshRunningSite(payload, tags)
   }
 }
+
+/** For a write made in SQL, which runs no collection hooks, to a row the public may already see. */
+export const expireCollection = (payload: Payload, slug: ErcSlug) => expireTags(payload, [collectionTag(slug)])
 
 export const revalidateOnChange =
   (slug: ErcSlug): CollectionAfterChangeHook =>

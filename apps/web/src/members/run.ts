@@ -36,6 +36,7 @@ import {
   submitCheckIn,
 } from './coaching'
 import { googleSignInOpen } from './google'
+import { answerQuestion, askQuestion, coachQuestions, deleteReview, myReviews, writeReview, type AnswerRefusal, type QuestionRefusal, type ReviewRefusal } from './reviews'
 import { readRunDetail } from './run-metrics'
 import { emailSignInOpen, startSignIn, verifySignIn, type StartRefusal, type VerifyRefusal } from './sign-in'
 import { listSessions, resolveSession, revokeOwnSession, revokeSession, SESSION_COOKIE, type MemberSession } from './session'
@@ -97,7 +98,24 @@ const ATHLETE_REFUSALS: Record<AthleteRefusal, OpFailure> = {
   busy: { code: 'conflict', message: 'Something changed while you were saving. Check your profile and try again.' },
 }
 
-const athleteResult = <T>(result: Result<T, AthleteRefusal>, member: MemberSession['member']): Result<OwnerOnly<T>, OpFailure> =>
+const REVIEW_REFUSALS: Record<ReviewRefusal, OpFailure> = {
+  no_subject: { code: 'not_found', message: 'That shoe or race is not listed any more.' },
+  already_reviewed: { code: 'conflict', message: 'You have already reviewed this. Change your review instead of writing another.' },
+  not_yours: { code: 'not_found', message: 'That review is not one you can change. If it was not approved, write a new one.' },
+  too_many: { code: 'rate_limited', message: 'You have written a lot of reviews in the last hour. Please wait a while before writing more.' },
+}
+
+const QUESTION_REFUSALS: Record<QuestionRefusal, OpFailure> = {
+  no_race: { code: 'not_found', message: 'That race is not listed any more.' },
+  too_many: { code: 'rate_limited', message: 'You have asked a lot of questions in the last hour. Please wait a while before asking more.' },
+}
+
+const ANSWER_REFUSALS: Record<AnswerRefusal, OpFailure> = {
+  no_question: { code: 'not_found', message: 'That question is not open for answers. Staff may have taken it down.' },
+  answered_by_someone_else: { code: 'conflict', message: 'Someone else has already answered this question.' },
+}
+
+const athleteResult =<T>(result: Result<T, AthleteRefusal>, member: MemberSession['member']): Result<OwnerOnly<T>, OpFailure> =>
   result.ok ? ok(ownedBy(member, result.value)) : err(ATHLETE_REFUSALS[result.error])
 
 const IMPLEMENTATIONS: Implementations = {
@@ -192,6 +210,24 @@ const IMPLEMENTATIONS: Implementations = {
     const payload = await getPayload({ config })
     const result = await joinStravaWaitlist(payload, session.member)
     return ok(ownedBy(session.member, result))
+  },
+  writeReview: async ({ session }, input) => {
+    const written = await writeReview(await getPayload({ config }), session.member, input)
+    return written.ok ? ok(ownedBy(session.member, written.value)) : err(REVIEW_REFUSALS[written.error])
+  },
+  myReviews: async ({ session }) => ok(ownedBy(session.member, { items: await myReviews(await getPayload({ config }), session.member) })),
+  deleteReview: async ({ session }, input) =>
+    (await deleteReview(await getPayload({ config }), session.member, input.review))
+      ? ok(ownedBy(session.member, { deleted: true }))
+      : err({ code: 'not_found', message: 'That review is not in your list.' }),
+  askQuestion: async ({ session }, input) => {
+    const asked = await askQuestion(await getPayload({ config }), session.member, input)
+    return asked.ok ? ok(ownedBy(session.member, asked.value)) : err(QUESTION_REFUSALS[asked.error])
+  },
+  coachQuestions: async ({ session }) => ok({ items: await coachQuestions(await getPayload({ config }), session.coachId) }),
+  answerQuestion: async ({ session }, input) => {
+    const answered = await answerQuestion(await getPayload({ config }), session.coachId, input)
+    return answered.ok ? answered : err(ANSWER_REFUSALS[answered.error])
   },
 }
 

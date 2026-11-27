@@ -18,6 +18,10 @@ import {
   parseSignInStart,
   parseSignInVerify,
   parseActivityKey,
+  parseAnswerQuestion,
+  parseAskQuestion,
+  parseReviewRef,
+  parseWriteReview,
   parseStoredRef,
   parseWeekReview,
   todayIn,
@@ -42,7 +46,9 @@ import {
   type MemberId,
   type Period,
   type ProfileValues,
+  type Rating,
   type RawInput,
+  type ReviewSubjectKind,
   type Result,
   type ReviewedField,
   type RunDetail,
@@ -330,6 +336,37 @@ export type StravaWaitlistView = {
   position: number
 }
 
+/** A member's own review as they see it: waiting, refused with the reason, or live. */
+export type MyReview = {
+  id: Id<'reviews'>
+  subject: { kind: ReviewSubjectKind; id: number; name: string; path: string }
+  rating: Rating
+  title: string
+  body: string
+  kmRun: number | null
+  yearRun: number | null
+  moderation: ProfileModeration
+  submittedAt: Instant
+}
+
+export type MyQuestion = { id: Id<'questions'>; race: { id: number; name: string; path: string }; text: string; answer: string | null; moderation: ProfileModeration; askedAt: Instant }
+
+/** An approved question a coach may answer. `answeredByYou` is false for an answer from staff or another coach, which the coach cannot change. */
+export type CoachQuestion = { id: Id<'questions'>; race: { name: string; path: string }; text: string; answer: string | null; answeredByYou: boolean; askedAt: Instant }
+
+const writeReviewInput = (raw: RawInput) => parseWriteReview(raw, todayIn(CLUB_TIME_ZONE))
+
+type ReviewFields = {
+  subjectKind: ReviewSubjectKind
+  subjectId: string | number
+  review?: string | number
+  rating: string | number
+  title: string
+  body: string
+  kmRun?: string | number
+  yearRun?: string | number
+}
+
 /** One signed-in device. `current` marks the session making the request, which the page shows without a sign-out button. */
 export type SessionView = { id: string; label: string; current: boolean; createdAt: Instant; lastSeenAt: Instant }
 
@@ -599,6 +636,19 @@ export const OPERATIONS = {
     parse: noInput,
     fields: phantom<Record<string, never>>(),
     output: phantom<OwnerOnly<StravaWaitlistView>>(),
+  }),
+  writeReview: op({ method: 'POST', path: '/me/reviews', access: 'member', parse: writeReviewInput, fields: phantom<ReviewFields>(), output: phantom<OwnerOnly<MyReview>>() }),
+  myReviews: op({ method: 'GET', path: '/me/reviews', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<OwnerOnly<{ items: readonly MyReview[] }>>() }),
+  deleteReview: op({ method: 'POST', path: '/me/reviews/delete', access: 'member', parse: parseReviewRef, fields: phantom<{ review: string | number }>(), output: phantom<OwnerOnly<{ deleted: true }>>() }),
+  askQuestion: op({ method: 'POST', path: '/me/questions', access: 'member', parse: parseAskQuestion, fields: phantom<{ race: string | number; text: string }>(), output: phantom<OwnerOnly<MyQuestion>>() }),
+  coachQuestions: op({ method: 'GET', path: '/coach/questions', access: 'coach', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<{ items: readonly CoachQuestion[] }>() }),
+  answerQuestion: op({
+    method: 'POST',
+    path: '/coach/questions/answer',
+    access: 'coach',
+    parse: parseAnswerQuestion,
+    fields: phantom<{ question: string | number; answer: string }>(),
+    output: phantom<CoachQuestion>(),
   }),
 } as const
 
