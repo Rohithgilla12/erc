@@ -31,7 +31,8 @@ pnpm --filter @erc/web payload run src/scripts/check-record-access.ts   # ERC_CH
 pnpm --filter @erc/web payload run src/scripts/check-write-rules.ts     # ERC_CHECK_URL=<site> adds the REST cases
 pnpm --filter @erc/web payload run src/scripts/check-race-hook.ts
 pnpm --filter @erc/web payload run src/scripts/seed-races.ts          # 3,000 synthetic races, replaced on re-run
-pnpm --filter @erc/web payload run src/scripts/check-race-calendar.ts # after seeding
+pnpm --filter @erc/web payload run src/scripts/seed-real-races.ts     # 39 verified real races, upserted by slug; deletes the synthetic ones
+pnpm --filter @erc/web payload run src/scripts/check-race-calendar.ts # after seeding; over real races only, its unapproved-race case fails
 pnpm --filter @erc/web payload run src/scripts/check-revalidation.ts  # with the site running
 pnpm --filter @erc/web payload run src/scripts/seed-athletes.ts       # six placeholder athletes, replaced on re-run
 pnpm --filter @erc/web payload run src/scripts/check-athletes.ts      # ERC_CHECK_URL=<site> adds REST and page cases
