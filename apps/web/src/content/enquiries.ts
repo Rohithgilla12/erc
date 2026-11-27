@@ -6,7 +6,7 @@ import { getPayload } from 'payload'
 import { notifyStaffOfEnquiry } from '@/cms/collections/enquiries'
 import { loggableError } from '@/members/query-error'
 
-import { withCapLock } from './email-cap'
+import { withXactLock } from './xact-lock'
 import { HONEYPOT_FIELD, TOKEN_FIELD } from './form-fields'
 import { checkFormToken, issueFormToken, senderKeyOf } from './form-guard'
 
@@ -81,7 +81,7 @@ export async function receiveEnquiry(fields: Readonly<Record<string, string>>, h
   const senderKey = senderKeyOf('enquiry', headers)
   const windowStart = { greater_than: new Date(Date.now() - RATE_WINDOW_MS).toISOString() }
   try {
-    const stored = await withCapLock(payload, 'enquiry_staff_notice', async (req) => {
+    const stored = await withXactLock(payload, 'enquiry_staff_notice', async (req) => {
       const { totalDocs } = await payload.count({
         collection: 'enquiries',
         where: { and: [{ senderKey: { equals: senderKey } }, { createdAt: windowStart }] },

@@ -29,7 +29,7 @@ import { ValidationError, type Payload } from 'payload'
 
 import { CLUB } from '@/app/(frontend)/site-nav'
 import { emailConfigured } from '@/cms/email'
-import { withCapLock, type Transaction } from '@/content/email-cap'
+import { withXactLock, type Transaction } from '@/content/xact-lock'
 import { mac, sameMac } from '@/content/form-guard'
 
 import { instantOf, issueSession } from './session'
@@ -101,7 +101,7 @@ async function sendCode(payload: Payload, to: string, code: SignInCode) {
  */
 export async function startSignIn(payload: Payload, input: SignInStart, senderKey: string): Promise<Result<{ sent: true }, StartRefusal>> {
   const now = new Date()
-  const outcome = await withCapLock(payload, 'sign_in_code', async (_req, db): Promise<Result<SignInCode | null, StartRefusal>> => {
+  const outcome = await withXactLock(payload, 'sign_in_code', async (_req, db): Promise<Result<SignInCode | null, StartRefusal>> => {
     const latest = await latestCode(db, input.email)
     const step = planCodeRequest(latest && storedOf(latest), await requestCounts(db, input.email, senderKey), now)
     if (step === 'none') return ok(null)

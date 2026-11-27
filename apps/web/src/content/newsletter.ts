@@ -22,7 +22,7 @@ import { emailConfigured } from '@/cms/email'
 import { loggableError } from '@/members/query-error'
 import { absoluteUrl } from '@/site-config'
 
-import { withCapLock } from './email-cap'
+import { withXactLock } from './xact-lock'
 import { HONEYPOT_FIELD, TOKEN_FIELD } from './form-fields'
 import { checkFormToken, issueFormToken, mac, sameMac, senderKeyOf } from './form-guard'
 
@@ -123,7 +123,7 @@ export async function receiveSignup(fields: Readonly<Record<string, string>>, he
   const context = { skipRevalidation: true }
   try {
     const windowStart = new Date(now.getTime() - RATE_WINDOW_MS).toISOString()
-    const outcome = await withCapLock(payload, 'newsletter_confirmation', async (req): Promise<SignupFormState | Confirmation> => {
+    const outcome = await withXactLock(payload, 'newsletter_confirmation', async (req): Promise<SignupFormState | Confirmation> => {
       const { totalDocs } = await payload.count({
         collection: 'subscribers',
         where: { and: [{ senderKey: { equals: senderKey } }, { requestedAt: { greater_than: windowStart } }] },
