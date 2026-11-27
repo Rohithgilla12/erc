@@ -36,6 +36,7 @@ import {
   submitCheckIn,
 } from './coaching'
 import { googleSignInOpen } from './google'
+import { clearIntake, readAthleteIntake, readIntake, saveIntake } from './intake'
 import { readRunDetail } from './run-metrics'
 import { emailSignInOpen, startSignIn, verifySignIn, type StartRefusal, type VerifyRefusal } from './sign-in'
 import { listSessions, resolveSession, revokeOwnSession, revokeSession, SESSION_COOKIE, type MemberSession } from './session'
@@ -164,11 +165,18 @@ const IMPLEMENTATIONS: Implementations = {
   endCoaching: async ({ session }) => endCoaching(await getPayload({ config }), session.member, 'athlete'),
   submitCheckIn: async ({ session }, input) => submitCheckIn(await getPayload({ config }), session.member, input),
   myWeekReview: async ({ session }, input) => getMyWeekReview(await getPayload({ config }), session.member, input.weekStart),
+  myIntake: async ({ session }) => ok(ownedBy(session.member, await readIntake(await getPayload({ config }), session.member))),
+  saveIntake: async ({ session }, input) => ok(ownedBy(session.member, await saveIntake(await getPayload({ config }), session.member, input))),
+  clearIntake: async ({ session }) => {
+    await clearIntake(await getPayload({ config }), session.member)
+    return ok(ownedBy(session.member, { cleared: true }))
+  },
   roster: async ({ session }) => getCoachRoster(await getPayload({ config }), session.coachId),
   decideCoachingRequest: async ({ session }, input) => decideRequest(await getPayload({ config }), session.coachId, input.linkId, input.decision),
   athleteWeek: async ({ session }, input) => getAthleteWeek(await getPayload({ config }), session.coachId, input.athleteSlug, input.weekStart),
   athleteRunDetail: async ({ session }, input) =>
     getAthleteRunDetail(await getPayload({ config }), session.coachId, input.athleteSlug, { source: input.source, ref: input.ref }),
+  athleteIntake: async ({ session }, input) => readAthleteIntake(await getPayload({ config }), session.coachId, input.athleteSlug),
   saveWeekReview: async ({ session }, input) => saveWeekReview(await getPayload({ config }), session.coachId, input.athleteSlug, input.weekStart, input),
   stravaStatus: async ({ session }) => {
     const payload = await getPayload({ config })

@@ -7,6 +7,7 @@ import {
   parseAthleteSearch,
   parseCheckIn,
   parseClaim,
+  parseIntakeSubmission,
   parseLocalDate,
   parseManualEntry,
   parseNewProfile,
@@ -36,6 +37,7 @@ import {
   type Email,
   type FieldErrors,
   type Id,
+  type IntakeAnswers,
   type Lap,
   type Instant,
   type LocalDate,
@@ -424,6 +426,21 @@ export const parseSaveWeekReview = (raw: RawInput): Result<{ athleteSlug: Slug; 
   })
 }
 
+/** The member's own intake. Every save asks for consent again, so `consentedAt` is the latest save's. */
+export type IntakeView = { answers: IntakeAnswers; shareWithCoach: boolean; consentedAt: Instant; updatedAt: Instant }
+
+/** What a coach learns of an athlete's intake. Unshared and absent look the same, so a coach cannot tell one from the other. */
+export type AthleteIntakeView = { shared: false } | { shared: true; answers: IntakeAnswers; updatedAt: Instant }
+
+type IntakeFields = { answers: Readonly<Record<string, string | number | null>>; consent: string | boolean; shareWithCoach?: string | boolean }
+
+const intakeInput = (raw: RawInput) => parseIntakeSubmission(raw, todayIn(CLUB_TIME_ZONE))
+
+export const parseAthleteSlugQuery = (raw: RawInput): Result<{ athleteSlug: Slug }, FieldErrors> => {
+  const slug = parseSlug(firstOf(raw.athleteSlug))
+  return slug.ok ? ok({ athleteSlug: slug.value }) : err({ athleteSlug: 'Enter a valid athlete slug.' })
+}
+
 /**
  * The one list of everything a member can do. The server implements every entry (a total map), the web dashboard
  * calls entries in-process through `run`, the HTTP adapter serves every entry under `/api/v1`, and `createClient` is
@@ -522,6 +539,9 @@ export const OPERATIONS = {
     fields: phantom<{ weekStart?: string }>(),
     output: phantom<CoachReviewView | null>(),
   }),
+  myIntake: op({ method: 'GET', path: '/me/intake', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<OwnerOnly<IntakeView | null>>() }),
+  saveIntake: op({ method: 'POST', path: '/me/intake', access: 'member', parse: intakeInput, fields: phantom<IntakeFields>(), output: phantom<OwnerOnly<IntakeView>>() }),
+  clearIntake: op({ method: 'POST', path: '/me/intake/clear', access: 'member', parse: noInput, fields: phantom<Record<string, never>>(), output: phantom<OwnerOnly<{ cleared: true }>>() }),
   roster: op({
     method: 'GET',
     path: '/coach/roster',
@@ -553,6 +573,14 @@ export const OPERATIONS = {
     parse: parseAthleteRunQuery,
     fields: phantom<{ athleteSlug: string; source: string; ref: string }>(),
     output: phantom<RunDetailView>(),
+  }),
+  athleteIntake: op({
+    method: 'GET',
+    path: '/coach/athletes/intake',
+    access: 'coach',
+    parse: parseAthleteSlugQuery,
+    fields: phantom<{ athleteSlug: string }>(),
+    output: phantom<AthleteIntakeView>(),
   }),
   saveWeekReview: op({
     method: 'POST',
