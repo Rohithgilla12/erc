@@ -108,6 +108,6 @@ Workstream C = editorial workflow redesign (live vs working copy) + moderation t
 - [x] 7. interrogate if contested. skip: review verdict was MERGE WITH FIXES, not contested
 - [x] 8. Independent review (Fable): H1 seed password, M1-M4 and lows fixed on phase3-fixes
 - [x] 9. Deployed 57a21c44af72 (rollback 656019d1f2c3); seeded 39 races, 6 articles in review, 10 shoes
-- [ ] check-revalidation flakes on a long-running server; clears on restart; root cause unknown
-- [ ] /me server-action errors still log Drizzle params (review text); wrap actions
+- [x] check-revalidation flake: Next 16.3.3 compares a wall-clock expiry against the monotonic clock; patched (patches/next@16.3.3.patch), check-tag-expiry.ts guards it
+- [x] /me server actions run inside guarded(), which logs without typed values
 - [x] Rotated the production Postgres password 2026-11-27 (1Password: personal Private vault, "ERC production Postgres"); old password refused, app reconnected
