@@ -4,6 +4,7 @@ import { after } from 'next/server'
 import { getPayload } from 'payload'
 
 import { notifyStaffOfEnquiry } from '@/cms/collections/enquiries'
+import { loggableError } from '@/members/query-error'
 
 import { withCapLock } from './email-cap'
 import { HONEYPOT_FIELD, TOKEN_FIELD } from './form-fields'
@@ -105,7 +106,7 @@ export async function receiveEnquiry(fields: Readonly<Record<string, string>>, h
       payload.logger.warn({ enquiry: enquiry.id, cap: STAFF_EMAILS_PER_HOUR }, 'Stored an enquiry without emailing staff: the hourly email cap is reached')
     }
   } catch (error) {
-    payload.logger.error({ err: error }, 'Could not store an enquiry')
+    payload.logger.error({ err: loggableError(error) }, 'Could not store an enquiry')
     return { kind: 'refused', token, values, reason: 'unavailable' }
   }
   return { kind: 'sent' }

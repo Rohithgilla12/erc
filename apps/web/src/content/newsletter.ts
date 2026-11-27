@@ -19,6 +19,7 @@ import { getPayload, type Payload, type PayloadRequest } from 'payload'
 import { PRIVACY_NOTICE } from '@/app/(frontend)/site-nav'
 import { sendConfirmationEmail } from '@/cms/collections/subscribers'
 import { emailConfigured } from '@/cms/email'
+import { loggableError } from '@/members/query-error'
 import { absoluteUrl } from '@/site-config'
 
 import { withCapLock } from './email-cap'
@@ -170,7 +171,7 @@ export async function receiveSignup(fields: Readonly<Record<string, string>>, he
     if (outcome.kind !== 'confirm') return outcome
     after(() => emailConfirmation(payload, outcome.subscriber, outcome.confirmToken))
   } catch (error) {
-    payload.logger.error({ err: error }, 'Could not store a newsletter signup')
+    payload.logger.error({ err: loggableError(error) }, 'Could not store a newsletter signup')
     return { kind: 'refused', token, email, reason: 'unavailable' }
   }
   return { kind: 'sent' }

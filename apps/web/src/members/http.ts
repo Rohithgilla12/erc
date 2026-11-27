@@ -3,6 +3,7 @@ import { API_BASE, OPERATIONS, operationFor, type ApiError, type Envelope } from
 import { PHOTO_MAX_BYTES, type RawInput } from '@erc/domain'
 import { getPayload } from 'payload'
 
+import { loggableError } from './query-error'
 import { bearerCaller, run, STATUS } from './run'
 
 const reply = (envelope: Envelope<unknown>) =>
@@ -62,7 +63,7 @@ export async function handleV1(request: Request, segments: readonly string[]): P
     if (!raw) return refuse({ code: 'invalid', message: multipart ? 'Send a multipart form.' : 'Send a JSON object.' })
     return reply(await run(name, caller, raw))
   } catch (error) {
-    ;(await getPayload({ config })).logger.error({ err: error, operation: name }, 'A v1 operation failed')
+    ;(await getPayload({ config })).logger.error({ err: loggableError(error), operation: name }, 'A v1 operation failed')
     return refuse({ code: 'unavailable', message: 'Something went wrong on our side. Please try again in a moment.' })
   }
 }

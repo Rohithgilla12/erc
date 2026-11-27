@@ -3,8 +3,15 @@ import type { AthleteIntakeView, IntakeView } from '@erc/contract'
 import { CLUB_TIME_ZONE, err, ok, parseIntakeAnswers, todayIn, type CoachId, type IntakeAnswers, type IntakeSubmission, type MemberId, type Result, type Slug } from '@erc/domain'
 import type { Payload } from 'payload'
 
+import { IntakeQueryFailed, sqlStateOf } from './query-error'
 import type { OpFailure } from './run'
 import { instantOf } from './session'
+
+/** Every intake query runs through here, so a failed one cannot carry the answers into a log in its message. */
+const execute = (payload: Payload, query: ReturnType<typeof sql>) =>
+  payload.db.drizzle.execute(query).catch((error: unknown) => {
+    throw new IntakeQueryFailed(sqlStateOf(error))
+  })
 
 type IntakeRow = { answers: unknown; share_with_coach: boolean; consented_at: Date | string; updated_at: Date | string }
 
@@ -27,7 +34,7 @@ const viewOf = (answers: IntakeAnswers, row: IntakeRow): IntakeView => ({
 })
 
 export async function readIntake(payload: Payload, member: MemberId): Promise<IntakeView | null> {
-  const { rows } = await payload.db.drizzle.execute(sql`
+  const { rows } = await execute(payload, sql`
     SELECT answers, share_with_coach, consented_at, updated_at FROM intakes WHERE member_id = ${member}
   `)
   const row = rows[0] as IntakeRow | undefined
@@ -36,7 +43,7 @@ export async function readIntake(payload: Payload, member: MemberId): Promise<In
 }
 
 export async function saveIntake(payload: Payload, member: MemberId, input: IntakeSubmission): Promise<IntakeView> {
-  const { rows } = await payload.db.drizzle.execute(sql`
+  const { rows } = await execute(payload, sql`
     INSERT INTO intakes (member_id, answers, share_with_coach, consented_at, updated_at)
     VALUES (${member}, ${JSON.stringify(input.answers)}::jsonb, ${input.shareWithCoach}, now(), now())
     ON CONFLICT (member_id) DO UPDATE
@@ -47,7 +54,7 @@ export async function saveIntake(payload: Payload, member: MemberId, input: Inta
 }
 
 export async function clearIntake(payload: Payload, member: MemberId): Promise<void> {
-  await payload.db.drizzle.execute(sql`DELETE FROM intakes WHERE member_id = ${member}`)
+  await execute(payload, sql`DELETE FROM intakes WHERE member_id = ${member}`)
 }
 
 /**
@@ -55,7 +62,7 @@ export async function clearIntake(payload: Payload, member: MemberId): Promise<v
  * the athlete shares it, so turning sharing off or ending the link hides it on the next read.
  */
 export async function readAthleteIntake(payload: Payload, coachId: CoachId, athleteSlug: Slug): Promise<Result<AthleteIntakeView, OpFailure>> {
-  const { rows } = await payload.db.drizzle.execute(sql`
+  const { rows } = await execute(payload, sql`
     SELECT a.member_id, l.id AS link_id, i.answers, i.updated_at
     FROM athletes a
     LEFT JOIN coaching_links l ON l.athlete_member_id = a.member_id AND l.coach_id = ${coachId} AND l.state = 'active'

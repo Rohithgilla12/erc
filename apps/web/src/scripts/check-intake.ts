@@ -5,9 +5,11 @@
  */
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
-import type { CoachId, MemberId } from '@erc/domain'
+import { CLUB_TIME_ZONE, parseIntakeAnswers, todayIn, type CoachId, type MemberId } from '@erc/domain'
 import { getPayload } from 'payload'
 
+import { saveIntake } from '@/members/intake'
+import { loggableError } from '@/members/query-error'
 import { run, type Caller } from '@/members/run'
 import { issueSession, resolveSession } from '@/members/session'
 
@@ -153,6 +155,17 @@ try {
   await run('endCoaching', athlete, {})
   const ended = await run('athleteIntake', coach, { athleteSlug })
   expect('ending the link hides a shared intake from the coach', !ended.ok && ended.error.code, 'forbidden')
+
+  const parsed = parseIntakeAnswers(answers, todayIn(CLUB_TIME_ZONE))
+  const failedSave = parsed.ok ? await saveIntake(payload, -1 as MemberId, { answers: parsed.value, shareWithCoach: false }).then(() => null, (error: unknown) => error) : null
+  const failedText = failedSave instanceof Error ? [String(failedSave), failedSave.stack, JSON.stringify(failedSave), String(failedSave.cause)].join('\n') : ''
+  expect('a failed intake save throws only the Postgres code', [failedSave instanceof Error, (failedSave as { code?: string } | null)?.code], [true, '23503'])
+  expect('and none of the answers', failedText.includes(answers.injuries) || failedText.includes(answers.healthNotes), false)
+
+  const marker = `private-${runId}@example.com`
+  const failedQuery = await db.execute(sql`SELECT ${marker}::int`).then(() => null, (error: unknown) => error)
+  const logged = JSON.stringify(loggableError(failedQuery))
+  expect('a failed query is logged with its code and without its values', [logged.includes(marker), (loggableError(failedQuery) as { code?: string }).code], [false, '22P02'])
 
   expect('the row exists before the member is deleted', await intakeRows(athleteMember), 1)
   await db.execute(sql`DELETE FROM athletes WHERE member_id = ${athleteMember}`)
