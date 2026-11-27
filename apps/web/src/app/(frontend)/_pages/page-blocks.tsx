@@ -48,7 +48,8 @@ function Hero({ block, level }: { block: Extract<PageBlock, { kind: 'hero' }>; l
   )
 }
 
-function FeaturedRace({ race, today }: { race: PublicRace; today: LocalDate }) {
+/** `distance` is how far the race is from the member's home city, in the home page's "Races near you". */
+export function FeaturedRace({ race, today, distance }: { race: PublicRace; today: LocalDate; distance?: string }) {
   const { weekday, day, month } = dateParts(race.dates.start)
   const flagged = race.status.kind !== 'scheduled' || isVerificationStale(race, today)
   return (
@@ -63,6 +64,7 @@ function FeaturedRace({ race, today }: { race: PublicRace; today: LocalDate }) {
           <a href={`/races/${race.slug}`}>{race.name}</a>
         </h3>
         <p className="race-meta">
+          {distance ? <span className="race-distance">{distance}</span> : null}
           <span>{formatDates(race.dates)}</span>
           <span>{placeOf(race)}</span>
         </p>

@@ -10,6 +10,7 @@ import { Coaches } from './cms/collections/coaches'
 import { Enquiries } from './cms/collections/enquiries'
 import { Media } from './cms/collections/media'
 import { Members } from './cms/collections/members'
+import { News } from './cms/collections/news'
 import { Pages } from './cms/collections/pages'
 import { ProfileChanges } from './cms/collections/profile-changes'
 import { Questions } from './cms/collections/questions'
@@ -46,7 +47,7 @@ export default buildErcConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, Pages, Enquiries, Subscribers, Resources, TrainingPlans, Members, Claims, ProfileChanges, Shoes, Reviews, Questions],
+  collections: [Staff, Media, Coaches, Races, Athletes, Results, Topics, Posts, Videos, News, Pages, Enquiries, Subscribers, Resources, TrainingPlans, Members, Claims, ProfileChanges, Shoes, Reviews, Questions],
   endpoints: [revalidateEndpoint],
   editor: lexicalEditor(),
   // Pages read through the Local API and the admin through REST, so GraphQL would only be one more public surface.

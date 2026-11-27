@@ -1,6 +1,7 @@
 /** The one list of top-level sections. Header, footer and sitemap read it, so adding a section is one line. */
 export const SITE_SECTIONS = [
   { href: '/races', label: 'Races' },
+  { href: '/news', label: 'News' },
   { href: '/learn', label: 'Learn' },
   { href: '/videos', label: 'Videos' },
   { href: '/plans', label: 'Training plans' },

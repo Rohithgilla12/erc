@@ -13,7 +13,7 @@ import {
   type OutputOf,
   type OwnerOnly,
 } from '@erc/contract'
-import { CLUB_TIME_ZONE, err, monthOf, ok, todayIn, totalsOf, weekOf, type Carrier, type CoachId, type RawInput, type Result } from '@erc/domain'
+import { CLUB_TIME_ZONE, err, monthOf, ok, todayIn, totalsOf, weekOf, type Carrier, type City, type CoachId, type RawInput, type Result } from '@erc/domain'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getPayload } from 'payload'
@@ -38,6 +38,7 @@ import {
 import { googleSignInOpen } from './google'
 import { clearIntake, readAthleteIntake, readIntake, saveIntake } from './intake'
 import { answerQuestion, askQuestion, coachQuestions, deleteReview, myReviews, writeReview, type AnswerRefusal, type QuestionRefusal, type ReviewRefusal } from './reviews'
+import { readHomeCity, saveHomeCity } from './home-city'
 import { readRunDetail } from './run-metrics'
 import { emailSignInOpen, startSignIn, verifySignIn, type StartRefusal, type VerifyRefusal } from './sign-in'
 import { listSessions, resolveSession, revokeOwnSession, revokeSession, SESSION_COOKIE, type MemberSession } from './session'
@@ -146,15 +147,24 @@ const IMPLEMENTATIONS: Implementations = {
     const payload = await getPayload({ config })
     const today = todayIn(CLUB_TIME_ZONE)
     const [week, month] = [weekOf(today), monthOf(today)]
-    const [weekRuns, monthRuns, athlete] = await Promise.all([runsIn(payload, session, week), runsIn(payload, session, month), myAthlete(payload, session)])
+    const [weekRuns, monthRuns, athlete, homeCity] = await Promise.all([
+      runsIn(payload, session, week),
+      runsIn(payload, session, month),
+      myAthlete(payload, session),
+      readHomeCity(payload, session.member),
+    ])
     const dashboard: Dashboard = ownedBy(session.member, {
-      member: { email: session.email },
+      member: { email: session.email, homeCity: homeCity?.slug ?? null },
       today,
       week: { ...week, totals: totalsOf(weekRuns) },
       month: { ...month, totals: totalsOf(monthRuns) },
       athlete,
     })
     return ok(dashboard)
+  },
+  setHomeCity: async ({ session }, input) => {
+    await saveHomeCity(await getPayload({ config }), session.member, input.city)
+    return ok(ownedBy(session.member, { homeCity: input.city }))
   },
   logRun: async ({ session }, input) => {
     const run = await recordManual(await getPayload({ config }), session, input)
@@ -274,6 +284,15 @@ export const currentCaller = cache(async (): Promise<Caller> => {
   const token = jar.get(SESSION_COOKIE)?.value
   const session = token ? await resolveSession(await getPayload({ config }), token, 'cookie') : null
   return session ? { kind: 'member', session, sender } : { kind: 'anonymous', carrier: 'cookie', sender, rejectedToken: token !== undefined }
+})
+
+/**
+ * The signed-in member's home city, for public pages that rank races by it. Read per request and never cached across
+ * requests, so one member's city cannot reach another visitor's page.
+ */
+export const viewerHomeCity = cache(async (): Promise<City | null> => {
+  const caller = await currentCaller()
+  return caller.kind === 'member' ? readHomeCity(await getPayload({ config }), caller.session.member) : null
 })
 
 /** For `/me` pages: the member, or a redirect to sign in. */

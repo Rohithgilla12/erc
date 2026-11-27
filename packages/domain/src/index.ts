@@ -1,6 +1,7 @@
 export * from './activities'
 export * from './athletes'
 export * from './calendar'
+export * from './cities'
 export * from './coaching'
 export * from './content'
 export { firstOf, type FieldErrors } from './form-fields'

@@ -12,6 +12,7 @@ import {
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import type { ReactNode } from 'react'
 
 import { findRaces } from '@/content/races'
 
@@ -62,7 +63,7 @@ const isArrival = async () => {
   }
 }
 
-export async function CalendarPage({ heading, query, today }: { heading: string; query: RaceQuery; today: LocalDate }) {
+export async function CalendarPage({ heading, query, today, near }: { heading: string; query: RaceQuery; today: LocalDate; near?: ReactNode }) {
   const [page, arrival] = await Promise.all([findRaces(query), isArrival()])
   // Temporary, because the page can exist again once more races are listed. One URL per page of results keeps a
   // stale link from rendering an empty, indexable duplicate.
@@ -79,7 +80,7 @@ export async function CalendarPage({ heading, query, today }: { heading: string;
   return (
     <>
       {canonical ? <JsonLd data={collectionPage({ name: heading, description: describe(heading), path: canonical, crumbs })} /> : null}
-      <RaceCalendar heading={heading} page={page} query={query} today={today} arrival={arrival} />
+      <RaceCalendar heading={heading} page={page} query={query} today={today} arrival={arrival} near={near} />
     </>
   )
 }

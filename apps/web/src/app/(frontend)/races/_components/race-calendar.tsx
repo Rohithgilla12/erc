@@ -23,7 +23,8 @@ declare module 'react' {
   }
 }
 
-type Props = { heading: string; page: RacePage; query: RaceQuery; today: LocalDate; arrival: boolean }
+/** `near` is the "Races near" form, shown on the main calendar only. */
+type Props = { heading: string; page: RacePage; query: RaceQuery; today: LocalDate; arrival: boolean; near?: ReactNode }
 
 const activeFilters = (query: RaceQuery, today: LocalDate): string[] => [
   ...(query.text ? [`“${query.text}”`] : []),
@@ -36,7 +37,7 @@ const activeFilters = (query: RaceQuery, today: LocalDate): string[] => [
   ...(query.registrationOpen ? ['Registration open'] : []),
 ]
 
-export function RaceCalendar({ heading, page, query, today, arrival }: Props) {
+export function RaceCalendar({ heading, page, query, today, arrival, near }: Props) {
   const href = (change: Partial<RaceQuery>) => racesHref({ ...query, page: 1, ...change }, today)
   const chipHref = (chip: FacetChip) => racesHref(tapChip(query, chip), today)
   const active = activeFilters(query, today)
@@ -49,6 +50,7 @@ export function RaceCalendar({ heading, page, query, today, arrival }: Props) {
           <strong>{page.total === 1 ? '1 race' : `${page.total} races`}</strong>
           {active.length > 0 ? <span className="active-filters">{active.join(' · ')}</span> : null}
         </p>
+        {near}
       </header>
 
       <button type="button" className="button filters-toggle" popoverTarget="filters">
@@ -244,7 +246,8 @@ function Chip({ name, href, selected, count, children }: { name: string; href: s
   )
 }
 
-function RaceCard({ race, today }: { race: PublicRace; today: LocalDate }) {
+/** `distance` is how far the race is from the runner's chosen city, on the "Races near" view. */
+export function RaceCard({ race, today, distance }: { race: PublicRace; today: LocalDate; distance?: string }) {
   const { weekday, day, month } = dateParts(race.dates.start)
   const flagged = race.status.kind !== 'scheduled' || isVerificationStale(race, today)
   return (
@@ -259,6 +262,7 @@ function RaceCard({ race, today }: { race: PublicRace; today: LocalDate }) {
           <a href={`/races/${race.slug}`}>{race.name}</a>
         </h2>
         <p className="race-meta">
+          {distance ? <span className="race-distance">{distance}</span> : null}
           <span>{formatDates(race.dates)}</span>
           <span>{placeOf(race)}</span>
         </p>

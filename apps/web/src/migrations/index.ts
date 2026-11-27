@@ -17,6 +17,7 @@ import * as migration_20261119_120000_google_identities from './20261119_120000_
 import * as migration_20261123_120000_activity_metrics from './20261123_120000_activity_metrics';
 import * as migration_20261127_120000_intake from './20261127_120000_intake';
 import * as migration_20261127_120100_reviews from './20261127_120100_reviews';
+import * as migration_20261127_120200_nearest_news from './20261127_120200_nearest_news';
 
 export const migrations = [
   {
@@ -82,7 +83,7 @@ export const migrations = [
   {
     up: migration_20261021_160546_athlete_claims.up,
     down: migration_20261021_160546_athlete_claims.down,
-    name: '20261021_160546_athlete_claims'
+    name: '20261021_160546_athlete_claims',
   },
   {
     up: migration_20261102_180000_coaching.up,
@@ -113,5 +114,10 @@ export const migrations = [
     up: migration_20261127_120100_reviews.up,
     down: migration_20261127_120100_reviews.down,
     name: '20261127_120100_reviews',
+  },
+  {
+    up: migration_20261127_120200_nearest_news.up,
+    down: migration_20261127_120200_nearest_news.down,
+    name: '20261127_120200_nearest_news',
   },
 ];

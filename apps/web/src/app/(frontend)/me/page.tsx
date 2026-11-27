@@ -1,21 +1,23 @@
 import { randomUUID } from 'node:crypto'
 
 import type { MyAthlete, MyCoachingView, PeriodTotals, StravaStatusView } from '@erc/contract'
-import { formatDuration, formatKm, runDetailPath, type LocalDate, type Metres, type Seconds } from '@erc/domain'
+import { cityBySlug, formatDuration, formatKm, runDetailPath, type CitySlug, type LocalDate, type Metres, type Seconds } from '@erc/domain'
 import type { Metadata } from 'next'
 import React from 'react'
 
 import { signOut, signOutDevice } from '@/members/actions'
 import { requireMember, run } from '@/members/run'
 
-import { disconnectStravaAction, joinStravaWaitlistAction, syncStravaAction } from './actions'
+import { CityOptions } from '../races/_components/near'
+
+import { disconnectStravaAction, joinStravaWaitlistAction, setHomeCityAction, syncStravaAction } from './actions'
 import { RunForm } from './run-form'
 
 import './members.css'
 
 export const metadata: Metadata = { title: 'My running', robots: { index: false, follow: false } }
 
-type Props = { searchParams: Promise<{ after?: string | string[]; strava?: string | string[] }> }
+type Props = { searchParams: Promise<{ after?: string | string[]; strava?: string | string[]; city?: string | string[] }> }
 
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? ''
 
@@ -89,6 +91,49 @@ function AthleteSummary({ athlete }: { athlete: MyAthlete }) {
         {pending > 0 ? ` ${pending === 1 ? 'One change is' : `${pending} changes are`} waiting for review.` : ''}{' '}
         <a href="/me/athlete">{athlete.kind === 'profile' ? 'Manage your profile' : 'Find or start your profile'}</a>
       </p>
+    </section>
+  )
+}
+
+const CITY_NOTICES: Record<string, { message: string; alert: boolean }> = {
+  saved: { message: 'Saved.', alert: false },
+  invalid: { message: 'Choose a city from the list.', alert: true },
+}
+
+/** The member's own city, used for "Races near you" here, on the race calendar and on the home page. */
+function HomeCitySection({ homeCity, notice }: { homeCity: CitySlug | null; notice: string }) {
+  const city = homeCity ? cityBySlug(homeCity) : null
+  const outcome = CITY_NOTICES[notice]
+  return (
+    <section aria-labelledby="home-city">
+      <h2 id="home-city">Home city</h2>
+      <p className="member-note">
+        {city ? (
+          <>
+            Races are measured from {city.name}. <a href={`/races?near=${city.slug}`}>See races near {city.name}</a>
+          </>
+        ) : (
+          'Choose your city to see the races nearest you first. Only you see it.'
+        )}
+      </p>
+      <form className="member-form" action={setHomeCityAction}>
+        {outcome ? (
+          <p className={outcome.alert ? 'member-alert' : 'member-saved'} role={outcome.alert ? 'alert' : 'status'}>
+            {outcome.message}
+          </p>
+        ) : null}
+        <label className="member-field">
+          <span>City</span>
+          <select name="city" defaultValue={city?.slug ?? ''}>
+            <CityOptions placeholder="No city" />
+          </select>
+        </label>
+        <div className="member-row">
+          <button className="button button-secondary" type="submit">
+            Save city
+          </button>
+        </div>
+      </form>
     </section>
   )
 }
@@ -334,6 +379,7 @@ export default async function MePage({ searchParams }: Props) {
   const caller = await requireMember()
   const search = await searchParams
   const after = first(search.after)
+  const cityNotice = first(search.city)
   const stravaNoticeKey = first(search.strava)
   const stravaNotice = stravaNoticeKey ? STRAVA_NOTICES[stravaNoticeKey] : null
 
@@ -406,6 +452,7 @@ export default async function MePage({ searchParams }: Props) {
           <a href="/me/intake">Fill in or update your intake</a>
         </p>
       </section>
+      <HomeCitySection homeCity={member.homeCity} notice={cityNotice} />
 
       <CoachingSection coaching={coaching.data} />
 

@@ -30,7 +30,8 @@
   font-weight: var(--weight-medium);
 }
 
-.member-field input {
+.member-field input,
+.member-field select {
   width: 100%;
   min-width: 0;
   min-height: var(--tap-target);

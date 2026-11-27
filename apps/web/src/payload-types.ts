@@ -76,6 +76,7 @@ export interface Config {
     topics: Topic;
     posts: Post;
     videos: Video;
+    news: News;
     pages: Page;
     enquiries: Enquiry;
     subscribers: Subscriber;
@@ -103,6 +104,7 @@ export interface Config {
     topics: TopicsSelect<false> | TopicsSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
     videos: VideosSelect<false> | VideosSelect<true>;
+    news: NewsSelect<false> | NewsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     enquiries: EnquiriesSelect<false> | EnquiriesSelect<true>;
     subscribers: SubscribersSelect<false> | SubscribersSelect<true>;
@@ -272,6 +274,10 @@ export interface Member {
    */
   ageDeclaredAt: string;
   lastSignInAt?: string | null;
+  /**
+   * Chosen by the member on /me, for races near them.
+   */
+  homeCity?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -762,6 +768,49 @@ export interface Video {
     image?: (number | null) | Media;
     noindex?: boolean | null;
   };
+  workflow?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Applied when you save.
+   */
+  reviewRequest?: ('submit' | 'request_changes') | null;
+  reviewNote?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "news".
+ */
+export interface News {
+  id: number;
+  headline: string;
+  /**
+   * Part of the page address. Left empty, it is made from the headline. Changing it breaks shared links.
+   */
+  slug: string;
+  /**
+   * What happened and why a club runner should care, in your own words. Up to 280 characters.
+   */
+  summary: string;
+  sourceUrl: string;
+  /**
+   * Who published it, such as the organiser or a newspaper.
+   */
+  sourceName: string;
+  /**
+   * Optional. The race this item is about.
+   */
+  relatedRace?: (number | null) | Race;
+  publishedOn: string;
   workflow?:
     | {
         [k: string]: unknown;
@@ -1450,6 +1499,10 @@ export interface PayloadLockedDocument {
         value: number | Video;
       } | null)
     | ({
+        relationTo: 'news';
+        value: number | News;
+      } | null)
+    | ({
         relationTo: 'pages';
         value: number | Page;
       } | null)
@@ -1846,6 +1899,25 @@ export interface VideosSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "news_select".
+ */
+export interface NewsSelect<T extends boolean = true> {
+  headline?: T;
+  slug?: T;
+  summary?: T;
+  sourceUrl?: T;
+  sourceName?: T;
+  relatedRace?: T;
+  publishedOn?: T;
+  workflow?: T;
+  reviewRequest?: T;
+  reviewNote?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "pages_select".
  */
 export interface PagesSelect<T extends boolean = true> {
@@ -2098,6 +2170,7 @@ export interface MembersSelect<T extends boolean = true> {
   status?: T;
   ageDeclaredAt?: T;
   lastSignInAt?: T;
+  homeCity?: T;
   updatedAt?: T;
   createdAt?: T;
 }
