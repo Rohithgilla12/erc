@@ -145,7 +145,10 @@ async function readSitemap(today: LocalDate): Promise<SitemapEntry[]> {
     ...editorial.sitePage('home', '/'),
     ...SITE_SECTIONS.flatMap(({ href }) => {
       const slug = sitePages[href]
-      return slug ? editorial.sitePage(slug, href) : [{ path: href, lastModified: sectionDates[href] ?? null }]
+      if (slug) return editorial.sitePage(slug, href)
+      // News starts empty and stays staff-curated, so its listing waits for its first item rather than index an empty page.
+      if (href === '/news' && editorial.news === null) return []
+      return [{ path: href, lastModified: sectionDates[href] ?? null }]
     }),
     { path: '/resources', lastModified: latest(resources.map((resource) => resource.updatedAt)) },
     { path: PRIVACY_NOTICE.href, lastModified: new Date(PRIVACY_NOTICE.updated).toISOString() as Instant },
