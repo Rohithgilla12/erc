@@ -34,6 +34,7 @@ pnpm --filter @erc/web payload run src/scripts/seed-races.ts          # 3,000 sy
 pnpm --filter @erc/web payload run src/scripts/seed-real-races.ts     # 39 verified real races, upserted by slug; deletes the synthetic ones, so run it last: check-race-calendar, check-seo and check-nearest-news need seed-races data
 pnpm --filter @erc/web payload run src/scripts/check-race-calendar.ts # after seeding; over real races only, its unapproved-race case fails
 pnpm --filter @erc/web payload run src/scripts/check-revalidation.ts  # with the site running
+pnpm --filter @erc/web payload run src/scripts/check-tag-expiry.ts    # no site or database; an expired tag drops a cached read at once when the wall clock runs ahead
 pnpm --filter @erc/web payload run src/scripts/seed-athletes.ts       # six placeholder athletes, replaced on re-run
 pnpm --filter @erc/web payload run src/scripts/check-athletes.ts      # ERC_CHECK_URL=<site> adds REST and page cases
 pnpm --filter @erc/web payload run src/scripts/seed-learn.ts          # placeholder topics, coaches, posts and videos, upserted by slug
