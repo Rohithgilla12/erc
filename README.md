@@ -34,6 +34,7 @@ pnpm --filter @erc/web payload run src/scripts/seed-races.ts          # 3,000 sy
 pnpm --filter @erc/web payload run src/scripts/seed-real-races.ts     # 39 verified real races, upserted by slug; deletes the synthetic ones, so run it last: check-race-calendar, check-seo and check-nearest-news need seed-races data
 pnpm --filter @erc/web payload run src/scripts/check-race-calendar.ts # after seeding; over real races only, its unapproved-race case fails
 pnpm --filter @erc/web payload run src/scripts/check-revalidation.ts  # with the site running
+pnpm --filter @erc/web payload run src/scripts/check-tag-expiry.ts    # no site or database; an expired tag drops a cached read at once when the wall clock runs ahead
 pnpm --filter @erc/web payload run src/scripts/seed-athletes.ts       # six placeholder athletes, replaced on re-run
 pnpm --filter @erc/web payload run src/scripts/check-athletes.ts      # ERC_CHECK_URL=<site> adds REST and page cases
 pnpm --filter @erc/web payload run src/scripts/seed-learn.ts          # placeholder topics, coaches, posts and videos, upserted by slug
@@ -56,4 +57,4 @@ ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-seo.ts
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-r2.ts    # with the site and the script both given the R2_* variables; any S3-compatible store works
 ```
 
-Scripts write through the Local API in their own process, so they cannot expire the running site's cache directly. Set `ERC_SITE_URL` and `REVALIDATE_SECRET` in `apps/web/.env` (the server needs the same secret) and they ask the site to do it. In production both are required: the server refuses to start without them. `next start` keeps cached reads in `.next/cache/fetch-cache` across rebuilds; delete that folder after changing the shape a content function returns.
+Scripts write through the Local API in their own process, so they cannot expire the running site's cache directly. Set `ERC_SITE_URL` and `REVALIDATE_SECRET` in `apps/web/.env` (the server needs the same secret) and they ask the site to do it. In production both are required: the server refuses to start without them. `next start` keeps cached reads in `.next/cache/fetch-cache` across rebuilds; delete that folder after changing the shape a content function returns. Next.js is patched so an expired tag takes effect at once on a long-running server (`patches/next@16.3.3.patch`; the design doc's Step 3 says why and when to drop it).
