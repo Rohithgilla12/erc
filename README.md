@@ -47,6 +47,8 @@ pnpm --filter @erc/web payload run src/scripts/check-newsletter.ts    # needs ER
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-athlete-claims.ts   # claims, profile edits, consent, photos; share MEDIA_DIR with the site
 pnpm --filter @erc/web payload run src/scripts/check-coaching.ts     # coaching links, check-ins, reviews, and triage
 pnpm --filter @erc/web payload run src/scripts/check-intake.ts       # intake consent, sharing with an active coach only, clearing, and deletion with the member
+pnpm --filter @erc/web payload run src/scripts/seed-shoes.ts          # ten widely sold running shoes, upserted by slug
+ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-reviews.ts   # shoe and race reviews, race questions, coach answers, limits, privacy
 pnpm --filter @erc/web payload run src/scripts/check-strava.ts       # Strava OAuth, token encryption, 10-cap waitlist, sync, run metrics, job queue drain, webhooks, coach view, disconnect, and privacy isolation
 pnpm --filter @erc/web payload run src/scripts/check-google.ts       # Continue with Google: start, callback refusals, account linking, races; Google's token endpoint is stubbed
 ERC_CHECK_URL=<site> pnpm --filter @erc/web payload run src/scripts/check-seo.ts   # after every seed; sitemap, robots.txt, feed and JSON-LD

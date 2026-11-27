@@ -121,13 +121,15 @@ async function athleteEntries(payload: Payload) {
 
 async function readSitemap(today: LocalDate): Promise<SitemapEntry[]> {
   const payload = await getPayload({ config })
-  const [editorial, races, athletes, plans, resources] = await Promise.all([
+  const [editorial, races, athletes, plans, resources, shoes] = await Promise.all([
     editorialEntries(payload),
     raceEntries(payload, today),
     athleteEntries(payload),
     getPlans(),
     getResources(),
+    payload.find({ collection: 'shoes', ...anonymous, select: { slug: true, updatedAt: true }, sort: 'slug' }),
   ])
+  const shoeEntries = shoes.docs.map((shoe) => ({ path: `/shoes/${shoe.slug}`, lastModified: shoe.updatedAt as Instant }))
   const indexedPlans = plans.filter((plan) => !plan.seo.noindex)
   const sectionDates: Readonly<Record<string, Instant | null>> = {
     '/races': races.calendar,
@@ -135,6 +137,7 @@ async function readSitemap(today: LocalDate): Promise<SitemapEntry[]> {
     '/videos': editorial.videos,
     '/plans': latest(indexedPlans.map((plan) => plan.updatedAt)),
     '/athletes': latest(athletes.map((entry) => entry.lastModified)),
+    '/shoes': latest(shoeEntries.map((entry) => entry.lastModified)),
   }
   const sitePages: Readonly<Record<string, string>> = { '/coaching': 'coaching', '/about': 'about', '/contact': 'contact' }
   return [
@@ -149,11 +152,12 @@ async function readSitemap(today: LocalDate): Promise<SitemapEntry[]> {
     ...editorial.entries,
     ...indexedPlans.map((plan) => ({ path: `/plans/${plan.slug}`, lastModified: plan.updatedAt })),
     ...athletes,
+    ...shoeEntries,
   ]
 }
 
 const cachedSitemap = unstable_cache(readSitemap, ['sitemap'], {
-  tags: [...EDITORIAL_SLUGS, ...(['races', 'athletes', 'results'] as const)].map(collectionTag),
+  tags: [...EDITORIAL_SLUGS, ...(['races', 'athletes', 'results', 'shoes'] as const)].map(collectionTag),
   revalidate: 3600,
 })
 

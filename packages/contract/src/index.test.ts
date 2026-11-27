@@ -57,6 +57,16 @@ describe('OPERATIONS', () => {
     }
   })
 
+  it('lets members write reviews and ask questions, and only coaches answer them; nothing about reviews is anonymous', () => {
+    const ops = ['writeReview', 'myReviews', 'deleteReview', 'askQuestion', 'coachQuestions', 'answerQuestion'] as const
+    expect(ops.map((name) => OPERATIONS[name].access)).toEqual(['member', 'member', 'member', 'member', 'coach', 'coach'])
+  })
+
+  it('takes a review through the domain parser, so the member and moderation cannot be sent', () => {
+    const parsed = OPERATIONS.writeReview.parse({ subjectKind: 'shoes', subjectId: '2', rating: '4', title: 'Fine', body: 'Fine.', member: 9, moderation: { state: 'approved' } })
+    expect(parsed).toEqual({ ok: true, value: { review: null, draft: { rating: 4, title: 'Fine', body: 'Fine.', subject: { kind: 'shoes', id: 2 }, kmRun: null } } })
+  })
+
   it('restricts Strava operations to member access tier', () => {
     expect(OPERATIONS.stravaStatus.access).toBe('member')
     expect(OPERATIONS.syncStrava.access).toBe('member')

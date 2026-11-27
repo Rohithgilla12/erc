@@ -219,3 +219,51 @@ export async function saveVisibility(_previous: ProfileFormState, form: FormData
   return profileAction('setVisibility', form)
 }
 
+/** The review, question and answer forms: what was typed, so a refusal shows it again, and the outcome. */
+export type FeedbackFormState = { values: Readonly<Record<string, string>>; errors?: FieldErrors; notice?: string; saved?: string }
+
+const refusedWith = (values: FeedbackFormState['values'], error: { code: string; message: string; fields?: FieldErrors }): FeedbackFormState =>
+  error.code === 'invalid' ? { values, ...(error.fields ? { errors: error.fields } : {}) } : { values, notice: error.message }
+
+export async function writeReviewAction(_previous: FeedbackFormState, form: FormData): Promise<FeedbackFormState> {
+  const values = fieldsOf(form)
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  const done = await run('writeReview', caller, values)
+  if (!done.ok) return refusedWith(values, done.error)
+  revalidatePath(done.data.subject.path)
+  return { values, saved: values.review ? 'Saved. A club volunteer checks every change before it shows again.' : 'Thanks. Your review shows here once a club volunteer has checked it.' }
+}
+
+const SUBJECT_PATH = /^\/(shoes|races)\/[a-z0-9]+(-[a-z0-9]+)*$/
+
+export async function deleteReviewAction(form: FormData): Promise<void> {
+  const fields = fieldsOf(form)
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  await run('deleteReview', caller, fields)
+  const back = SUBJECT_PATH.test(fields.path ?? '') ? (fields.path as string) : '/'
+  revalidatePath(back)
+  redirect(`${back}#reviews`)
+}
+
+export async function askQuestionAction(_previous: FeedbackFormState, form: FormData): Promise<FeedbackFormState> {
+  const values = fieldsOf(form)
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  const done = await run('askQuestion', caller, values)
+  if (!done.ok) return refusedWith(values, done.error)
+  return { values: { ...values, text: '' }, saved: 'Thanks. Your question shows here once a club volunteer has checked it.' }
+}
+
+export async function answerQuestionAction(_previous: FeedbackFormState, form: FormData): Promise<FeedbackFormState> {
+  const values = fieldsOf(form)
+  const caller = await currentCaller()
+  if (caller.kind !== 'member') redirect('/sign-in')
+  const done = await run('answerQuestion', caller, values)
+  if (!done.ok) return refusedWith(values, done.error)
+  revalidatePath(done.data.race.path)
+  revalidatePath('/me/coach/questions')
+  return { values, saved: 'Answer saved. It shows on the race page now.' }
+}
+
