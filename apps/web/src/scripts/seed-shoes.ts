@@ -1,7 +1,8 @@
 /**
  * Lists widely sold running shoes so members have something to review: `pnpm payload run src/scripts/seed-shoes.ts`.
- * Each shoe is matched by slug, so a re-run updates the same rows. Descriptions name the model line, not a version,
- * and say only what holds across recent versions; staff add images and version detail in the admin.
+ * Each shoe is matched by slug and added only if missing, so a re-run leaves what staff edited in the admin alone.
+ * Descriptions name the model line, not a version, and say only what holds across recent versions; staff add images
+ * and version detail in the admin.
  */
 import config from '@payload-config'
 import type { ShoeCategory } from '@erc/domain'
@@ -89,10 +90,12 @@ const context = { skipRevalidation: true }
 
 for (const shoe of SHOES) {
   const { docs } = await payload.find({ collection: 'shoes', where: { slug: { equals: shoe.slug } }, limit: 1, depth: 0 })
-  const existing = docs[0]
-  if (existing) await payload.update({ collection: 'shoes', id: existing.id, data: shoe, context })
-  else await payload.create({ collection: 'shoes', data: shoe, context })
-  console.log(`${existing ? 'Updated' : 'Added'} ${shoe.brand} ${shoe.model}`)
+  if (docs[0]) {
+    console.log(`Kept ${shoe.brand} ${shoe.model} as it is`)
+    continue
+  }
+  await payload.create({ collection: 'shoes', data: shoe, context })
+  console.log(`Added ${shoe.brand} ${shoe.model}`)
 }
 
 await refreshRunningSite(payload, [collectionTag('shoes')])
