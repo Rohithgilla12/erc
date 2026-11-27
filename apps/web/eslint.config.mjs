@@ -38,8 +38,8 @@ export default defineConfig([
               message: 'Read through src/content instead.',
             },
             {
-              group: ['@/members/**', '!@/members/run', '!@/members/actions'],
-              message: 'Pages and forms act on members only through run.ts and actions.ts, so the dashboard and the API stay one code path.',
+              group: ['@/members/**', '!@/members/run', '!@/members/actions', '!@/members/guarded'],
+              message: 'Pages and forms act on members only through run.ts and actions.ts (server actions wrap themselves in guarded.ts), so the dashboard and the API stay one code path.',
             },
           ],
         },

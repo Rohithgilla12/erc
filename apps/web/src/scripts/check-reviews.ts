@@ -1,9 +1,13 @@
 /**
- * Proves shoe and race reviews and race questions end to end: `ERC_CHECK_URL=<site> pnpm payload run src/scripts/check-reviews.ts`.
+ * Proves shoe and race reviews and race questions end to end:
+ * `ERC_CHECK_URL=<site> ERC_CHECK_LOG=<site log file> pnpm payload run src/scripts/check-reviews.ts`.
  * Forms are posted the way a browser with JavaScript off posts them; the API is called with bearer tokens. The site
  * must share this database, `PAYLOAD_SECRET` and `REVALIDATE_SECRET` (with `ERC_SITE_URL` set here, so staff decisions
- * made in this process expire the site's cache). Everything it writes is removed.
+ * made in this process expire the site's cache), and write its stdout and stderr to `ERC_CHECK_LOG`, so a failed
+ * write can be checked for what it logged. Everything it writes is removed.
  */
+import { readFile, stat } from 'node:fs/promises'
+
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
 import type { Envelope } from '@erc/contract'
@@ -20,6 +24,8 @@ const payload = await getPayload({ config })
 const db = payload.db.drizzle
 const site = process.env.ERC_CHECK_URL
 if (!site) throw new Error('Set ERC_CHECK_URL to the running site')
+const siteLog = process.env.ERC_CHECK_LOG
+if (!siteLog) throw new Error('Set ERC_CHECK_LOG to the file the running site writes its output to')
 const run = Date.now()
 const token = `Revchk${run}`
 const failures: string[] = []
@@ -182,6 +188,20 @@ try {
   const ashaPage = await submit(asha, shoePath, 'name="title"', { rating: '5', title: ashaTitle, body: 'My go-to for easy days.', kmRun: '300' })
   expect('a member writes a review with the form, JavaScript off', ashaPage.includes('Thanks. Your review shows here once a club volunteer has checked it.'), true)
 
+  const secret = `private-review-${run}`
+  await db.execute(sql.raw(`
+    CREATE FUNCTION revchk_fail_${run}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced by check-reviews'; END $$;
+    CREATE TRIGGER revchk_fail_${run} BEFORE INSERT ON reviews FOR EACH ROW WHEN (NEW.body LIKE '%private-review-${run}%') EXECUTE FUNCTION revchk_fail_${run}();`))
+  const logStart = (await stat(siteLog)).size
+  const failedTitle = `${token} Cara on the shoe`
+  const failedPage = await submit(cara, shoePath, 'name="title"', { rating: '3', title: failedTitle, body: `Only for the check: ${secret}`, kmRun: '40' })
+  const loggedSince = async () => (await readFile(siteLog)).subarray(logStart).toString()
+  expect('a write that fails in the database shows the form again with a notice, JavaScript off', [failedPage.includes('Something went wrong. Try again.'), failedPage.includes(`Only for the check: ${secret}`)], [true, true])
+  expect('the site logs the failure', await settles(async () => (await loggedSince()).includes('A member action failed')), true)
+  expect('and its log does not carry what the member typed', (await loggedSince()).includes(secret), false)
+  expect('nothing was stored', await reviewState(failedTitle), null)
+  await db.execute(sql.raw(`DROP TRIGGER revchk_fail_${run} ON reviews; DROP FUNCTION revchk_fail_${run}();`))
+
   const benRow = (await reviewState(benTitle))!
   const ashaRow = (await reviewState(ashaTitle))!
   await decide('reviews', benRow.id, 'approve')
@@ -295,6 +315,7 @@ try {
   expect('deleting a shoe deletes its reviews', await count(sql`SELECT count(*)::int AS n FROM reviews WHERE subject_key = ${`shoes:${shoeId}`}`), 0)
   shoeId = 0
 } finally {
+  await db.execute(sql.raw(`DROP TRIGGER IF EXISTS revchk_fail_${run} ON reviews; DROP FUNCTION IF EXISTS revchk_fail_${run}();`))
   if (shoeId) await payload.delete({ collection: 'shoes', id: shoeId, overrideAccess: true }).catch(() => null)
   if (raceId) await payload.delete({ collection: 'races', id: raceId, overrideAccess: true }).catch(() => null)
   if (coachId) await db.execute(sql`DELETE FROM coaches WHERE id = ${coachId}`)

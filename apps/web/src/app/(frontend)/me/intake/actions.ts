@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { fieldsOf } from '@/content/form-fields'
+import { ACTION_FAILED, guarded } from '@/members/guarded'
 import { currentCaller, run } from '@/members/run'
 
 /** What was typed, so a refusal shows it again. Consent is never carried over a save: each save asks for it. */
@@ -17,13 +18,19 @@ export type IntakeFormState = {
   saved?: boolean
 }
 
-export async function saveIntakeAction(_previous: IntakeFormState, form: FormData): Promise<IntakeFormState> {
+// Only question fields become answers: a form post also carries the framework's own hidden fields.
+const typedState = (fields: Record<string, string>) => ({
+  values: Object.fromEntries(INTAKE_KEYS.map((key) => [key, fields[key] ?? ''])),
+  shareWithCoach: fields.shareWithCoach === 'on',
+  consent: fields.consent === 'on',
+})
+
+export const saveIntakeAction = guarded(async (_previous: IntakeFormState, form: FormData): Promise<IntakeFormState> => {
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   const fields = fieldsOf(form)
-  // Only question fields become answers: a form post also carries the framework's own hidden fields.
-  const values = Object.fromEntries(INTAKE_KEYS.map((key) => [key, fields[key] ?? '']))
-  const state = { values, shareWithCoach: fields.shareWithCoach === 'on', consent: fields.consent === 'on' }
+  const state = typedState(fields)
+  const { values } = state
   const done = await run('saveIntake', caller, { answers: values, consent: fields.consent ?? '', shareWithCoach: fields.shareWithCoach ?? '' })
   if (!done.ok) {
     const { error } = done
@@ -31,13 +38,13 @@ export async function saveIntakeAction(_previous: IntakeFormState, form: FormDat
   }
   revalidatePath('/me/intake')
   return { ...state, consent: false, saved: true }
-}
+}, (_previous, form) => ({ ...typedState(fieldsOf(form)), notice: ACTION_FAILED }))
 
-export async function clearIntakeAction(_form: FormData): Promise<void> {
+export const clearIntakeAction = guarded(async (_form: FormData): Promise<void> => {
   const caller = await currentCaller()
   if (caller.kind !== 'member') redirect('/sign-in')
   await run('clearIntake', caller, {})
   revalidatePath('/me/intake')
   // A fresh value each time remounts the form, so answers typed before the delete do not linger in its state.
   redirect(`/me/intake?cleared=${Date.now()}`)
-}
+})
