@@ -40,7 +40,7 @@ const roundKm = (km: number) => (km < 20 ? Math.max(1, Math.round(km)) : Math.ro
 export const formatRaceDistance = (distance: RaceDistance, origin: City): string => {
   if (distance.kind === 'unknown') return 'Distance unknown'
   if (distance.kind === 'city') return distance.city.slug === origin.slug ? `In ${origin.name}` : `~${roundKm(distance.km)} km away`
-  return distance.km < 20 ? 'Under 20 km away (approx.)' : `~${roundKm(distance.km)} km away (approx.)`
+  return distance.km < 20 ? `Near ${distance.capital.name} (approx.)` : `~${roundKm(distance.km)} km away (approx.)`
 }
 
 /** A plain GET form, so choosing a city works without JavaScript. An empty choice goes back to the full calendar. */
