@@ -49,9 +49,9 @@ try {
 
   const multi = await payload.create({ collection: 'races', data: raceData(`hook-check-multi-${run}`, '2026-12-06', 3) })
   created.push(multi.id)
-  expect('multi-day race is categorised as a multi-day ultra, band unchanged', await keysOf(multi.id), [
-    { metres: 5000, category: 'ultra-multiday', band: 'under-10k' },
-    { metres: 25000, category: 'ultra-multiday', band: 'half-to-marathon' },
+  expect('multi-day race makes only its beyond-marathon distances multi-day ultras, band unchanged', await keysOf(multi.id), [
+    { metres: 5000, category: '5k', band: 'under-10k' },
+    { metres: 25000, category: 'other', band: 'half-to-marathon' },
     { metres: 160934, category: 'ultra-multiday', band: 'over-100k' },
   ])
 

@@ -105,6 +105,12 @@ const currentDates = (race: PublicRace): PublicRace['dates'] =>
 export default async function RacePage({ params }: Props) {
   const race = await raceOf(params)
   const today = todayIn('Asia/Kolkata')
+  const registrationClosed = race.registration.closesOn !== null && race.registration.closesOn < today
+  const columns = {
+    elevation: race.distances.some((option) => option.elevationGainMetres !== undefined),
+    terrain: race.distances.some((option) => option.terrain),
+    cutoff: race.distances.some((option) => option.cutoff !== undefined),
+  }
   const source = sourceLabel(race.source)
   const flagged = race.status.kind !== 'scheduled' || isVerificationStale(race, today)
 
@@ -148,11 +154,13 @@ export default async function RacePage({ params }: Props) {
         ) : null}
         <p className="race-summary">{race.summary}</p>
         <ul className="cta-row">
-          <li>
-            <a className="button" href={race.registration.url} rel="noopener">
-              Register
-            </a>
-          </li>
+          {registrationClosed ? null : (
+            <li>
+              <a className="button" href={race.registration.url} rel="noopener">
+                Register
+              </a>
+            </li>
+          )}
           <li>
             <a className="button button-secondary" href={race.officialUrl} rel="noopener">
               Official website
@@ -167,11 +175,15 @@ export default async function RacePage({ params }: Props) {
           <RaceDates race={race} />
         </dd>
         <dt>Location</dt>
-        <dd>{race.location.kind === 'virtual' ? 'Virtual' : `${race.location.venue}, ${placeOf(race)}`}</dd>
+        <dd>{race.location.kind === 'virtual' ? 'Virtual' : race.location.venue === race.location.city ? placeOf(race) : `${race.location.venue}, ${placeOf(race)}`}</dd>
         <dt>Discipline</dt>
         <dd>{DISCIPLINE_LABELS[race.discipline]}</dd>
         <dt>Registration closes</dt>
-        <dd>{race.registration.closesOn ? formatDate(race.registration.closesOn) : 'Not announced'}</dd>
+        <dd>
+          {race.registration.closesOn
+            ? `${registrationClosed ? 'Closed ' : ''}${formatDate(race.registration.closesOn)}`
+            : 'Not announced'}
+        </dd>
         <dt>Official website</dt>
         <dd>
           <a href={race.officialUrl} rel="noopener">
@@ -199,18 +211,20 @@ export default async function RacePage({ params }: Props) {
             <thead>
               <tr>
                 <th scope="col">Distance</th>
-                <th scope="col">Elevation gain</th>
-                <th scope="col">Terrain</th>
-                <th scope="col">Cutoff</th>
+                {columns.elevation ? <th scope="col">Elevation gain</th> : null}
+                {columns.terrain ? <th scope="col">Terrain</th> : null}
+                {columns.cutoff ? <th scope="col">Cutoff</th> : null}
               </tr>
             </thead>
             <tbody>
               {race.distances.map((option, index) => (
                 <tr key={index}>
                   <td>{formatDistance(option)}</td>
-                  <td>{option.elevationGainMetres === undefined ? '' : `${option.elevationGainMetres} m`}</td>
-                  <td>{option.terrain ? terrainLabel(option.terrain) : ''}</td>
-                  <td>{option.cutoff === undefined ? '' : formatCutoff(option.cutoff)}</td>
+                  {columns.elevation ? (
+                    <td>{option.elevationGainMetres === undefined ? '' : `${option.elevationGainMetres} m`}</td>
+                  ) : null}
+                  {columns.terrain ? <td>{option.terrain ? terrainLabel(option.terrain) : ''}</td> : null}
+                  {columns.cutoff ? <td>{option.cutoff === undefined ? '' : formatCutoff(option.cutoff)}</td> : null}
                 </tr>
               ))}
             </tbody>
