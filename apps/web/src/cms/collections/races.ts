@@ -23,6 +23,8 @@ import { httpsUrlField, localDateField, optionsFrom, shownWhen } from '../fields
 import { defineRecord } from '../kinds'
 import { subdivisionOptions } from '../subdivisions'
 
+import { deleteReviewsOf } from './shoes'
+
 type Distances = NonNullable<RaceDoc['distances']>
 
 /** `category` and `band` are derived from `metres` here and nowhere else; the admin shows them read-only. */
@@ -55,7 +57,7 @@ export const Races = defineRecord({
   visibility: 'moderated',
   admin: { useAsTitle: 'name', defaultColumns: ['name', 'dates.start', 'discipline', 'moderation.state'] },
   defaultSort: 'dates.start',
-  hooks: { beforeChange: [deriveDistanceKeys] },
+  hooks: { beforeChange: [deriveDistanceKeys], beforeDelete: [deleteReviewsOf('races')] },
   fields: [
     { name: 'name', type: 'text', required: true },
     { name: 'slug', type: 'text', required: true, unique: true, validate: raceSlug },

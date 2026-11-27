@@ -20,8 +20,8 @@ const endSessionsOnSuspend: CollectionAfterChangeHook = async ({ doc, previousDo
 }
 
 /**
- * Erasing a member erases what they asked for and what only they made: their claims, their changes, the photos they
- * uploaded, and a profile they started that never went public. A public profile they claimed or started stays with the
+ * Erasing a member erases what they asked for and what only they made: their claims, their changes, their reviews and
+ * questions, the photos they uploaded, and a profile they started that never went public. A public profile they claimed or started stays with the
  * club, unlinked and hidden, because its results were entered by coaches and nobody is left to consent to showing it.
  */
 const releaseAthleteOnDelete: CollectionBeforeDeleteHook = async ({ id, req }) => {
@@ -29,7 +29,7 @@ const releaseAthleteOnDelete: CollectionBeforeDeleteHook = async ({ id, req }) =
   const athletes = await req.payload.find({ collection: 'athletes', where: mine, depth: 0, pagination: false, overrideAccess: true, req })
   const changes = await req.payload.find({ collection: 'profileChanges', where: mine, depth: 0, pagination: false, overrideAccess: true, req })
   for (const doc of [...athletes.docs, ...changes.docs]) await deleteMemberPhoto(req.payload, idOf(doc.photo), req)
-  for (const collection of ['claims', 'profileChanges'] as const) await req.payload.delete({ collection, where: mine, overrideAccess: true, req })
+  for (const collection of ['claims', 'profileChanges', 'reviews', 'questions'] as const) await req.payload.delete({ collection, where: mine, overrideAccess: true, req })
   await req.payload.delete({ collection: 'athletes', where: { and: [mine, { 'moderation.state': { not_equals: 'approved' } }] }, overrideAccess: true, req })
   await req.payload.update({
     collection: 'athletes',

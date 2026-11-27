@@ -84,6 +84,9 @@ export interface Config {
     members: Member;
     claims: Claim;
     profileChanges: ProfileChange;
+    shoes: Shoe;
+    reviews: Review;
+    questions: Question;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -108,6 +111,9 @@ export interface Config {
     members: MembersSelect<false> | MembersSelect<true>;
     claims: ClaimsSelect<false> | ClaimsSelect<true>;
     profileChanges: ProfileChangesSelect<false> | ProfileChangesSelect<true>;
+    shoes: ShoesSelect<false> | ShoesSelect<true>;
+    reviews: ReviewsSelect<false> | ReviewsSelect<true>;
+    questions: QuestionsSelect<false> | QuestionsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -1274,6 +1280,117 @@ export interface ProfileChange {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "shoes".
+ */
+export interface Shoe {
+  id: number;
+  brand: string;
+  model: string;
+  slug: string;
+  category: 'road-daily' | 'road-tempo' | 'racing' | 'trail';
+  /**
+   * Plain facts: what the shoe is for and how it is built. No prices.
+   */
+  description: string;
+  image?: (number | null) | Media;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Shoe and race reviews from members. Approve to show one on its page. A member who edits an approved review sends it back here.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reviews".
+ */
+export interface Review {
+  id: number;
+  subject:
+    | {
+        relationTo: 'shoes';
+        value: number | Shoe;
+      }
+    | {
+        relationTo: 'races';
+        value: number | Race;
+      };
+  subjectKey: string;
+  member: number | Member;
+  rating: number;
+  title: string;
+  body: string;
+  kmRun?: number | null;
+  yearRun?: number | null;
+  moderation: {
+    state: 'submitted' | 'approved' | 'rejected';
+    /**
+     * Who sent a public submission. Empty when staff added the record.
+     */
+    submitter?: {
+      name?: string | null;
+      email?: string | null;
+    };
+    submittedAt?: string | null;
+    decidedBy?: (number | null) | Staff;
+    decidedAt?: string | null;
+    reason?: string | null;
+  };
+  /**
+   * Applied when you save.
+   */
+  moderationDecision?: ('approve' | 'reject') | null;
+  rejectionReason?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Questions members ask on race pages. Approve to show one; write an answer and save to answer it as the club.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "questions".
+ */
+export interface Question {
+  id: number;
+  race: number | Race;
+  member: number | Member;
+  text: string;
+  /**
+   * Shown under the question once it is approved. Clear it to take the answer down.
+   */
+  answer?: string | null;
+  answeredBy?:
+    | ({
+        relationTo: 'staff';
+        value: number | Staff;
+      } | null)
+    | ({
+        relationTo: 'coaches';
+        value: number | Coach;
+      } | null);
+  answeredAt?: string | null;
+  moderation: {
+    state: 'submitted' | 'approved' | 'rejected';
+    /**
+     * Who sent a public submission. Empty when staff added the record.
+     */
+    submitter?: {
+      name?: string | null;
+      email?: string | null;
+    };
+    submittedAt?: string | null;
+    decidedBy?: (number | null) | Staff;
+    decidedAt?: string | null;
+    reason?: string | null;
+  };
+  /**
+   * Applied when you save.
+   */
+  moderationDecision?: ('approve' | 'reject') | null;
+  rejectionReason?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -1363,6 +1480,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'profileChanges';
         value: number | ProfileChange;
+      } | null)
+    | ({
+        relationTo: 'shoes';
+        value: number | Shoe;
+      } | null)
+    | ({
+        relationTo: 'reviews';
+        value: number | Review;
+      } | null)
+    | ({
+        relationTo: 'questions';
+        value: number | Question;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -2010,6 +2139,84 @@ export interface ProfileChangesSelect<T extends boolean = true> {
   field?: T;
   text?: T;
   photo?: T;
+  moderation?:
+    | T
+    | {
+        state?: T;
+        submitter?:
+          | T
+          | {
+              name?: T;
+              email?: T;
+            };
+        submittedAt?: T;
+        decidedBy?: T;
+        decidedAt?: T;
+        reason?: T;
+      };
+  moderationDecision?: T;
+  rejectionReason?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "shoes_select".
+ */
+export interface ShoesSelect<T extends boolean = true> {
+  brand?: T;
+  model?: T;
+  slug?: T;
+  category?: T;
+  description?: T;
+  image?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reviews_select".
+ */
+export interface ReviewsSelect<T extends boolean = true> {
+  subject?: T;
+  subjectKey?: T;
+  member?: T;
+  rating?: T;
+  title?: T;
+  body?: T;
+  kmRun?: T;
+  yearRun?: T;
+  moderation?:
+    | T
+    | {
+        state?: T;
+        submitter?:
+          | T
+          | {
+              name?: T;
+              email?: T;
+            };
+        submittedAt?: T;
+        decidedBy?: T;
+        decidedAt?: T;
+        reason?: T;
+      };
+  moderationDecision?: T;
+  rejectionReason?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "questions_select".
+ */
+export interface QuestionsSelect<T extends boolean = true> {
+  race?: T;
+  member?: T;
+  text?: T;
+  answer?: T;
+  answeredBy?: T;
+  answeredAt?: T;
   moderation?:
     | T
     | {
