@@ -1,6 +1,6 @@
 import {
   bandOf,
-  categoriseDistance,
+  categoriseResult,
   DISCIPLINES,
   DISTANCE_BANDS,
   isReservedRaceSlug,
@@ -29,14 +29,14 @@ type Distances = NonNullable<RaceDoc['distances']>
 const deriveDistanceKeys: CollectionBeforeChangeHook<RaceDoc> = ({ data, originalDoc }) => {
   const distances: Distances | undefined = data.distances ?? originalDoc?.distances ?? undefined
   if (!distances) return data
-  const multiDay = (data.dates?.dayCount ?? originalDoc?.dates?.dayCount ?? 1) > 1
+  const dayCount = data.dates?.dayCount ?? originalDoc?.dates?.dayCount ?? 1
   return {
     ...data,
     distances: distances.map((option) =>
       typeof option.metres === 'number' && option.metres > 0
         ? {
             ...option,
-            category: categoriseDistance(option.metres as Metres, multiDay),
+            category: categoriseResult(option.metres as Metres, dayCount),
             band: bandOf(option.metres as Metres),
           }
         : option,
