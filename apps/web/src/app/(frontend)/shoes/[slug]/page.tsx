@@ -46,12 +46,10 @@ export default async function ShoePage({ params }: Props) {
         </a>
         <p className="shoe-brand">{shoe.brand}</p>
         <h1>{shoe.model}</h1>
-        <RatingLine rating={shoe.rating} />
+        {shoe.rating.count > 0 ? <RatingLine rating={shoe.rating} /> : null}
       </header>
       {shoe.image ? <img src={shoe.image.url} alt={shoe.image.alt} className="shoe-image" /> : null}
       <dl className="shoe-facts">
-        <dt>Brand</dt>
-        <dd>{shoe.brand}</dd>
         <dt>Category</dt>
         <dd>
           <a href={`/shoes?category=${shoe.category}`}>{category?.label ?? shoe.category}</a>
