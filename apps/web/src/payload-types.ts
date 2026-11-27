@@ -235,7 +235,7 @@ export interface Coach {
     [k: string]: unknown;
   } | null;
   /**
-   * The member account that controls this coach profile and views athlete rosters.
+   * The member account that controls this coach profile and views athlete rosters. Only admins can change it, and changing it ends this coach’s coaching links.
    */
   member?: (number | null) | Member;
   workflow?:

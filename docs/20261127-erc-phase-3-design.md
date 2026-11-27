@@ -35,7 +35,7 @@ The questions live in one typed table, `INTAKE_QUESTIONS`, in `@erc/domain`. Eac
 |---|---|---|---|
 | Columns or `jsonb`? | `jsonb`, parsed by the domain | One column per question | Questions will change with the coaches' feedback. A parser at the boundary keeps the type safety a column would give. |
 | Keep history? | No. A re-take overwrites. | Versioned rows | It is an assessment snapshot, not a log. Fewer health records held means less to lose. |
-| Staff can read it? | No. | Staff read for support | Health data. Staff never need it, and DPDP asks for the narrowest purpose **[I]**. |
+| Staff can read it? | No. Only an admin can reassign a coach's member account, and doing so ends that coach's links and turns off sharing, so no one can take over a coach to read its athletes' intakes. | Staff read for support | Health data. Staff never need it, and DPDP asks for the narrowest purpose **[I]**. |
 
 **Consent and wording.** The form asks for explicit consent to store health answers and says it is for assessment, not advice. Deleting the member deletes the row by cascade. The member can also clear it from `/me/intake`.
 

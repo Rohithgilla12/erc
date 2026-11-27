@@ -3,6 +3,8 @@
  * it, nobody else. Also proves consent is required, clearing works, and deleting the member deletes the row.
  * Run via: pnpm --filter @erc/web payload run src/scripts/check-intake.ts
  */
+import { randomBytes } from 'node:crypto'
+
 import config from '@payload-config'
 import { sql } from '@payloadcms/db-postgres'
 import { CLUB_TIME_ZONE, parseIntakeAnswers, todayIn, type CoachId, type MemberId } from '@erc/domain'
@@ -32,6 +34,7 @@ const expect = (label: string, actual: unknown, wanted: unknown) => {
 const memberIds: MemberId[] = []
 const coachIds: CoachId[] = []
 const athleteIds: number[] = []
+const staffIds: number[] = []
 
 const newMember = async (name: string): Promise<MemberId> => {
   const { rows } = await db.execute(sql`INSERT INTO members (email, age_declared_at) VALUES (${`check-intake-${name}-${runId}@example.com`}, now()) RETURNING id`)
@@ -42,7 +45,7 @@ const newMember = async (name: string): Promise<MemberId> => {
 
 const newCoach = async (member: MemberId, name: string): Promise<CoachId> => {
   const { rows } = await db.execute(sql`
-    INSERT INTO coaches (name, slug, member_id, _status) VALUES (${`Coach ${name} ${runId}`}, ${`check-intake-coach-${name}-${runId}`}, ${member}, 'published') RETURNING id
+    INSERT INTO coaches (name, credentials, slug, member_id, _status) VALUES (${`Coach ${name} ${runId}`}, 'Check coach', ${`check-intake-coach-${name}-${runId}`}, ${member}, 'published') RETURNING id
   `)
   const id = (rows[0] as { id: number }).id as CoachId
   coachIds.push(id)
@@ -166,6 +169,33 @@ try {
   const afterDecline = await run('myIntake', athlete, {})
   expect('a declined request turns sharing off too', afterDecline.ok && afterDecline.data?.shareWithCoach, false)
 
+  const staffUser = async (role: 'editor' | 'admin') => {
+    const doc = await payload.create({ collection: 'staff', data: { email: `check-intake-${role}-${runId}@erc.invalid`, password: randomBytes(24).toString('base64url'), role } })
+    staffIds.push(doc.id)
+    return { user: { ...doc, collection: 'staff' as const }, overrideAccess: false }
+  }
+  const coachMemberNow = async () => ((await db.execute(sql`SELECT member_id FROM coaches WHERE id = ${coachId}`)).rows[0] as { member_id: number }).member_id
+  await run('saveIntake', athlete, { answers, consent: 'on', shareWithCoach: 'on' })
+  await run('requestCoach', athlete, { coachId })
+  const relinked = await run('roster', coach, {})
+  await run('decideCoachingRequest', coach, { linkId: (relinked.ok && relinked.data.pendingRequests[0]?.linkId) || '', decision: 'accept' })
+  expect('the coach reads the shared intake again once relinked', (await run('athleteIntake', coach, { athleteSlug })).ok, true)
+
+  await payload.update({ collection: 'coaches', id: coachId, data: { member: otherMember, _status: 'published' }, ...(await staffUser('editor')) }).catch(() => null)
+  expect('an editor cannot point a coach at their own member account', await coachMemberNow(), coachMember)
+  const stillShared = await run('athleteIntake', coach, { athleteSlug })
+  expect('so the coach still reads the intake and nobody else does', [stillShared.ok && stillShared.data.shared, (await run('athleteIntake', other, { athleteSlug })).ok], [true, false])
+
+  await payload.update({ collection: 'coaches', id: coachId, data: { member: otherMember, _status: 'published' }, ...(await staffUser('admin')) })
+  const { rows: coachRows } = await db.execute(sql`SELECT member_id, _status FROM coaches WHERE id = ${coachId}`)
+  expect('an admin reassigns the coach account, which stays published', coachRows[0], { member_id: otherMember, _status: 'published' })
+  const { rows: linkRows } = await db.execute(sql`SELECT state, ended_by FROM coaching_links WHERE coach_id = ${coachId} AND athlete_member_id = ${athleteMember} ORDER BY requested_at DESC LIMIT 1`)
+  expect('which ends the coach’s links as staff', linkRows[0], { state: 'ended', ended_by: 'staff' })
+  const reassigned = await run('myIntake', athlete, {})
+  expect('and turns the athlete’s sharing off', reassigned.ok && reassigned.data?.shareWithCoach, false)
+  const newOwner = await run('athleteIntake', await callerFor(otherMember), { athleteSlug })
+  expect('so the new account cannot read the intake', !newOwner.ok && newOwner.error.code, 'forbidden')
+
   const parsed = parseIntakeAnswers(answers, todayIn(CLUB_TIME_ZONE))
   const failedSave = parsed.ok ? await saveIntake(payload, -1 as MemberId, { answers: parsed.value, shareWithCoach: false }).then(() => null, (error: unknown) => error) : null
   const failedText = failedSave instanceof Error ? [String(failedSave), failedSave.stack, JSON.stringify(failedSave), String(failedSave.cause)].join('\n') : ''
@@ -183,6 +213,7 @@ try {
   expect('deleting the member deletes the intake', await intakeRows(athleteMember), 0)
 } finally {
   try {
+    for (const id of staffIds) await payload.delete({ collection: 'staff', id })
     if (athleteIds.length > 0) await db.execute(sql`DELETE FROM athletes WHERE id IN ${sql`(${sql.join(athleteIds.map((id) => sql`${id}`), sql`, `)})`}`)
     if (coachIds.length > 0) await db.execute(sql`DELETE FROM coaches WHERE id IN ${sql`(${sql.join(coachIds.map((id) => sql`${id}`), sql`, `)})`}`)
     if (memberIds.length > 0) {
