@@ -399,6 +399,14 @@ export default async function MePage({ searchParams }: Props) {
 
       <AthleteSummary athlete={dashboard.data.athlete} />
 
+      <section aria-labelledby="intake">
+        <h2 id="intake">Intake</h2>
+        <p className="member-note">Your running, recovery, and health in one place, so a coach starts from a real picture. Private unless you share it.</p>
+        <p>
+          <a href="/me/intake">Fill in or update your intake</a>
+        </p>
+      </section>
+
       <CoachingSection coaching={coaching.data} />
 
       {stravaView && stravaView.enabled ? <StravaSection strava={stravaView} /> : null}
