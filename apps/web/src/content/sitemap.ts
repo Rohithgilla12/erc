@@ -50,12 +50,13 @@ const newestBy = () => {
 const isIndexed = (doc: { seo?: { noindex?: boolean | null } | null }) => !doc.seo?.noindex
 
 async function editorialEntries(payload: Payload) {
-  const [posts, videos, topics, coaches, pages] = await Promise.all([
+  const [posts, videos, topics, coaches, pages, news] = await Promise.all([
     payload.find({ collection: 'posts', ...anonymous, select: { slug: true, topics: true, authors: true, updatedAt: true, workflow: true, seo: { noindex: true } } }),
     payload.find({ collection: 'videos', ...anonymous, select: { slug: true, updatedAt: true, workflow: true, seo: { noindex: true } } }),
     payload.find({ collection: 'topics', ...anonymous, select: { slug: true, updatedAt: true, workflow: true } }),
     payload.find({ collection: 'coaches', ...anonymous, select: { slug: true, updatedAt: true, workflow: true } }),
     payload.find({ collection: 'pages', ...anonymous, select: { slug: true, updatedAt: true, workflow: true, seo: { noindex: true } } }),
+    payload.find({ collection: 'news', ...anonymous, select: { slug: true, updatedAt: true, workflow: true } }),
   ])
   const byTopic = newestBy()
   const byCoach = newestBy()
@@ -74,10 +75,12 @@ async function editorialEntries(payload: Payload) {
   return {
     learn: latest(indexedPosts.map(changedAt)),
     videos: latest(indexedVideos.map(changedAt)),
+    news: latest(news.docs.map(changedAt)),
     sitePage,
     entries: [
       ...indexedPosts.map((post) => ({ path: `/learn/${post.slug}`, lastModified: changedAt(post) })),
       ...indexedVideos.map((video) => ({ path: `/videos/${video.slug}`, lastModified: changedAt(video) })),
+      ...news.docs.map((item) => ({ path: `/news/${item.slug}`, lastModified: changedAt(item) })),
       ...topics.docs.map((topic) => ({ path: `/learn/topic/${topic.slug}`, lastModified: latest([changedAt(topic), byTopic.of(String(topic.id))]) })),
       ...coaches.docs.map((coach) => ({ path: `/coaches/${coach.slug}`, lastModified: latest([changedAt(coach), byCoach.of(String(coach.id))]) })),
     ],
@@ -133,6 +136,7 @@ async function readSitemap(today: LocalDate): Promise<SitemapEntry[]> {
     '/races': races.calendar,
     '/learn': editorial.learn,
     '/videos': editorial.videos,
+    '/news': editorial.news,
     '/plans': latest(indexedPlans.map((plan) => plan.updatedAt)),
     '/athletes': latest(athletes.map((entry) => entry.lastModified)),
   }
